@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agent-context.dev/schema.json",
+  "version": "1.0.0",
+  "project": {
+    "name": "@agent-context/cli",
+    "description": "Universal AI agent context system - CLAUDE.md templates, memory, worktrees for Claude Code, Factory.AI, VSCode, OpenCode",
+    "defaultBranch": "main"
+  },
+  "platforms": {
+    "claudeCode": {
+      "enabled": true
+    },
+    "factory": {
+      "enabled": true
+    },
+    "vscode": {
+      "enabled": true
+    },
+    "opencode": {
+      "enabled": true
+    }
+  },
+  "memory": {
+    "shortTerm": {
+      "enabled": true,
+      "path": "./agents/data/memory/short_term.db",
+      "maxEntries": 50
+    },
+    "longTerm": {
+      "enabled": true,
+      "provider": "qdrant",
+      "endpoint": "localhost:6333",
+      "collection": "agent_memory",
+      "embeddingModel": "all-MiniLM-L6-v2"
+    }
+  },
+  "worktrees": {
+    "enabled": true,
+    "directory": ".worktrees",
+    "branchPrefix": "feature/",
+    "autoCleanup": true
+  },
+  "droids": [],
+  "commands": [],
+  "template": {
+    "extends": "default",
+    "sections": {
+      "memorySystem": true,
+      "browserUsage": true,
+      "decisionLoop": true,
+      "worktreeWorkflow": true,
+      "troubleshooting": true,
+      "augmentedCapabilities": true
+    }
+  }
+}
