@@ -315,17 +315,22 @@ Available skills are auto-discovered. When you see a SKILL.md, follow its instru
 ---
 
 {{/if}}
-{{#if IS_DESKTOP_PLATFORM}}
 **MANDATORY WORKFLOW REQUIREMENTS**:
 
+{{#if IS_DESKTOP_PLATFORM}}
 1. **Git Worktrees**: ALL code changes MUST use isolated git worktrees (\`{{WORKTREE_PREFIX}}NNN-slug\` branches)
 2. **PR-Based Merges**: NO direct commits to \`{{DEFAULT_BRANCH}}\`. All changes via PR with automated review
 3. **CI/CD Pipelines**: ALWAYS use CI/CD pipelines to deploy. Create ephemeral pipelines when needed
 4. **Automated Review**: PRs require signoff from reviewer agents before merge
+{{else}}
+1. **Feature Branches**: ALL code changes MUST use isolated feature branches (\`{{WORKTREE_PREFIX}}description\`)
+2. **PR-Based Merges**: NO direct commits to \`{{DEFAULT_BRANCH}}\`. All changes via PR
+3. **Code Review**: PRs should be reviewed before merge
+{{/if}}
 
 ---
 
-{{/if}}
+
 ## Quick Reference
 
 {{#if HAS_CLUSTERS}}
@@ -439,9 +444,9 @@ cd {{INFRA_PATH}} && terraform plan
 ---
 
 {{/if}}
-{{#if IS_DESKTOP_PLATFORM}}
 ## Required Workflow (MANDATORY)
 
+{{#if IS_DESKTOP_PLATFORM}}
 ### Git Worktree Workflow (ALL Changes)
 
 **Every code change MUST follow this workflow:**
@@ -471,41 +476,85 @@ cd {{INFRA_PATH}} && terraform plan
    agent-context worktree cleanup <id>
    → Removes worktree and deletes branch
 \`\`\`
+{{else}}
+### Git Branch Workflow (ALL Changes)
+
+**Every code change MUST follow this workflow:**
+
+\`\`\`
+1. CREATE BRANCH
+   git checkout -b {{WORKTREE_PREFIX}}<description>
+   → Creates isolated feature branch
+
+2. DEVELOP
+   → Make changes, commit locally
+   → Keep commits atomic and well-described
+
+3. CREATE PR
+   git push -u origin {{WORKTREE_PREFIX}}<description>
+   → Push to remote
+   → Create PR via GitHub/GitLab UI
+
+4. CODE REVIEW
+   → Request review from team members
+   → Address feedback
+
+5. MERGE & CLEANUP
+   → Merge PR after approval
+   → Delete feature branch
+\`\`\`
+{{/if}}
 
 ### Before ANY Task
 
 1. Read relevant docs in \`/docs\` and component folders
 2. Check for known issues in troubleshooting section
+{{#if IS_DESKTOP_PLATFORM}}
 3. **Create a worktree for your changes**
+{{else}}
+3. **Create a feature branch for your changes**
+{{/if}}
 
 ### For Code Changes
 
+{{#if IS_DESKTOP_PLATFORM}}
 1. **Create worktree**: \`agent-context worktree create <slug>\`
+{{else}}
+1. **Create branch**: \`git checkout -b {{WORKTREE_PREFIX}}<description>\`
+{{/if}}
 2. Update/create tests
 3. Run \`{{TEST_COMMAND}}\`
 4. Run linting and type checking
+{{#if IS_DESKTOP_PLATFORM}}
 5. **Create PR**: \`agent-context worktree pr <id>\`
+{{else}}
+5. **Create PR**: Push branch and open PR
+{{/if}}
 
 {{#if HAS_TERRAFORM}}
 ### For Infrastructure Changes
 
+{{#if IS_DESKTOP_PLATFORM}}
 1. **Create worktree** for Terraform changes
+{{else}}
+1. **Create branch** for Terraform changes
+{{/if}}
 2. Update Terraform in \`{{INFRA_PATH}}\`
 3. Update CI/CD workflows if needed
 4. Run \`terraform plan\`
 5. Update secrets via GitHub Actions (not locally)
-6. **Create PR** with automated review
+6. **Create PR** with review
 
 {{/if}}
 ### Before Completing
 
-1. All tests pass (enforced by pre-push hook)
-2. PR created and reviewed by agents
+1. All tests pass
+2. PR created and reviewed
 3. Update relevant documentation
 
 ---
 
-{{/if}}
+
 {{#if HAS_DROIDS}}
 ## Augmented Agent Capabilities
 
