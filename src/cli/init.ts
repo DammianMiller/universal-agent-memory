@@ -10,6 +10,9 @@ import type { AgentContextConfig, Platform } from '../types/index.js';
 
 interface InitOptions {
   platform: string[];
+  web?: boolean;
+  desktop?: boolean;
+  interactive?: boolean;
   withMemory?: boolean;
   withWorktrees?: boolean;
   force?: boolean;
@@ -108,7 +111,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
           shortTerm: {
             enabled: true,
             path: './agents/data/memory/short_term.db',
+            webDatabase: 'agent_context_memory',
             maxEntries: 50,
+            forceDesktop: false,
           },
           longTerm: {
             enabled: true,
@@ -272,6 +277,8 @@ async function setupPlatform(
     factory: ['.factory/droids', '.factory/commands', '.factory/skills', '.factory/scripts', '.factory/templates'],
     vscode: ['.vscode'],
     opencode: ['.opencode/agent', '.opencode/command'],
+    claudeWeb: [], // Web platforms don't need local directories
+    factoryWeb: [],
   };
 
   const dirs = platformDirs[platform] || [];

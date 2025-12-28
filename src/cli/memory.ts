@@ -1,10 +1,14 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { prepopulateMemory } from '../memory/prepopulate.js';
+import { SQLiteShortTermMemory } from '../memory/short-term/sqlite.js';
+import { AgentContextConfigSchema } from '../types/index.js';
+import type { AgentContextConfig } from '../types/index.js';
 
-type MemoryAction = 'status' | 'start' | 'stop' | 'query' | 'store';
+type MemoryAction = 'status' | 'start' | 'stop' | 'query' | 'store' | 'prepopulate';
 
 interface MemoryOptions {
   search?: string;
@@ -12,6 +16,10 @@ interface MemoryOptions {
   content?: string;
   tags?: string;
   importance?: string;
+  docs?: boolean;
+  git?: boolean;
+  since?: string;
+  verbose?: boolean;
 }
 
 export async function memoryCommand(action: MemoryAction, options: MemoryOptions = {}): Promise<void> {
@@ -32,6 +40,9 @@ export async function memoryCommand(action: MemoryAction, options: MemoryOptions
       break;
     case 'store':
       await storeMemory(cwd, options.content!, options.tags, parseInt(options.importance || '5'));
+      break;
+    case 'prepopulate':
+      await prepopulateFromSources(cwd, options);
       break;
   }
 }
@@ -183,4 +194,123 @@ async function storeMemory(
   // TODO: Implement actual Qdrant store
   console.log(chalk.yellow('\nMemory storage not yet implemented'));
   console.log(chalk.dim('This will embed the content and store in Qdrant'));
+}
+
+async function prepopulateFromSources(cwd: string, options: MemoryOptions): Promise<void> {
+  console.log(chalk.bold('\n🧠 Prepopulating Memory from Project Sources\n'));
+
+  // Load config
+  const configPath = join(cwd, '.agent-context.json');
+  let config: AgentContextConfig;
+  if (existsSync(configPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      config = AgentContextConfigSchema.parse(raw);
+    } catch {
+      config = {
+        version: '1.0.0',
+        project: { name: 'project', defaultBranch: 'main' },
+      };
+    }
+  } else {
+    config = {
+      version: '1.0.0',
+      project: { name: 'project', defaultBranch: 'main' },
+    };
+  }
+
+  const sources: string[] = [];
+  if (options.docs) sources.push('documentation');
+  if (options.git) sources.push('git history');
+  if (sources.length === 0) sources.push('documentation', 'git history');
+
+  console.log(chalk.dim(`Sources: ${sources.join(', ')}`));
+  if (options.limit) console.log(chalk.dim(`Git commit limit: ${options.limit}`));
+  if (options.since) console.log(chalk.dim(`Git commits since: ${options.since}`));
+  console.log('');
+
+  const spinner = ora('Extracting knowledge from project...').start();
+
+  try {
+    const { shortTerm, longTerm, skills } = await prepopulateMemory(cwd, {
+      docs: options.docs || (!options.docs && !options.git),
+      git: options.git || (!options.docs && !options.git),
+      skills: true, // Always discover skills
+      limit: options.limit ? parseInt(options.limit) : 500,
+      since: options.since,
+      verbose: options.verbose,
+    });
+
+    spinner.succeed(`Extracted ${shortTerm.length} short-term, ${longTerm.length} long-term memories, ${skills.length} skills/artifacts`);
+
+    // Store short-term memories to SQLite
+    if (shortTerm.length > 0) {
+      const stSpinner = ora('Storing short-term memories...').start();
+      try {
+        const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+        const shortTermDb = new SQLiteShortTermMemory({
+          dbPath,
+          projectId: config.project.name,
+          maxEntries: config.memory?.shortTerm?.maxEntries || 50,
+        });
+
+        // Store memories in batch
+        const entries = shortTerm.map(m => ({
+          type: m.type,
+          content: m.content,
+          timestamp: m.timestamp,
+        }));
+        await shortTermDb.storeBatch(entries);
+        await shortTermDb.close();
+
+        stSpinner.succeed(`Stored ${shortTerm.length} short-term memories to SQLite`);
+        console.log(chalk.dim(`  Database: ${dbPath}`));
+      } catch (error) {
+        stSpinner.fail('Failed to store short-term memories');
+        console.error(chalk.red(error));
+      }
+    }
+
+    // Store long-term memories (summary for now)
+    if (longTerm.length > 0) {
+      console.log(chalk.dim(`\n  Long-term memories ready: ${longTerm.length} entries`));
+      console.log(chalk.dim('  To store in Qdrant, run: agent-context memory start'));
+      
+      // Save long-term memories as JSON for manual import or Qdrant storage
+      const ltPath = join(cwd, 'agents/data/memory/long_term_prepopulated.json');
+      const ltDir = join(cwd, 'agents/data/memory');
+      if (!existsSync(ltDir)) {
+        mkdirSync(ltDir, { recursive: true });
+      }
+      writeFileSync(ltPath, JSON.stringify(longTerm, null, 2));
+      console.log(chalk.dim(`  Exported to: ${ltPath}`));
+    }
+
+    // Summary by type
+    console.log(chalk.bold('\n📊 Memory Summary:\n'));
+    const byType = {
+      observations: longTerm.filter(m => m.type === 'observation').length,
+      thoughts: longTerm.filter(m => m.type === 'thought').length,
+      actions: longTerm.filter(m => m.type === 'action').length,
+      goals: longTerm.filter(m => m.type === 'goal').length,
+    };
+    console.log(chalk.dim(`  Observations: ${byType.observations}`));
+    console.log(chalk.dim(`  Thoughts: ${byType.thoughts}`));
+    console.log(chalk.dim(`  Actions: ${byType.actions}`));
+    console.log(chalk.dim(`  Goals: ${byType.goals}`));
+
+    // Show sample memories
+    if (options.verbose && shortTerm.length > 0) {
+      console.log(chalk.bold('\n📝 Sample Memories:\n'));
+      for (const mem of shortTerm.slice(0, 3)) {
+        console.log(chalk.cyan(`  [${mem.type}] `) + chalk.dim(mem.content.substring(0, 100) + '...'));
+      }
+    }
+
+    console.log(chalk.green('\n✅ Memory prepopulation complete!\n'));
+
+  } catch (error) {
+    spinner.fail('Failed to prepopulate memory');
+    console.error(chalk.red(error));
+  }
 }

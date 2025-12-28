@@ -13,38 +13,63 @@ export async function generateClaudeMd(
 }
 
 function buildContext(analysis: ProjectAnalysis, config: AgentContextConfig): Record<string, unknown> {
+  // Detect web platform by checking memory config for web database setting
+  const hasWebDatabase = !!config.memory?.shortTerm?.webDatabase;
+  const forceDesktop = config.memory?.shortTerm?.forceDesktop;
+  const isWebPlatform = hasWebDatabase && !forceDesktop;
+  const isDesktopPlatform = !isWebPlatform;
+
+  // Section defaults differ by platform
+  // Web platforms (claude.ai, etc.) have no system access - hide irrelevant sections
   const sections = config.template?.sections || {
-    memorySystem: true,
-    browserUsage: true,
-    decisionLoop: true,
-    worktreeWorkflow: true,
+    memorySystem: !isWebPlatform,      // No IndexedDB/SQLite access in web chat
+    browserUsage: !isWebPlatform,       // No browser automation in web chat
+    decisionLoop: !isWebPlatform,       // Relies on memory system
+    worktreeWorkflow: !isWebPlatform,   // No git access in web chat
     troubleshooting: true,
-    augmentedCapabilities: true,
+    augmentedCapabilities: !isWebPlatform, // Desktop agent features only
   };
+
+  // Determine long-term memory provider
+  let longTermProvider = 'qdrant';
+  let longTermEndpoint = config.memory?.longTerm?.endpoint || 'localhost:6333';
+  if (config.memory?.longTerm?.provider === 'github') {
+    longTermProvider = 'github';
+    longTermEndpoint = `${config.memory?.longTerm?.github?.repo || 'owner/repo'}/${config.memory?.longTerm?.github?.path || '.agent-context/memory'}`;
+  } else if (config.memory?.longTerm?.provider === 'qdrant-cloud') {
+    longTermProvider = 'qdrant-cloud';
+    longTermEndpoint = config.memory?.longTerm?.qdrantCloud?.url || 'https://xxxxxx.aws.cloud.qdrant.io:6333';
+  }
 
   return {
     PROJECT_NAME: analysis.projectName || config.project.name,
     DESCRIPTION: analysis.description || config.project.description || '',
     DEFAULT_BRANCH: analysis.defaultBranch || config.project.defaultBranch || 'main',
 
+    // Platform detection
+    IS_WEB_PLATFORM: isWebPlatform,
+    IS_DESKTOP_PLATFORM: isDesktopPlatform,
+
     // Issue tracker
     HAS_ISSUE_TRACKER: !!analysis.issueTracker,
     ISSUE_TRACKER_NAME: analysis.issueTracker?.name || 'GitHub Issues',
     ISSUE_TRACKER_URL: analysis.issueTracker?.url || '',
 
-    // Sections
-    SHOW_MEMORY_SYSTEM: sections.memorySystem !== false,
-    SHOW_BROWSER_USAGE: sections.browserUsage !== false,
-    SHOW_DECISION_LOOP: sections.decisionLoop !== false,
-    SHOW_WORKTREE_WORKFLOW: sections.worktreeWorkflow !== false && config.worktrees?.enabled,
+    // Sections - web platforms get streamlined content
+    SHOW_MEMORY_SYSTEM: sections.memorySystem !== false && isDesktopPlatform,
+    SHOW_BROWSER_USAGE: sections.browserUsage !== false && isDesktopPlatform,
+    SHOW_DECISION_LOOP: sections.decisionLoop !== false && isDesktopPlatform,
+    SHOW_WORKTREE_WORKFLOW: sections.worktreeWorkflow !== false && config.worktrees?.enabled && isDesktopPlatform,
     SHOW_TROUBLESHOOTING: sections.troubleshooting !== false && analysis.troubleshootingHints.length > 0,
-    SHOW_AUGMENTED_CAPABILITIES: sections.augmentedCapabilities !== false,
+    SHOW_AUGMENTED_CAPABILITIES: sections.augmentedCapabilities !== false && isDesktopPlatform,
+    SHOW_SHELL_COMMANDS: isDesktopPlatform, // Shell commands only relevant for desktop agents
 
     // Memory config
     MEMORY_ENABLED: config.memory?.shortTerm?.enabled || config.memory?.longTerm?.enabled,
     SHORT_TERM_PATH: config.memory?.shortTerm?.path || './agents/data/memory/short_term.db',
     SHORT_TERM_MAX_ENTRIES: config.memory?.shortTerm?.maxEntries || 50,
-    LONG_TERM_ENDPOINT: config.memory?.longTerm?.endpoint || 'localhost:6333',
+    LONG_TERM_PROVIDER: longTermProvider,
+    LONG_TERM_ENDPOINT: longTermEndpoint,
     LONG_TERM_COLLECTION: config.memory?.longTerm?.collection || 'agent_memory',
 
     // Worktree config
@@ -115,7 +140,7 @@ function buildContext(analysis: ProjectAnalysis, config: AgentContextConfig): Re
 function getTemplate(_config: AgentContextConfig): string {
   return `<coding_guidelines>
 
-# CLAUDE.md - {{PROJECT_NAME}} Development Guide
+# {{#if IS_WEB_PLATFORM}}AGENT.md{{else}}CLAUDE.md{{/if}} - {{PROJECT_NAME}} Development Guide
 
 You are an AI assistant helping with the {{PROJECT_NAME}} project.
 {{#if DESCRIPTION}}
@@ -125,6 +150,15 @@ You are an AI assistant helping with the {{PROJECT_NAME}} project.
 
 ---
 
+{{#if IS_WEB_PLATFORM}}
+## About This Context
+
+This document provides project context for AI assistants in web chat interfaces (claude.ai, etc.).
+You do not have direct system access - focus on code review, explanation, and guidance.
+
+---
+
+{{/if}}
 {{#if SHOW_MEMORY_SYSTEM}}
 ## MEMORY SYSTEM
 
@@ -149,7 +183,7 @@ SELECT * FROM memories ORDER BY id DESC LIMIT {{SHORT_TERM_MAX_ENTRIES}};
 INSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action', 'Description of action and result');
 \`\`\`
 
-### Long-term Memory (Qdrant: \`{{LONG_TERM_ENDPOINT}}\`, collection: \`{{LONG_TERM_COLLECTION}}\`)
+### Long-term Memory{{#if LONG_TERM_PROVIDER}} ({{LONG_TERM_PROVIDER}}{{#if LONG_TERM_ENDPOINT}}: \`{{LONG_TERM_ENDPOINT}}\`{{/if}}){{/if}}
 
 **Start services**: \`agent-context memory start\`
 
@@ -213,6 +247,61 @@ agent-context worktree cleanup <id>
 ---
 
 {{/if}}
+{{#if HAS_KEY_FILES}}
+## Key Files
+
+{{#each KEY_FILES}}
+- \`{{this.path}}\` - {{this.description}}
+{{/each}}
+
+---
+
+{{/if}}
+{{#if HAS_COMPONENTS}}
+## Architecture
+
+{{#each COMPONENTS}}
+### {{this.name}} (\`{{this.path}}\`)
+
+- **Language**: {{this.language}}
+{{#if this.framework}}- **Framework**: {{this.framework}}{{/if}}
+- {{this.description}}
+
+{{/each}}
+---
+
+{{/if}}
+{{#if HAS_DATABASES}}
+## Data Layer
+
+{{#each DATABASES}}
+- **{{this.type}}**: {{this.purpose}}
+{{/each}}
+
+---
+
+{{/if}}
+{{#if HAS_AUTH}}
+## Authentication
+
+**Provider**: {{AUTH_PROVIDER}}
+
+{{AUTH_DESCRIPTION}}
+
+---
+
+{{/if}}
+{{#if HAS_URLS}}
+## Project URLs
+
+{{#each URLS}}
+- **{{this.name}}**: {{this.value}}
+{{/each}}
+
+---
+
+{{/if}}
+{{#if SHOW_SHELL_COMMANDS}}
 ## Quick Reference
 
 {{#if HAS_CLUSTERS}}
@@ -223,14 +312,6 @@ agent-context worktree cleanup <id>
 kubectl config use-context {{this.context}}  # {{this.name}} ({{this.purpose}})
 {{/each}}
 \`\`\`
-
-{{/if}}
-{{#if HAS_URLS}}
-### URLs
-
-{{#each URLS}}
-- **{{this.name}}**: {{this.value}}
-{{/each}}
 
 {{/if}}
 ### Essential Commands
@@ -250,39 +331,6 @@ kubectl config use-context {{this.context}}  # {{this.name}} ({{this.purpose}})
 cd {{INFRA_PATH}} && terraform plan
 {{/if}}
 \`\`\`
-
----
-
-{{#if HAS_COMPONENTS}}
-## Core Components
-
-{{#each COMPONENTS}}
-### {{this.name}} (\`{{this.path}}\`)
-
-- **Language**: {{this.language}}
-{{#if this.framework}}- **Framework**: {{this.framework}}{{/if}}
-- {{this.description}}
-
-{{/each}}
----
-
-{{/if}}
-{{#if HAS_DATABASES}}
-## Databases
-
-{{#each DATABASES}}
-- **{{this.type}}**: {{this.purpose}}
-{{/each}}
-
----
-
-{{/if}}
-{{#if HAS_AUTH}}
-## Authentication
-
-**Provider**: {{AUTH_PROVIDER}}
-
-{{AUTH_DESCRIPTION}}
 
 ---
 
@@ -306,6 +354,16 @@ cd {{INFRA_PATH}} && terraform plan
 |---------|----------|
 {{#each TROUBLESHOOTING_HINTS}}
 | {{this.symptom}} | {{this.solution}} |
+{{/each}}
+
+---
+
+{{/if}}
+{{#if HAS_SECURITY_NOTES}}
+## Security Considerations
+
+{{#each SECURITY_NOTES}}
+- {{this}}
 {{/each}}
 
 ---
@@ -339,6 +397,18 @@ cd {{INFRA_PATH}} && terraform plan
 
 {{/if}}
 {{/if}}
+{{#if IS_WEB_PLATFORM}}
+## Review Guidelines
+
+When reviewing code for this project:
+
+- Check for multi-tenancy: all queries should be scoped by \`owner_id\`
+- Verify parameterized SQL queries (no string concatenation)
+- Ensure proper error handling patterns are followed
+- Look for hardcoded credentials or secrets
+- Validate input sanitization on user-facing endpoints
+
+{{else}}
 ## Completion Checklist
 
 \`\`\`
@@ -351,6 +421,7 @@ cd {{INFRA_PATH}} && terraform plan
 [ ] No secrets in code/commits
 \`\`\`
 
+{{/if}}
 ---
 
 **Languages**: {{LANGUAGES}}

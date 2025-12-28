@@ -6,16 +6,40 @@ export const PlatformSchema = z.object({
 
 export const ShortTermMemorySchema = z.object({
   enabled: z.boolean().default(true),
+  // Desktop: SQLite path
   path: z.string().default('./agents/data/memory/short_term.db'),
+  // Web: IndexedDB database name
+  webDatabase: z.string().default('agent_context_memory'),
   maxEntries: z.number().default(50),
+  // Force desktop mode even if window exists (for testing)
+  forceDesktop: z.boolean().default(false),
+});
+
+export const GitHubMemoryBackendSchema = z.object({
+  enabled: z.boolean().default(false),
+  repo: z.string().optional(), // e.g., "owner/repo"
+  token: z.string().optional(), // GitHub PAT (can also use GITHUB_TOKEN env var)
+  path: z.string().default('.agent-context/memory'), // Path in repo
+  branch: z.string().default('main'),
+});
+
+export const QdrantCloudBackendSchema = z.object({
+  enabled: z.boolean().default(false),
+  url: z.string().optional(), // e.g., "https://xyz.qdrant.io"
+  apiKey: z.string().optional(), // Can also use QDRANT_API_KEY env var
+  collection: z.string().default('agent_memory'),
 });
 
 export const LongTermMemorySchema = z.object({
   enabled: z.boolean().default(true),
-  provider: z.enum(['qdrant', 'chroma', 'pinecone']).default('qdrant'),
-  endpoint: z.string().default('localhost:6333'),
+  // Legacy local provider (keep for backward compatibility)
+  provider: z.enum(['qdrant', 'chroma', 'pinecone', 'github', 'qdrant-cloud', 'none']).default('qdrant'),
+  endpoint: z.string().optional(),
   collection: z.string().default('agent_memory'),
   embeddingModel: z.string().default('all-MiniLM-L6-v2'),
+  // New backend-specific configs
+  github: GitHubMemoryBackendSchema.optional(),
+  qdrantCloud: QdrantCloudBackendSchema.optional(),
 });
 
 export const MemorySchema = z.object({
@@ -85,6 +109,6 @@ export const AgentContextConfigSchema = z.object({
 });
 
 export type AgentContextConfig = z.infer<typeof AgentContextConfigSchema>;
-export type Platform = 'claudeCode' | 'factory' | 'vscode' | 'opencode';
+export type Platform = 'claudeCode' | 'factory' | 'vscode' | 'opencode' | 'claudeWeb' | 'factoryWeb';
 export type Droid = z.infer<typeof DroidSchema>;
 export type Command = z.infer<typeof CommandSchema>;

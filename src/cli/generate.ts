@@ -13,6 +13,7 @@ interface GenerateOptions {
   force?: boolean;
   dryRun?: boolean;
   platform?: string;
+  web?: boolean;
 }
 
 export async function generateCommand(options: GenerateOptions): Promise<void> {
@@ -59,30 +60,38 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     return;
   }
 
-  // Generate CLAUDE.md
+  // Determine target file based on --web flag
+  const isWebPlatform = options.web === true;
   const claudeMdPath = join(cwd, 'CLAUDE.md');
   const agentMdPath = join(cwd, 'AGENT.md');
   const claudeMdExists = existsSync(claudeMdPath);
   const agentMdExists = existsSync(agentMdPath);
   
   let existingContent: string | undefined;
-  let targetPath = claudeMdPath;
+  // Use AGENT.md when --web flag is passed, CLAUDE.md otherwise
+  let targetPath = isWebPlatform ? agentMdPath : claudeMdPath;
+  let targetFileName = isWebPlatform ? 'AGENT.md' : 'CLAUDE.md';
   
-  if ((claudeMdExists || agentMdExists) && !options.force && !options.dryRun) {
-    // Read existing content
-    if (claudeMdExists) {
-      existingContent = readFileSync(claudeMdPath, 'utf-8');
-      targetPath = claudeMdPath;
-    } else if (agentMdExists) {
-      existingContent = readFileSync(agentMdPath, 'utf-8');
-      targetPath = agentMdPath;
+  // Check if target file or alternate file exists
+  const targetExists = existsSync(targetPath);
+  const alternateExists = isWebPlatform ? claudeMdExists : agentMdExists;
+  
+  if ((targetExists || alternateExists) && !options.force && !options.dryRun) {
+    // Read existing content from target or alternate file
+    if (targetExists) {
+      existingContent = readFileSync(targetPath, 'utf-8');
+    } else if (alternateExists) {
+      // Read from alternate file but will write to target
+      const alternatePath = isWebPlatform ? claudeMdPath : agentMdPath;
+      existingContent = readFileSync(alternatePath, 'utf-8');
+      console.log(chalk.dim(`Migrating ${isWebPlatform ? 'CLAUDE.md' : 'AGENT.md'} to ${targetFileName}`));
     }
     
     const { action } = await inquirer.prompt([
       {
         type: 'list',
         name: 'action',
-        message: `${claudeMdExists ? 'CLAUDE.md' : 'AGENT.md'} already exists. What would you like to do?`,
+        message: `${targetFileName} ${targetExists ? 'already exists' : 'will be created'}. What would you like to do?`,
         choices: [
           { name: 'Merge with existing content (recommended)', value: 'merge' },
           { name: 'Overwrite completely', value: 'overwrite' },
@@ -102,25 +111,56 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     }
   }
 
-  const genSpinner = ora(`${existingContent ? 'Merging' : 'Generating'} CLAUDE.md...`).start();
+  // Override config based on --web flag
+  // Web mode: set webDatabase to trigger web platform detection
+  // Desktop mode (default): force desktop even if config has webDatabase
+  const effectiveConfig: AgentContextConfig = isWebPlatform
+    ? {
+        ...config,
+        memory: {
+          ...config.memory,
+          shortTerm: {
+            enabled: config.memory?.shortTerm?.enabled ?? true,
+            path: config.memory?.shortTerm?.path ?? './agents/data/memory/short_term.db',
+            webDatabase: 'agentContext',
+            maxEntries: config.memory?.shortTerm?.maxEntries ?? 50,
+            forceDesktop: false,
+          },
+        },
+      }
+    : {
+        // Desktop mode: ensure forceDesktop is true to override any webDatabase in config
+        ...config,
+        memory: {
+          ...config.memory,
+          shortTerm: config.memory?.shortTerm
+            ? {
+                ...config.memory.shortTerm,
+                forceDesktop: true, // Force desktop mode regardless of config
+              }
+            : undefined,
+        },
+      };
+
+  const genSpinner = ora(`${existingContent ? 'Merging' : 'Generating'} ${targetFileName}...`).start();
   try {
-    const newClaudeMd = await generateClaudeMd(analysis, config);
+    const newClaudeMd = await generateClaudeMd(analysis, effectiveConfig);
     const claudeMd = existingContent ? mergeClaudeMd(existingContent, newClaudeMd) : newClaudeMd;
 
     if (options.dryRun) {
       genSpinner.succeed(`${existingContent ? 'Merged' : 'Generated'} (dry run)`);
-      console.log(chalk.dim('\n--- CLAUDE.md Preview ---\n'));
+      console.log(chalk.dim(`\n--- ${targetFileName} Preview ---\n`));
       console.log(claudeMd.substring(0, 2000) + '\n...\n');
       console.log(chalk.dim(`Total: ${claudeMd.length} characters, ${claudeMd.split('\n').length} lines`));
     } else {
       writeFileSync(targetPath, claudeMd);
-      genSpinner.succeed(`${existingContent ? 'Merged and updated' : 'Generated'} ${targetPath.endsWith('CLAUDE.md') ? 'CLAUDE.md' : 'AGENT.md'}`);
+      genSpinner.succeed(`${existingContent ? 'Merged and updated' : 'Generated'} ${targetFileName}`);
       if (existingContent) {
         console.log(chalk.dim('  Preserved custom sections from existing file'));
       }
     }
   } catch (error) {
-    genSpinner.fail(`Failed to ${existingContent ? 'merge' : 'generate'} CLAUDE.md`);
+    genSpinner.fail(`Failed to ${existingContent ? 'merge' : 'generate'} ${targetFileName}`);
     console.error(chalk.red(error));
     return;
   }

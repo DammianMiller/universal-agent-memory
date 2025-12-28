@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Context Generator - Create AGENT.md for AI Assistants</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --primary: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { color: var(--primary); margin-bottom: 10px; }
+    h2 { color: var(--text); margin: 20px 0 10px; font-size: 1.2em; }
+    h3 { color: var(--text-muted); font-size: 1em; margin: 15px 0 8px; }
+    p { color: var(--text-muted); margin-bottom: 15px; }
+    .header { text-align: center; padding: 20px 0 30px; border-bottom: 1px solid var(--border); margin-bottom: 30px; }
+    .container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .form-group { margin-bottom: 15px; }
+    label {
+      display: block;
+      color: var(--text);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input[type="text"], input[type="url"], textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    textarea { min-height: 80px; resize: vertical; font-family: inherit; }
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 10px 0;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .button-group { display: flex; gap: 10px; margin-top: 20px; }
+    #output {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .tag {
+      display: inline-block;
+      background: var(--border);
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin: 2px;
+    }
+    .info-box {
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      border-radius: 6px;
+      padding: 12px;
+      margin: 15px 0;
+      font-size: 13px;
+    }
+    .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+    .tab {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px 6px 0 0;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .tab.active { background: var(--surface); color: var(--primary); border-bottom-color: var(--surface); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .output-container { position: relative; }
+    .success-msg {
+      color: var(--success);
+      font-size: 12px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🤖 Agent Context Generator</h1>
+    <p>Create AGENT.md or CLAUDE.md files for AI coding assistants<br>
+    <span class="tag">claude.ai</span>
+    <span class="tag">factory.ai</span>
+    <span class="tag">Claude Code</span>
+    <span class="tag">VSCode</span>
+    </p>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="tabs">
+        <button class="tab active" data-tab="project">Project</button>
+        <button class="tab" data-tab="platforms">Platforms</button>
+        <button class="tab" data-tab="advanced">Advanced</button>
+      </div>
+
+      <!-- Project Tab -->
+      <div id="project" class="section active">
+        <div class="form-group">
+          <label for="projectName">Project Name *</label>
+          <input type="text" id="projectName" placeholder="my-awesome-project" required>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" placeholder="A brief description of your project..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="languages">Languages</label>
+          <input type="text" id="languages" placeholder="TypeScript, Python, Go">
+        </div>
+
+        <div class="form-group">
+          <label for="frameworks">Frameworks</label>
+          <input type="text" id="frameworks" placeholder="React, FastAPI, Next.js">
+        </div>
+
+        <h3>Commands</h3>
+        <div class="form-group">
+          <label for="testCmd">Test Command</label>
+          <input type="text" id="testCmd" placeholder="npm test" value="npm test">
+        </div>
+        <div class="form-group">
+          <label for="lintCmd">Lint Command</label>
+          <input type="text" id="lintCmd" placeholder="npm run lint" value="npm run lint">
+        </div>
+        <div class="form-group">
+          <label for="buildCmd">Build Command</label>
+          <input type="text" id="buildCmd" placeholder="npm run build" value="npm run build">
+        </div>
+      </div>
+
+      <!-- Platforms Tab -->
+      <div id="platforms" class="section">
+        <h3>Target Platform</h3>
+        <div class="form-group">
+          <select id="targetPlatform">
+            <option value="web">Web (claude.ai, factory.ai) → AGENT.md</option>
+            <option value="desktop">Desktop (Claude Code, VSCode) → CLAUDE.md</option>
+          </select>
+        </div>
+
+        <div class="info-box">
+          <strong>Web platforms</strong> generate a streamlined AGENT.md focused on code review and context.<br>
+          <strong>Desktop platforms</strong> generate a full CLAUDE.md with memory system, commands, and workflows.
+        </div>
+
+        <h3>URLs (optional)</h3>
+        <div class="form-group">
+          <label for="repoUrl">Repository URL</label>
+          <input type="url" id="repoUrl" placeholder="https://github.com/org/repo">
+        </div>
+        <div class="form-group">
+          <label for="docsUrl">Documentation URL</label>
+          <input type="url" id="docsUrl" placeholder="https://docs.example.com">
+        </div>
+        <div class="form-group">
+          <label for="apiUrl">API URL</label>
+          <input type="url" id="apiUrl" placeholder="https://api.example.com">
+        </div>
+      </div>
+
+      <!-- Advanced Tab -->
+      <div id="advanced" class="section">
+        <h3>Components</h3>
+        <div class="form-group">
+          <label for="components">Project Components (one per line)</label>
+          <textarea id="components" placeholder="frontend - React app in /src&#10;backend - FastAPI in /api&#10;infra - Terraform in /infra"></textarea>
+        </div>
+
+        <h3>Databases</h3>
+        <div class="form-group">
+          <label for="databases">Databases (one per line: type - purpose)</label>
+          <textarea id="databases" placeholder="PostgreSQL - Main database&#10;Redis - Caching"></textarea>
+        </div>
+
+        <h3>Include Sections (Desktop only)</h3>
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <input type="checkbox" id="includeMemory" checked>
+            <span>Memory System</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="includeBrowser" checked>
+            <span>Browser Usage</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="includeWorktree" checked>
+            <span>Git Worktree</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="includeDecision" checked>
+            <span>Decision Loop</span>
+          </label>
+        </div>
+
+        <h3>Custom Sections</h3>
+        <div class="form-group">
+          <label for="customSections">Additional content (markdown)</label>
+          <textarea id="customSections" placeholder="## Custom Section&#10;Your custom content here..."></textarea>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button onclick="generateOutput()">Generate</button>
+        <button class="secondary" onclick="resetForm()">Reset</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Generated Output</h2>
+      <div class="output-container">
+        <button class="copy-btn secondary" onclick="copyOutput()">📋 Copy</button>
+        <div id="output">Fill in the project details and click "Generate" to create your agent context file.</div>
+      </div>
+      <div id="copySuccess" class="success-msg" style="display:none;">✓ Copied to clipboard!</div>
+      
+      <div class="info-box" style="margin-top:20px;">
+        <strong>Next steps:</strong>
+        <ol style="margin:10px 0 0 20px;color:var(--text-muted);">
+          <li>Copy the generated content</li>
+          <li>Create <code>AGENT.md</code> or <code>CLAUDE.md</code> in your repo root</li>
+          <li>Paste the content and commit</li>
+          <li>Your AI assistant will now have project context!</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    function generateOutput() {
+      const platform = document.getElementById('targetPlatform').value;
+      const isWeb = platform === 'web';
+      
+      const projectName = document.getElementById('projectName').value || 'my-project';
+      const description = document.getElementById('description').value;
+      const languages = document.getElementById('languages').value;
+      const frameworks = document.getElementById('frameworks').value;
+      const testCmd = document.getElementById('testCmd').value || 'npm test';
+      const lintCmd = document.getElementById('lintCmd').value || 'npm run lint';
+      const buildCmd = document.getElementById('buildCmd').value || 'npm run build';
+      
+      const repoUrl = document.getElementById('repoUrl').value;
+      const docsUrl = document.getElementById('docsUrl').value;
+      const apiUrl = document.getElementById('apiUrl').value;
+      
+      const componentsRaw = document.getElementById('components').value;
+      const databasesRaw = document.getElementById('databases').value;
+      const customSections = document.getElementById('customSections').value;
+      
+      const includeMemory = document.getElementById('includeMemory').checked;
+      const includeBrowser = document.getElementById('includeBrowser').checked;
+      const includeWorktree = document.getElementById('includeWorktree').checked;
+      const includeDecision = document.getElementById('includeDecision').checked;
+
+      let output = '<coding_guidelines>\n\n';
+      output += `# ${isWeb ? 'AGENT.md' : 'CLAUDE.md'} - ${projectName} Development Guide\n\n`;
+      output += `You are an AI assistant helping with the ${projectName} project.\n`;
+      
+      if (description) {
+        output += `\n> ${description}\n`;
+      }
+      
+      output += '\n---\n\n';
+
+      // Web-specific intro
+      if (isWeb) {
+        output += `## About This Context\n\n`;
+        output += `This document provides project context for AI assistants in web chat interfaces (claude.ai, factory.ai, etc.).\n`;
+        output += `You do not have direct system access - focus on code review, explanation, and guidance.\n\n`;
+        output += `---\n\n`;
+      }
+
+      // Desktop-only sections
+      if (!isWeb) {
+        if (includeMemory) {
+          output += `## MEMORY SYSTEM\n\n`;
+          output += `### Short-term Memory (SQLite: \`./agents/data/memory/short_term.db\`)\n\n`;
+          output += `Table: \`memories\`\n\n`;
+          output += `- \`id\`: INTEGER PRIMARY KEY\n`;
+          output += `- \`timestamp\`: TEXT (ISO8601)\n`;
+          output += `- \`type\`: TEXT (action|observation|thought|goal)\n`;
+          output += `- \`content\`: TEXT\n\n`;
+          output += `**BEFORE EACH DECISION**: Query recent entries (last 50) to understand your context\n\n`;
+          output += `\`\`\`sql\nSELECT * FROM memories ORDER BY id DESC LIMIT 50;\n\`\`\`\n\n`;
+          output += `**AFTER EACH ACTION**: INSERT a new row describing what you did and the outcome\n\n`;
+          output += `\`\`\`sql\nINSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action', 'Description of action and result');\n\`\`\`\n\n`;
+          output += `---\n\n`;
+        }
+
+        if (includeBrowser) {
+          output += `## BROWSER USAGE\n\n`;
+          output += `When using browser automation:\n\n`;
+          output += `- ALWAYS save a screenshot after EVERY browser action\n`;
+          output += `- Save screenshots to: \`agents/data/screenshots/\`\n`;
+          output += `- Filename format: \`{timestamp}_{action}.png\`\n\n`;
+          output += `---\n\n`;
+        }
+
+        if (includeDecision) {
+          output += `## DECISION LOOP\n\n`;
+          output += `1. **READ** short-term memory (recent context)\n`;
+          output += `2. **QUERY** long-term memory (semantic search for relevant learnings)\n`;
+          output += `3. **THINK** about what to do next\n`;
+          output += `4. **ACT** - execute your decision\n`;
+          output += `5. **RECORD** - write to short-term memory\n`;
+          output += `6. **OPTIONALLY** - if significant learning, add to long-term memory\n\n`;
+          output += `---\n\n`;
+        }
+
+        if (includeWorktree) {
+          output += `## GIT WORKTREE WORKFLOW (MANDATORY)\n\n`;
+          output += `**ALL code changes MUST use isolated git worktrees:**\n\n`;
+          output += `\`\`\`bash\n`;
+          output += `# Create worktree for new task\nagent-context worktree create <slug>\n\n`;
+          output += `# Work in the worktree\ncd .worktrees/NNN-slug/\n\n`;
+          output += `# Create PR when ready\nagent-context worktree pr <id>\n\n`;
+          output += `# Cleanup after merge\nagent-context worktree cleanup <id>\n`;
+          output += `\`\`\`\n\n`;
+          output += `---\n\n`;
+        }
+      }
+
+      // Components
+      if (componentsRaw) {
+        output += `## Architecture\n\n`;
+        const components = componentsRaw.split('\n').filter(c => c.trim());
+        for (const comp of components) {
+          const [name, ...descParts] = comp.split(' - ');
+          const desc = descParts.join(' - ');
+          output += `### ${name.trim()}\n${desc ? desc.trim() : ''}\n\n`;
+        }
+        output += `---\n\n`;
+      }
+
+      // Databases
+      if (databasesRaw) {
+        output += `## Data Layer\n\n`;
+        const databases = databasesRaw.split('\n').filter(d => d.trim());
+        for (const db of databases) {
+          output += `- **${db.trim()}**\n`;
+        }
+        output += `\n---\n\n`;
+      }
+
+      // URLs
+      if (repoUrl || docsUrl || apiUrl) {
+        output += `## Project URLs\n\n`;
+        if (repoUrl) output += `- **Repository**: ${repoUrl}\n`;
+        if (docsUrl) output += `- **Documentation**: ${docsUrl}\n`;
+        if (apiUrl) output += `- **API**: ${apiUrl}\n`;
+        output += `\n---\n\n`;
+      }
+
+      // Commands (desktop only or summary for web)
+      if (!isWeb) {
+        output += `## Quick Reference\n\n`;
+        output += `### Essential Commands\n\n`;
+        output += `\`\`\`bash\n`;
+        output += `# Testing\n${testCmd}\n\n`;
+        output += `# Linting\n${lintCmd}\n\n`;
+        output += `# Building\n${buildCmd}\n`;
+        output += `\`\`\`\n\n`;
+        output += `---\n\n`;
+      }
+
+      // Custom sections
+      if (customSections) {
+        output += customSections + '\n\n---\n\n';
+      }
+
+      // Review guidelines for web
+      if (isWeb) {
+        output += `## Review Guidelines\n\n`;
+        output += `When reviewing code for this project:\n\n`;
+        output += `- Verify proper error handling patterns are followed\n`;
+        output += `- Look for hardcoded credentials or secrets\n`;
+        output += `- Validate input sanitization on user-facing endpoints\n`;
+        output += `- Check for consistent coding style\n`;
+        output += `- Ensure tests cover the changes\n\n`;
+      } else {
+        output += `## Completion Checklist\n\n`;
+        output += `\`\`\`\n`;
+        output += `[ ] Tests updated and passing\n`;
+        output += `[ ] Linting/type checking passed\n`;
+        output += `[ ] Documentation updated\n`;
+        output += `[ ] No secrets in code/commits\n`;
+        output += `\`\`\`\n\n`;
+      }
+
+      output += `---\n\n`;
+      output += `**Languages**: ${languages || 'Not specified'}\n`;
+      output += `**Frameworks**: ${frameworks || 'Not specified'}\n\n`;
+      output += `</coding_guidelines>`;
+
+      document.getElementById('output').textContent = output;
+    }
+
+    function copyOutput() {
+      const output = document.getElementById('output').textContent;
+      navigator.clipboard.writeText(output).then(() => {
+        const msg = document.getElementById('copySuccess');
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 2000);
+      });
+    }
+
+    function resetForm() {
+      document.querySelectorAll('input[type="text"], input[type="url"], textarea').forEach(el => {
+        if (!['testCmd', 'lintCmd', 'buildCmd'].includes(el.id)) {
+          el.value = '';
+        }
+      });
+      document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = true);
+      document.getElementById('targetPlatform').value = 'web';
+      document.getElementById('output').textContent = 'Fill in the project details and click "Generate" to create your agent context file.';
+    }
+
+    // Generate on load with defaults
+    generateOutput();
+  </script>
+</body>
+</html>

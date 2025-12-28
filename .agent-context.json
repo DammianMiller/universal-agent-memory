@@ -20,20 +20,6 @@
       "enabled": true
     }
   },
-  "memory": {
-    "shortTerm": {
-      "enabled": true,
-      "path": "./agents/data/memory/short_term.db",
-      "maxEntries": 50
-    },
-    "longTerm": {
-      "enabled": true,
-      "provider": "qdrant",
-      "endpoint": "localhost:6333",
-      "collection": "agent_memory",
-      "embeddingModel": "all-MiniLM-L6-v2"
-    }
-  },
   "worktrees": {
     "enabled": true,
     "directory": ".worktrees",
@@ -45,7 +31,7 @@
   "template": {
     "extends": "default",
     "sections": {
-      "memorySystem": true,
+      "memorySystem": false,
       "browserUsage": true,
       "decisionLoop": true,
       "worktreeWorkflow": true,

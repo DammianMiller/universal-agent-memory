@@ -21,6 +21,9 @@ program
   .command('init')
   .description('Initialize agent context in the current project')
   .option('-p, --platform <platforms...>', 'Target platforms (claude, factory, vscode, opencode, all)', ['all'])
+  .option('--web', 'Quick setup for web platforms (claude.ai, factory.ai)')
+  .option('--desktop', 'Quick setup for desktop platforms (Claude Code, VSCode)')
+  .option('--interactive', 'Interactive setup with all options')
   .option('--with-memory', 'Set up memory system (SQLite + Qdrant)')
   .option('--with-worktrees', 'Set up git worktree workflow')
   .option('--force', 'Overwrite existing configuration')
@@ -39,6 +42,7 @@ program
   .option('-f, --force', 'Overwrite existing files without confirmation')
   .option('-d, --dry-run', 'Show what would be generated without writing')
   .option('-p, --platform <platform>', 'Generate for specific platform only')
+  .option('--web', 'Generate AGENT.md for web platforms (claude.ai, factory.ai)')
   .action(generateCommand);
 
 program
@@ -73,6 +77,16 @@ program
       .option('-t, --tags <tags>', 'Comma-separated tags')
       .option('-i, --importance <number>', 'Importance score (1-10)', '5')
       .action((content, options) => memoryCommand('store', { content, ...options }))
+  )
+  .addCommand(
+    new Command('prepopulate')
+      .description('Prepopulate memory from documentation and git history')
+      .option('--docs', 'Import from documentation only')
+      .option('--git', 'Import from git history only')
+      .option('-n, --limit <number>', 'Limit git commits to analyze', '500')
+      .option('--since <date>', 'Only analyze commits since date (e.g., "2024-01-01")')
+      .option('-v, --verbose', 'Show detailed output')
+      .action((options) => memoryCommand('prepopulate', options))
   );
 
 program

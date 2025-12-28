@@ -1,27 +1,55 @@
 # Agent Context
 
-Universal AI agent context system for Claude Code, Factory.AI, VSCode, and OpenCode.
+Universal AI agent context system for Claude Code, Factory.AI, VSCode, OpenCode, and web-based LLMs.
 
 Provides:
 - **CLAUDE.md template system** with automatic project analysis and generation
-- **Memory system** (SQLite short-term + Qdrant vector long-term)
+- **Memory system** with flexible backends:
+  - **Desktop**: SQLite short-term + local Qdrant or cloud backends
+  - **Web**: IndexedDB short-term + GitHub/Qdrant Cloud long-term
 - **Git worktree workflow** automation for isolated development
-- **Cross-platform compatibility** for all major AI coding assistants
+- **Cross-platform compatibility** for all major AI coding assistants (desktop and web)
 
 ## Installation
 
+### Desktop (CLI)
+
 ```bash
+# Automatic installer with Docker detection
+bash <(curl -fsSL https://agent-context.dev/install-desktop.sh)
+
+# Or manually with npm
 npm install -g @agent-context/cli
 
 # Or use npx
-npx @agent-context/cli init
+npx @agent-context/cli init --desktop
 ```
+
+### Web Browsers (claude.ai, factory.ai)
+
+```bash
+# Quick web setup
+bash <(curl -fsSL https://agent-context.dev/install-web.sh)
+
+# Or manually
+npx @agent-context/cli init --web
+```
+
+Web installations use:
+- **IndexedDB** for short-term memory (replaces SQLite)
+- **GitHub** or **Qdrant Cloud** for long-term memory (opt-in via env vars)
 
 ## Quick Start
 
 ```bash
-# Initialize in your project
-agent-context init
+# Desktop initialization (default)
+agent-context init --desktop
+
+# Web initialization (for claude.ai, factory.ai)
+agent-context init --web
+
+# Interactive mode (asks questions)
+agent-context init --interactive
 
 # Or with specific options
 agent-context init --platform factory --with-memory --with-worktrees
@@ -41,7 +69,10 @@ This will:
 agent-context init [options]
 
 Options:
-  -p, --platform <platforms...>  Target platforms (claude, factory, vscode, opencode, all)
+  -p, --platform <platforms...>  Target platforms (claude, factory, vscode, opencode, claudeWeb, factoryWeb, all)
+  --desktop                      Desktop mode (SQLite + local Qdrant)
+  --web                          Web mode (IndexedDB + cloud backends)
+  --interactive                  Interactive setup with prompts
   --with-memory                  Set up memory system
   --with-worktrees               Set up git worktree workflow
   --force                        Overwrite existing configuration
@@ -147,9 +178,12 @@ Configuration is stored in `.agent-context.json`:
     "description": "Project description",
     "defaultBranch": "main"
   },
+  "platform": "claudeCode",
   "platforms": {
     "claudeCode": { "enabled": true },
+    "claudeWeb": { "enabled": false },
     "factory": { "enabled": true },
+    "factoryWeb": { "enabled": false },
     "vscode": { "enabled": false },
     "opencode": { "enabled": false }
   },
@@ -157,13 +191,25 @@ Configuration is stored in `.agent-context.json`:
     "shortTerm": {
       "enabled": true,
       "path": "./agents/data/memory/short_term.db",
-      "maxEntries": 50
+      "maxEntries": 50,
+      "webDatabase": "agentContext",
+      "forceDesktop": false
     },
     "longTerm": {
       "enabled": true,
       "provider": "qdrant",
       "endpoint": "localhost:6333",
-      "collection": "agent_memory"
+      "collection": "agent_memory",
+      "github": {
+        "enabled": false,
+        "repo": "owner/repo",
+        "path": ".agent-context/memory"
+      },
+      "qdrantCloud": {
+        "enabled": false,
+        "url": "https://xxxxx.aws.cloud.qdrant.io:6333",
+        "collection": "agent_memory"
+      }
     }
   },
   "worktrees": {
@@ -176,12 +222,14 @@ Configuration is stored in `.agent-context.json`:
 
 ## Platform Support
 
-| Platform | Context File | Agents | Commands |
-|----------|-------------|--------|----------|
-| Claude Code | `CLAUDE.md` | `.claude/agents/` | `.claude/commands/` |
-| Factory.AI | `CLAUDE.md` | `.factory/droids/` | `.factory/commands/` |
-| VSCode | `CLAUDE.md` | Extension-based | Tasks |
-| OpenCode | `opencode.json` | `.opencode/agent/` | `.opencode/command/` |
+| Platform | Environment | Context File | Agents | Commands |
+|----------|-------------|--------------|--------|----------|
+| Claude Code | Desktop | `CLAUDE.md` | `.claude/agents/` | `.claude/commands/` |
+| claude.ai | Web | `CLAUDE.md` | Project context | N/A |
+| Factory.AI | Desktop | `CLAUDE.md` | `.factory/droids/` | `.factory/commands/` |
+| factory.ai | Web | `CLAUDE.md` | Project context | N/A |
+| VSCode | Desktop | `CLAUDE.md` | Extension-based | Tasks |
+| OpenCode | Desktop | `opencode.json` | `.opencode/agent/` | `.opencode/command/` |
 
 ## Built-in Droid Templates
 
@@ -192,13 +240,59 @@ Configuration is stored in `.agent-context.json`:
 
 ## Memory System
 
-### Short-term Memory (SQLite)
+### Desktop Environments
+
+#### Short-term Memory (SQLite)
 
 Stores the last 50 actions/observations for immediate context. Automatically pruned.
 
-### Long-term Memory (Qdrant)
+Location: `./agents/data/memory/short_term.db`
 
-Vector database for semantic search of past learnings. Stores:
+#### Long-term Memory
+
+**Local Qdrant** (requires Docker):
+```bash
+agent-context memory start
+```
+
+**GitHub Backend** (opt-in):
+```bash
+export GITHUB_TOKEN=your_token
+# Stores memories as JSON files in git repository
+```
+
+**Qdrant Cloud** (opt-in, 1GB free tier):
+```bash
+export QDRANT_API_KEY=your_key
+export QDRANT_URL=https://xxxxx.aws.cloud.qdrant.io:6333
+```
+
+### Web Environments (claude.ai, factory.ai)
+
+#### Short-term Memory (IndexedDB)
+
+Browser-native storage for recent context. Per-project isolation with automatic pruning.
+
+Database: `agentContext/memories`
+
+#### Long-term Memory (Cloud Backends)
+
+Requires environment variables for opt-in:
+
+**GitHub**:
+```bash
+export GITHUB_TOKEN=your_token
+```
+
+**Qdrant Cloud** (1GB free tier):
+```bash
+export QDRANT_API_KEY=your_key
+export QDRANT_URL=https://xxxxx.aws.cloud.qdrant.io:6333
+```
+
+### What Memory Stores
+
+Vector database for semantic search of past learnings:
 - Discoveries about environment/capabilities
 - Successful strategies
 - Failed approaches to avoid
