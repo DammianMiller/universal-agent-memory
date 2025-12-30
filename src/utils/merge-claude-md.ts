@@ -75,17 +75,24 @@ function extractPreamble(content: string): string {
  * Standard sections that should be updated from the generated content
  */
 const STANDARD_SECTIONS = new Set([
+  'MANDATORY RULES',
   'MEMORY SYSTEM',
   'BROWSER USAGE',
   'DECISION LOOP',
-  'GIT WORKTREE WORKFLOW (MANDATORY)',
+  'SKILLS',
+  'MANDATORY WORKFLOW REQUIREMENTS',
+  'GIT WORKTREE WORKFLOW',
+  'GIT BRANCH WORKFLOW',
   'Quick Reference',
   'Essential Commands',
   'Core Components',
+  'Architecture',
+  'Data Layer',
   'Databases',
   'Authentication',
   'CI/CD',
   'Troubleshooting',
+  'Required Workflow',
   'Augmented Agent Capabilities',
   'Completion Checklist',
 ]);

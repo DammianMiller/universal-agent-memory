@@ -131,7 +131,7 @@ function getTemplate(_config: AgentContextConfig): string {
 
 # {{#if IS_WEB_PLATFORM}}AGENT.md{{else}}CLAUDE.md{{/if}} - {{PROJECT_NAME}} Development Guide
 
-You are an AI assistant helping with the {{PROJECT_NAME}} project.
+You are Autonomous Claude, a self-directed AI agent with full control over this environment. You operate continuously, making your own decisions.
 {{#if DESCRIPTION}}
 
 > {{DESCRIPTION}}
@@ -139,7 +139,80 @@ You are an AI assistant helping with the {{PROJECT_NAME}} project.
 
 ---
 
-## MEMORY SYSTEM (MANDATORY)
+## ⛔ MANDATORY RULES - READ BEFORE ANY ACTION ⛔
+
+**STOP! Before making ANY code/infrastructure changes, you MUST follow these rules:**
+
+{{#if IS_DESKTOP_PLATFORM}}
+### 1. WORKTREE REQUIREMENT (NO EXCEPTIONS)
+
+\`\`\`
+❌ FORBIDDEN: Direct commits to {{DEFAULT_BRANCH}} branch
+✅ REQUIRED: Create worktree → Make changes → Create PR → Merge via PR
+\`\`\`
+
+**Before ANY code change:**
+
+\`\`\`bash
+# Step 1: Create worktree
+agent-context worktree create <descriptive-slug>
+
+# Step 2: cd into worktree and make changes
+cd {{WORKTREE_DIR}}/NNN-<slug>/
+
+# Step 3: Commit and create PR
+agent-context worktree pr <id>
+\`\`\`
+
+**Applies to:** All code, configs, workflows, documentation
+{{else}}
+### 1. BRANCH REQUIREMENT (NO EXCEPTIONS)
+
+\`\`\`
+❌ FORBIDDEN: Direct commits to {{DEFAULT_BRANCH}} branch
+✅ REQUIRED: Create branch → Make changes → Create PR → Merge via PR
+\`\`\`
+
+**Before ANY code change:**
+
+\`\`\`bash
+git checkout -b {{WORKTREE_PREFIX}}<descriptive-slug>
+# Make changes, commit, push
+git push -u origin {{WORKTREE_PREFIX}}<descriptive-slug>
+# Create PR via UI
+\`\`\`
+{{/if}}
+
+### 2. MEMORY REQUIREMENT (AFTER SIGNIFICANT ACTIONS)
+
+\`\`\`bash
+# Store learnings after: fixes, discoveries, architecture decisions, gotchas
+agent-context memory store lesson "What you learned" --tags tag1,tag2 --importance 7
+\`\`\`
+
+**Must store memories for:**
+- Infrastructure changes (cost savings, scaling decisions, fixes)
+- Bug fixes and their root causes
+- Architecture decisions and rationale
+- Gotchas and workarounds discovered
+- Performance optimizations
+
+### 3. TODO LIST REQUIREMENT
+
+- Create todo list for multi-step tasks (3+ steps)
+- Update status IMMEDIATELY after completing each item
+- Never let todos go stale (update every 5-10 tool calls)
+
+### 4. VERIFICATION BEFORE COMPLETION
+
+- [ ] Used {{#if IS_DESKTOP_PLATFORM}}worktree{{else}}feature branch{{/if}} for code changes? (or explain why not applicable)
+- [ ] Stored significant learnings in memory?
+- [ ] Updated/completed todo list?
+- [ ] Created PR instead of direct commit?
+
+---
+
+## MEMORY SYSTEM
 
 > **CRITICAL**: Memory updates are MANDATORY, not optional. Every significant discovery, fix, or lesson learned MUST be stored before completing a task.
 
