@@ -2,6 +2,9 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { initCommand } from '../cli/init.js';
 import { analyzeCommand } from '../cli/analyze.js';
 import { generateCommand } from '../cli/generate.js';
@@ -10,12 +13,17 @@ import { worktreeCommand } from '../cli/worktree.js';
 import { syncCommand } from '../cli/sync.js';
 import { droidsCommand } from '../cli/droids.js';
 
+// Read version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
+
 const program = new Command();
 
 program
   .name('uam')
   .description('Universal AI agent memory system for Claude Code, Factory.AI, VSCode, and OpenCode')
-  .version('0.1.0');
+  .version(packageJson.version);
 
 program
   .command('init')
