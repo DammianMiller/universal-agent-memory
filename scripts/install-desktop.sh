@@ -7,6 +7,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+REPO_URL="https://github.com/DammianMiller/universal-agent-memory"
+
 echo -e "${GREEN}Universal Agent Memory - Desktop Installation${NC}"
 echo "============================================"
 echo ""
@@ -46,7 +48,31 @@ fi
 # Install the CLI globally
 echo ""
 echo "Installing @universal-agent-memory/cli..."
-npm install -g @universal-agent-memory/cli
+
+# Try npm install first, fall back to git clone if package not published yet
+if npm install -g @universal-agent-memory/cli 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Installed from npm registry"
+else
+    echo -e "${YELLOW}Package not yet on npm, installing from GitHub...${NC}"
+    
+    # Install to user's local directory
+    INSTALL_DIR="${HOME}/.universal-agent-memory"
+    
+    # Remove old installation if exists
+    if [ -d "$INSTALL_DIR" ]; then
+        echo "Removing previous installation..."
+        rm -rf "$INSTALL_DIR"
+    fi
+    
+    # Clone and install
+    git clone --depth 1 "$REPO_URL.git" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    npm install --production=false
+    npm run build
+    npm link
+    
+    echo -e "${GREEN}✓${NC} Installed from GitHub to $INSTALL_DIR"
+fi
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
@@ -72,4 +98,4 @@ echo ""
 echo "  3. Generate CLAUDE.md for your project:"
 echo "     $ uam generate"
 echo ""
-echo "Documentation: https://github.com/DammianMiller/universal-agent-memory#readme"
+echo "Documentation: ${REPO_URL}#readme"
