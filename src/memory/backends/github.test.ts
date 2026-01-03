@@ -25,7 +25,7 @@ describe('GitHubMemoryBackend', () => {
     backend = new GitHubMemoryBackend({
       token: 'test-token',
       repo: 'owner/repo',
-      path: '.agent-context/memory',
+      path: '.uam/memory',
       branch: 'main',
     });
 
@@ -53,7 +53,7 @@ describe('GitHubMemoryBackend', () => {
     const call = mockOctokit.repos.createOrUpdateFileContents.mock.calls[0][0];
     expect(call.owner).toBe('owner');
     expect(call.repo).toBe('repo');
-    expect(call.path).toContain('.agent-context/memory');
+    expect(call.path).toContain('.uam/memory');
     expect(call.message).toContain('Add memory');
   });
 
@@ -81,7 +81,7 @@ describe('GitHubMemoryBackend', () => {
       .mockResolvedValueOnce({
         data: mockMemories.map((m, i) => ({
           name: `${m.timestamp.replace(/:/g, '-')}_${m.id}.json`,
-          path: `.agent-context/memory/${m.timestamp.replace(/:/g, '-')}_${m.id}.json`,
+          path: `.uam/memory/${m.timestamp.replace(/:/g, '-')}_${m.id}.json`,
           type: 'file',
           sha: 'sha',
         })),
@@ -143,7 +143,7 @@ describe('GitHubMemoryBackend', () => {
     const mockFiles = [
       {
         name: fileName,
-        path: `.agent-context/memory/${fileName}`,
+        path: `.uam/memory/${fileName}`,
         type: 'file' as const,
         sha: 'old-sha',
       },

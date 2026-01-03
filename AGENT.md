@@ -1,10 +1,10 @@
 <coding_guidelines>
 
-# AGENT.md - @agent-context/cli Development Guide
+# AGENT.md - @universal-agent-memory/cli Development Guide
 
-You are an AI assistant helping with the @agent-context/cli project.
+You are an AI assistant helping with the @universal-agent-memory/cli project.
 
-> Universal AI agent context system - CLAUDE.md templates, memory, worktrees for Claude Code, Factory.AI, VSCode, OpenCode
+> Universal AI agent memory system - CLAUDE.md templates, memory, worktrees for Claude Code, Factory.AI, VSCode, OpenCode
 
 ---
 
@@ -37,9 +37,9 @@ When using browser automation:
 
 ### URLs
 
-- **URL**: https://agent-context.dev/install-desktop.sh
-- **URL**: https://agent-context.dev/install-web.sh
-- **URL**: https://agent-context.dev/schema.json&quot;,
+- **URL**: https://universal-agent-memory.dev/install-desktop.sh
+- **URL**: https://universal-agent-memory.dev/install-web.sh
+- **URL**: https://universal-agent-memory.dev/schema.json&quot;,
 - **URL**: https://xxxxx.aws.cloud.qdrant.io:6333&quot;,
 - **URL**: https://xxxxx.aws.cloud.qdrant.io:6333
 

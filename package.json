@@ -1,13 +1,13 @@
 {
-  "name": "@agent-context/cli",
+  "name": "@universal-agent-memory/cli",
   "version": "0.1.0",
-  "description": "Universal AI agent context system - CLAUDE.md templates, memory, worktrees for Claude Code, Factory.AI, VSCode, OpenCode",
+  "description": "Universal AI agent memory system - CLAUDE.md templates, memory, worktrees for Claude Code, Factory.AI, VSCode, OpenCode",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "agent-context": "dist/bin/cli.js",
-    "actx": "dist/bin/cli.js"
+    "universal-agent-memory": "dist/bin/cli.js",
+    "uam": "dist/bin/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -22,7 +22,7 @@
     "install:web": "bash scripts/install-web.sh",
     "install:desktop": "bash scripts/install-desktop.sh",
     "install:all": "bash scripts/install.sh",
-    "postinstall": "echo '\n✨ Run: npx agent-context init --interactive'"
+    "postinstall": "echo '\n✨ Run: npx universal-agent-memory init --interactive'"
   },
   "keywords": [
     "claude",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/miller-tech/agent-context.git"
+    "url": "https://github.com/DammianMiller/universal-agent-memory.git"
   },
   "engines": {
     "node": ">=18.0.0"

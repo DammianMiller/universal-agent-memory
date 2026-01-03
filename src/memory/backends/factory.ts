@@ -20,7 +20,7 @@ export async function createMemoryBackend(config: AgentContextConfig): Promise<M
         const backend = new GitHubMemoryBackend({
           token,
           repo,
-          path: longTerm.github.path || '.agent-context/memory',
+          path: longTerm.github.path || '.uam/memory',
           branch: longTerm.github.branch || 'main',
         });
         

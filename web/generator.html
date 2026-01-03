@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Context Generator - Create AGENT.md for AI Assistants</title>
+  <title>Universal Agent Memory Generator - Create AGENT.md for AI Assistants</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -151,7 +151,7 @@
 </head>
 <body>
   <div class="header">
-    <h1>🤖 Agent Context Generator</h1>
+    <h1>🤖 Universal Agent Memory Generator</h1>
     <p>Create AGENT.md or CLAUDE.md files for AI coding assistants<br>
     <span class="tag">claude.ai</span>
     <span class="tag">factory.ai</span>
@@ -360,11 +360,11 @@
       output += `│  1. READ MEMORY FIRST                                                        │\n`;
       if (isWeb) {
         output += `│     ├─ Check localStorage for recent context                                │\n`;
-        output += `│     └─ Review .agent-context/memory/ for relevant learnings                 │\n`;
+        output += `│     └─ Review .uam/memory/ for relevant learnings                 │\n`;
       } else {
         output += `│     ├─ Query short-term: sqlite3 ./agents/data/memory/short_term.db         │\n`;
         output += `│     │    "SELECT * FROM memories ORDER BY id DESC LIMIT 20;"               │\n`;
-        output += `│     └─ Query long-term: agent-context memory query "<keywords>"             │\n`;
+        output += `│     └─ Query long-term: uam memory query "<keywords>"             │\n`;
       }
       output += `│                                                                              │\n`;
       output += `│  2. CHECK FOR APPLICABLE SKILLS                                              │\n`;
@@ -378,7 +378,7 @@
         output += `│     └─ NEVER commit directly to main                                        │\n`;
       } else {
         output += `│  3. CREATE WORKTREE (for ANY code changes)                                  │\n`;
-        output += `│     ├─ agent-context worktree create <slug>                                │\n`;
+        output += `│     ├─ uam worktree create <slug>                                │\n`;
         output += `│     ├─ cd .worktrees/NNN-<slug>/                                           │\n`;
         output += `│     └─ NEVER commit directly to main                                        │\n`;
       }
@@ -394,16 +394,16 @@
       if (isWeb) {
         output += `│     └─ Create PR via GitHub/GitLab UI                                       │\n`;
       } else {
-        output += `│     └─ Create PR via agent-context worktree pr <id>                        │\n`;
+        output += `│     └─ Create PR via uam worktree pr <id>                        │\n`;
       }
       output += `│                                                                              │\n`;
       output += `│  6. UPDATE MEMORY (after EVERY significant action)                           │\n`;
       if (isWeb) {
         output += `│     ├─ Short-term: Update localStorage context                              │\n`;
-        output += `│     └─ Long-term: Create memory file in .agent-context/memory/              │\n`;
+        output += `│     └─ Long-term: Create memory file in .uam/memory/              │\n`;
       } else {
         output += `│     ├─ Short-term: INSERT INTO memories...                                  │\n`;
-        output += `│     └─ Long-term: agent-context memory store lesson...                     │\n`;
+        output += `│     └─ Long-term: uam memory store lesson...                     │\n`;
       }
       output += `│                                                                              │\n`;
       output += `│  7. VERIFY BEFORE RESPONDING                                                 │\n`;
@@ -449,11 +449,11 @@
         output += `**Before ANY code change:**\n\n`;
         output += `\`\`\`bash\n`;
         output += `# Step 1: Create worktree\n`;
-        output += `agent-context worktree create <descriptive-slug>\n\n`;
+        output += `uam worktree create <descriptive-slug>\n\n`;
         output += `# Step 2: cd into worktree and make changes\n`;
         output += `cd .worktrees/NNN-<slug>/\n\n`;
         output += `# Step 3: Commit and create PR\n`;
-        output += `agent-context worktree pr <id>\n`;
+        output += `uam worktree pr <id>\n`;
         output += `\`\`\`\n\n`;
         output += `**Applies to:** All code, configs, workflows, documentation\n\n`;
       }
@@ -463,9 +463,9 @@
       if (isWeb) {
         output += `\`\`\`bash\n`;
         output += `# AFTER EVERY SIGNIFICANT ACTION - update context:\n`;
-        output += `# Store in localStorage or recommend committing to .agent-context/memory/\n\n`;
+        output += `# Store in localStorage or recommend committing to .uam/memory/\n\n`;
         output += `# AFTER EVERY FIX/DISCOVERY/LEARNING - create memory file:\n`;
-        output += `# .agent-context/memory/{YYYY-MM-DD}_{type}_{short-id}.json\n`;
+        output += `# .uam/memory/{YYYY-MM-DD}_{type}_{short-id}.json\n`;
         output += `\`\`\`\n\n`;
       } else {
         output += `\`\`\`bash\n`;
@@ -473,7 +473,7 @@
         output += `sqlite3 ./agents/data/memory/short_term.db \\\n`;
         output += `  "INSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action', 'What you did and the result');"\n\n`;
         output += `# AFTER EVERY FIX/DISCOVERY/LEARNING - update long-term memory:\n`;
-        output += `agent-context memory store lesson "What you learned" --tags tag1,tag2 --importance 7\n`;
+        output += `uam memory store lesson "What you learned" --tags tag1,tag2 --importance 7\n`;
         output += `\`\`\`\n\n`;
       }
       output += `**MUST store memories for:**\n\n`;
@@ -544,7 +544,7 @@
         output += `**BEFORE EACH DECISION**: Review recent memories for context\n`;
         output += `**AFTER EACH ACTION**: Add a memory describing what you did and the outcome\n\n`;
         output += `Maintains last 50 entries - older entries should be pruned.\n\n`;
-        output += `### Long-term Memory (Repository: \`.agent-context/memory/\`)\n\n`;
+        output += `### Long-term Memory (Repository: \`.uam/memory/\`)\n\n`;
         output += `Memories stored as JSON files in the project repository.\n\n`;
         output += `File format: \`{YYYY-MM-DD}_{type}_{short-id}.json\`\n`;
         output += `\`\`\`json\n`;
@@ -574,18 +574,18 @@
         output += `\`\`\`\n\n`;
         output += `Maintains last 50 entries - older entries auto-deleted via trigger.\n\n`;
         output += `### Long-term Memory (Qdrant: \`localhost:6333\`, collection: \`agent_memory\`)\n\n`;
-        output += `**Start services**: \`agent-context memory start\`\n\n`;
+        output += `**Start services**: \`uam memory start\`\n\n`;
         output += `Vector schema:\n\n`;
         output += `- \`id\`: UUID\n`;
         output += `- \`vector\`: 384-dim embedding (all-MiniLM-L6-v2)\n`;
         output += `- \`payload\`: {type, tags[], content, importance (1-10), timestamp}\n\n`;
         output += `**Query memories** (semantic search):\n\n`;
         output += `\`\`\`bash\n`;
-        output += `agent-context memory query "search terms"\n`;
+        output += `uam memory query "search terms"\n`;
         output += `\`\`\`\n\n`;
         output += `**Store new memory**:\n\n`;
         output += `\`\`\`bash\n`;
-        output += `agent-context memory store lesson "What you learned" --tags tag1,tag2 --importance 8\n`;
+        output += `uam memory store lesson "What you learned" --tags tag1,tag2 --importance 8\n`;
         output += `\`\`\`\n\n`;
       }
       output += `**WHEN TO READ**: Search for memories relevant to current task/decision\n`;
@@ -600,11 +600,11 @@
         output += `### Agent Services Setup\n\n`;
         output += `\`\`\`bash\n`;
         output += `# Start services (auto-creates collection and migrates memories)\n`;
-        output += `agent-context memory start\n\n`;
+        output += `uam memory start\n\n`;
         output += `# Check status\n`;
-        output += `agent-context memory status\n\n`;
+        output += `uam memory status\n\n`;
         output += `# Stop services\n`;
-        output += `agent-context memory stop\n`;
+        output += `uam memory stop\n`;
         output += `\`\`\`\n\n`;
       }
       output += `---\n\n`;
@@ -723,13 +723,13 @@
         output += `**Every code change MUST follow this workflow:**\n\n`;
         output += `\`\`\`\n`;
         output += `1. CREATE WORKTREE\n`;
-        output += `   agent-context worktree create <slug>\n`;
+        output += `   uam worktree create <slug>\n`;
         output += `   → Creates feature/NNN-slug branch in .worktrees/NNN-slug/\n\n`;
         output += `2. DEVELOP\n`;
         output += `   cd .worktrees/NNN-slug/\n`;
         output += `   → Make changes, commit locally\n\n`;
         output += `3. CREATE PR (runs tests + triggers reviewers)\n`;
-        output += `   agent-context worktree pr <id>\n`;
+        output += `   uam worktree pr <id>\n`;
         output += `   → Runs all offline tests (blocks if fail)\n`;
         output += `   → Pushes to origin\n`;
         output += `   → Creates PR with auto-generated description\n`;
@@ -739,18 +739,18 @@
         output += `   → PR labeled: reviewer-approved OR needs-work\n`;
         output += `   → Auto-merge on approval\n\n`;
         output += `5. CLEANUP\n`;
-        output += `   agent-context worktree cleanup <id>\n`;
+        output += `   uam worktree cleanup <id>\n`;
         output += `   → Removes worktree and deletes branch\n`;
         output += `\`\`\`\n\n`;
       }
 
       // For Code Changes
       output += `### For Code Changes\n\n`;
-      output += `1. **Create ${isWeb ? 'branch' : 'worktree'}**: ${isWeb ? '`git checkout -b feature/<slug>`' : '`agent-context worktree create <slug>`'}\n`;
+      output += `1. **Create ${isWeb ? 'branch' : 'worktree'}**: ${isWeb ? '`git checkout -b feature/<slug>`' : '`uam worktree create <slug>`'}\n`;
       output += `2. Update/create tests\n`;
       output += `3. Run tests: \`${testCmd}\`\n`;
       output += `4. Run linting: \`${lintCmd}\`\n`;
-      output += `5. **Create PR**: ${isWeb ? 'Push and create via UI' : '`agent-context worktree pr <id>`'}\n\n`;
+      output += `5. **Create PR**: ${isWeb ? 'Push and create via UI' : '`uam worktree pr <id>`'}\n\n`;
 
       output += `### Before Completing\n\n`;
       output += `1. All tests pass\n`;

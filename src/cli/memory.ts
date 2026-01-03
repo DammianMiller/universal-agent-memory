@@ -73,7 +73,7 @@ async function showStatus(cwd: string): Promise<void> {
     }
   } catch {
     console.log(chalk.yellow('○ Long-term memory (Qdrant): Not available'));
-    console.log(chalk.dim('  Run `agent-context memory start` to initialize'));
+    console.log(chalk.dim('  Run `uam memory start` to initialize'));
   }
 
   // Check docker-compose
@@ -113,7 +113,7 @@ async function startServices(cwd: string): Promise<void> {
 services:
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: agent-context-qdrant
+    container_name: uam-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -200,7 +200,7 @@ async function prepopulateFromSources(cwd: string, options: MemoryOptions): Prom
   console.log(chalk.bold('\n🧠 Prepopulating Memory from Project Sources\n'));
 
   // Load config
-  const configPath = join(cwd, '.agent-context.json');
+  const configPath = join(cwd, '.uam.json');
   let config: AgentContextConfig;
   if (existsSync(configPath)) {
     try {
@@ -274,7 +274,7 @@ async function prepopulateFromSources(cwd: string, options: MemoryOptions): Prom
     // Store long-term memories (summary for now)
     if (longTerm.length > 0) {
       console.log(chalk.dim(`\n  Long-term memories ready: ${longTerm.length} entries`));
-      console.log(chalk.dim('  To store in Qdrant, run: agent-context memory start'));
+      console.log(chalk.dim('  To store in Qdrant, run: uam memory start'));
       
       // Save long-term memories as JSON for manual import or Qdrant storage
       const ltPath = join(cwd, 'agents/data/memory/long_term_prepopulated.json');

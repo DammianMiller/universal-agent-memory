@@ -13,8 +13,8 @@ import { droidsCommand } from '../cli/droids.js';
 const program = new Command();
 
 program
-  .name('agent-context')
-  .description('Universal AI agent context system for Claude Code, Factory.AI, VSCode, and OpenCode')
+  .name('uam')
+  .description('Universal AI agent memory system for Claude Code, Factory.AI, VSCode, and OpenCode')
   .version('0.1.0');
 
 program
@@ -33,7 +33,7 @@ program
   .command('analyze')
   .description('Analyze project structure and generate metadata')
   .option('-o, --output <format>', 'Output format (json, yaml, md)', 'json')
-  .option('--save', 'Save analysis to .agent-context.analysis.json')
+  .option('--save', 'Save analysis to .uam.analysis.json')
   .action(analyzeCommand);
 
 program

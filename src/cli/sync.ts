@@ -12,8 +12,8 @@ export async function syncCommand(options: SyncOptions): Promise<void> {
   if (!options.from && !options.to) {
     console.log(chalk.yellow('Specify --from and/or --to platforms'));
     console.log(chalk.dim('\nExample:'));
-    console.log(chalk.dim('  agent-context sync --from claude --to factory'));
-    console.log(chalk.dim('  agent-context sync --from factory --to opencode'));
+    console.log(chalk.dim('  uam sync --from claude --to factory'));
+    console.log(chalk.dim('  uam sync --from factory --to opencode'));
     return;
   }
 

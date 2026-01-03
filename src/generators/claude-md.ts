@@ -26,7 +26,7 @@ function buildContext(analysis: ProjectAnalysis, config: AgentContextConfig): Re
   
   if (config.memory?.longTerm?.provider === 'github') {
     longTermProvider = 'github';
-    longTermEndpoint = `${config.memory?.longTerm?.github?.repo || 'owner/repo'}/${config.memory?.longTerm?.github?.path || '.agent-context/memory'}`;
+    longTermEndpoint = `${config.memory?.longTerm?.github?.repo || 'owner/repo'}/${config.memory?.longTerm?.github?.path || '.uam/memory'}`;
   } else if (config.memory?.longTerm?.provider === 'qdrant-cloud') {
     longTermProvider = 'qdrant-cloud';
     longTermEndpoint = config.memory?.longTerm?.qdrantCloud?.url || 'https://xxxxxx.aws.cloud.qdrant.io:6333';
@@ -34,7 +34,7 @@ function buildContext(analysis: ProjectAnalysis, config: AgentContextConfig): Re
 
   // GitHub repo info for web memory
   const githubRepo = config.memory?.longTerm?.github?.repo || '';
-  const githubMemoryPath = config.memory?.longTerm?.github?.path || '.agent-context/memory';
+  const githubMemoryPath = config.memory?.longTerm?.github?.path || '.uam/memory';
 
   return {
     PROJECT_NAME: analysis.projectName || config.project.name,
@@ -155,13 +155,13 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 
 \`\`\`bash
 # Step 1: Create worktree
-agent-context worktree create <descriptive-slug>
+uam worktree create <descriptive-slug>
 
 # Step 2: cd into worktree and make changes
 cd {{WORKTREE_DIR}}/NNN-<slug>/
 
 # Step 3: Commit and create PR
-agent-context worktree pr <id>
+uam worktree pr <id>
 \`\`\`
 
 **Applies to:** All code, configs, workflows, documentation
@@ -187,7 +187,7 @@ git push -u origin {{WORKTREE_PREFIX}}<descriptive-slug>
 
 \`\`\`bash
 # Store learnings after: fixes, discoveries, architecture decisions, gotchas
-agent-context memory store lesson "What you learned" --tags tag1,tag2 --importance 7
+uam memory store lesson "What you learned" --tags tag1,tag2 --importance 7
 \`\`\`
 
 **Must store memories for:**
@@ -237,7 +237,7 @@ INSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action
 
 ### Long-term Memory ({{LONG_TERM_PROVIDER}}: \`{{LONG_TERM_ENDPOINT}}\`, collection: \`{{LONG_TERM_COLLECTION}}\`)
 
-**Start services**: \`agent-context memory start\`
+**Start services**: \`uam memory start\`
 
 Vector schema:
 - \`id\`: UUID
@@ -246,12 +246,12 @@ Vector schema:
 
 **Query memories** (semantic search):
 \`\`\`bash
-agent-context memory query "search term"
+uam memory query "search term"
 \`\`\`
 
 **Store new memory** (MANDATORY for significant learnings):
 \`\`\`bash
-agent-context memory store <type> "content" --tags tag1,tag2 --importance N
+uam memory store <type> "content" --tags tag1,tag2 --importance N
 \`\`\`
 
 Memory types: \`fact\`, \`lesson\`, \`skill\`, \`discovery\`, \`preference\`
@@ -273,13 +273,13 @@ Memory types: \`fact\`, \`lesson\`, \`skill\`, \`discovery\`, \`preference\`
 
 \`\`\`bash
 # Start services (auto-creates collection and migrates memories)
-agent-context memory start
+uam memory start
 
 # Check status
-agent-context memory status
+uam memory status
 
 # Stop services
-agent-context memory stop
+uam memory stop
 \`\`\`
 
 {{else}}
@@ -302,9 +302,9 @@ Structure:
 **BEFORE EACH DECISION**: Review recent memories for context
 **AFTER EACH ACTION**: Add a memory describing what you did and the outcome
 
-### Long-term Memory (GitHub: \`.agent-context/memory/\`)
+### Long-term Memory (GitHub: \`.uam/memory/\`)
 
-Memories stored as JSON files in the project repository under \`.agent-context/memory/\`
+Memories stored as JSON files in the project repository under \`.uam/memory/\`
 
 File format: \`{YYYY-MM-DD}_{type}_{short-id}.json\`
 \`\`\`json
@@ -333,7 +333,7 @@ Memory types: \`fact\`, \`lesson\`, \`skill\`, \`discovery\`, \`preference\`
 
 **Memory storage is part of task completion.** A task is NOT complete until learnings are stored.
 
-When you discover something significant, recommend the user commit a memory file to \`.agent-context/memory/\`.
+When you discover something significant, recommend the user commit a memory file to \`.uam/memory/\`.
 {{/if}}
 
 ---
@@ -437,7 +437,7 @@ kubectl config use-context {{this.context}}  # {{this.name}} ({{this.purpose}})
 
 \`\`\`bash
 # Create worktree for new task (MANDATORY for all changes)
-agent-context worktree create <slug>
+uam worktree create <slug>
 
 # Testing
 {{TEST_COMMAND}}
@@ -526,7 +526,7 @@ cd {{INFRA_PATH}} && terraform plan
 
 \`\`\`
 1. CREATE WORKTREE
-   agent-context worktree create <slug>
+   uam worktree create <slug>
    → Creates {{WORKTREE_PREFIX}}NNN-slug branch in {{WORKTREE_DIR}}/NNN-slug/
 
 2. DEVELOP
@@ -534,7 +534,7 @@ cd {{INFRA_PATH}} && terraform plan
    → Make changes, commit locally
 
 3. CREATE PR (runs tests + triggers reviewers)
-   agent-context worktree pr <id>
+   uam worktree pr <id>
    → Runs all offline tests (blocks if fail)
    → Pushes to origin
    → Creates PR with auto-generated description
@@ -546,7 +546,7 @@ cd {{INFRA_PATH}} && terraform plan
    → Auto-merge on approval
 
 5. CLEANUP
-   agent-context worktree cleanup <id>
+   uam worktree cleanup <id>
    → Removes worktree and deletes branch
 \`\`\`
 {{else}}
@@ -591,7 +591,7 @@ cd {{INFRA_PATH}} && terraform plan
 ### For Code Changes
 
 {{#if IS_DESKTOP_PLATFORM}}
-1. **Create worktree**: \`agent-context worktree create <slug>\`
+1. **Create worktree**: \`uam worktree create <slug>\`
 {{else}}
 1. **Create branch**: \`git checkout -b {{WORKTREE_PREFIX}}<description>\`
 {{/if}}
@@ -599,7 +599,7 @@ cd {{INFRA_PATH}} && terraform plan
 3. Run \`{{TEST_COMMAND}}\`
 4. Run linting and type checking
 {{#if IS_DESKTOP_PLATFORM}}
-5. **Create PR**: \`agent-context worktree pr <id>\`
+5. **Create PR**: \`uam worktree pr <id>\`
 {{else}}
 5. **Create PR**: Push branch and open PR
 {{/if}}

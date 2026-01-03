@@ -153,7 +153,7 @@ async function listDroids(cwd: string): Promise<void> {
 
   if (!found) {
     console.log(chalk.yellow('No droids found.'));
-    console.log(chalk.dim('Create one with: agent-context droids add <name>'));
+    console.log(chalk.dim('Create one with: uam droids add <name>'));
   }
 
   console.log(chalk.bold('Built-in Templates:'));

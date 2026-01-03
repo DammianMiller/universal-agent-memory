@@ -36,7 +36,7 @@ export async function analyzeCommand(options: AnalyzeOptions): Promise<void> {
     console.log('\n' + output);
 
     if (options.save) {
-      const filename = `.agent-context.analysis.${options.output === 'md' ? 'md' : 'json'}`;
+      const filename = `.uam.analysis.${options.output === 'md' ? 'md' : 'json'}`;
       writeFileSync(join(cwd, filename), output);
       console.log(chalk.green(`\nSaved to ${filename}`));
     }

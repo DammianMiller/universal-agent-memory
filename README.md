@@ -1,6 +1,6 @@
-# Agent Context
+# Universal Agent Memory
 
-Universal AI agent context system for Claude Code, Factory.AI, VSCode, OpenCode, and web-based LLMs.
+Universal AI agent memory system for Claude Code, Factory.AI, VSCode, OpenCode, and web-based LLMs.
 
 Provides:
 - **CLAUDE.md template system** with automatic project analysis and generation
@@ -16,23 +16,23 @@ Provides:
 
 ```bash
 # Automatic installer with Docker detection
-bash <(curl -fsSL https://agent-context.dev/install-desktop.sh)
+bash <(curl -fsSL https://universal-agent-memory.dev/install-desktop.sh)
 
 # Or manually with npm
-npm install -g @agent-context/cli
+npm install -g @universal-agent-memory/cli
 
 # Or use npx
-npx @agent-context/cli init --desktop
+npx @universal-agent-memory/cli init --desktop
 ```
 
 ### Web Browsers (claude.ai, factory.ai)
 
 ```bash
 # Quick web setup
-bash <(curl -fsSL https://agent-context.dev/install-web.sh)
+bash <(curl -fsSL https://universal-agent-memory.dev/install-web.sh)
 
 # Or manually
-npx @agent-context/cli init --web
+npx @universal-agent-memory/cli init --web
 ```
 
 Web installations use:
@@ -43,16 +43,16 @@ Web installations use:
 
 ```bash
 # Desktop initialization (default)
-agent-context init --desktop
+uam init --desktop
 
 # Web initialization (for claude.ai, factory.ai)
-agent-context init --web
+uam init --web
 
 # Interactive mode (asks questions)
-agent-context init --interactive
+uam init --interactive
 
 # Or with specific options
-agent-context init --platform factory --with-memory --with-worktrees
+uam init --platform factory --with-memory --with-worktrees
 ```
 
 This will:
@@ -66,7 +66,7 @@ This will:
 ### Initialize Project
 
 ```bash
-agent-context init [options]
+uam init [options]
 
 Options:
   -p, --platform <platforms...>  Target platforms (claude, factory, vscode, opencode, claudeWeb, factoryWeb, all)
@@ -81,7 +81,7 @@ Options:
 ### Analyze Project
 
 ```bash
-agent-context analyze [options]
+uam analyze [options]
 
 Options:
   -o, --output <format>  Output format (json, yaml, md)
@@ -91,7 +91,7 @@ Options:
 ### Generate Files
 
 ```bash
-agent-context generate [options]
+uam generate [options]
 
 Options:
   -f, --force         Overwrite without confirmation
@@ -114,64 +114,64 @@ The merge strategy:
 
 ```bash
 # Check status
-agent-context memory status
+uam memory status
 
 # Start memory services (Qdrant)
-agent-context memory start
+uam memory start
 
 # Stop services
-agent-context memory stop
+uam memory stop
 
 # Query long-term memory
-agent-context memory query "search term" --limit 10
+uam memory query "search term" --limit 10
 
 # Store a memory
-agent-context memory store "lesson learned" --tags "tag1,tag2" --importance 8
+uam memory store "lesson learned" --tags "tag1,tag2" --importance 8
 ```
 
 ### Git Worktrees
 
 ```bash
 # Create new worktree
-agent-context worktree create my-feature
+uam worktree create my-feature
 
 # List worktrees
-agent-context worktree list
+uam worktree list
 
 # Create PR from worktree
-agent-context worktree pr 001
+uam worktree pr 001
 
 # Cleanup after merge
-agent-context worktree cleanup 001
+uam worktree cleanup 001
 ```
 
 ### Droids/Agents
 
 ```bash
 # List available droids
-agent-context droids list
+uam droids list
 
 # Add a new droid
-agent-context droids add my-droid --template code-reviewer
+uam droids add my-droid --template code-reviewer
 
 # Import from another platform
-agent-context droids import ~/.claude/agents/
+uam droids import ~/.claude/agents/
 ```
 
 ### Platform Sync
 
 ```bash
 # Sync between platforms
-agent-context sync --from claude --to factory
+uam sync --from claude --to factory
 ```
 
 ## Configuration
 
-Configuration is stored in `.agent-context.json`:
+Configuration is stored in `.uam.json`:
 
 ```json
 {
-  "$schema": "https://agent-context.dev/schema.json",
+  "$schema": "https://universal-agent-memory.dev/schema.json",
   "version": "1.0.0",
   "project": {
     "name": "my-project",
@@ -203,7 +203,7 @@ Configuration is stored in `.agent-context.json`:
       "github": {
         "enabled": false,
         "repo": "owner/repo",
-        "path": ".agent-context/memory"
+        "path": ".uam/memory"
       },
       "qdrantCloud": {
         "enabled": false,
@@ -252,7 +252,7 @@ Location: `./agents/data/memory/short_term.db`
 
 **Local Qdrant** (requires Docker):
 ```bash
-agent-context memory start
+uam memory start
 ```
 
 **GitHub Backend** (opt-in):
@@ -302,8 +302,8 @@ Vector database for semantic search of past learnings:
 
 ```bash
 # Clone and install
-git clone https://github.com/miller-tech/agent-context.git
-cd agent-context
+git clone https://github.com/DammianMiller/universal-agent-memory.git
+cd universal-agent-memory
 npm install
 
 # Build

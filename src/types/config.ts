@@ -19,7 +19,7 @@ export const GitHubMemoryBackendSchema = z.object({
   enabled: z.boolean().default(false),
   repo: z.string().optional(), // e.g., "owner/repo"
   token: z.string().optional(), // GitHub PAT (can also use GITHUB_TOKEN env var)
-  path: z.string().default('.agent-context/memory'), // Path in repo
+  path: z.string().default('.uam/memory'), // Path in repo
   branch: z.string().default('main'),
 });
 

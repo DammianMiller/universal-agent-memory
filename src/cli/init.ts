@@ -27,9 +27,9 @@ const PLATFORM_MAP: Record<string, Platform> = {
 
 export async function initCommand(options: InitOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = join(cwd, '.agent-context.json');
+  const configPath = join(cwd, '.uam.json');
 
-  console.log(chalk.bold('\n🚀 Agent Context Initialization\n'));
+  console.log(chalk.bold('\n🚀 Universal Agent Memory Initialization\n'));
 
   // Check for existing config
   if (existsSync(configPath) && !options.force) {
@@ -93,7 +93,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // Build configuration
   const config: AgentContextConfig = {
-    $schema: 'https://agent-context.dev/schema.json',
+    $schema: 'https://universal-agent-memory.dev/schema.json',
     version: '1.0.0',
     project: {
       name: analysis.projectName,
@@ -151,7 +151,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const configSpinner = ora('Writing configuration...').start();
   try {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    configSpinner.succeed('Created .agent-context.json');
+    configSpinner.succeed('Created .uam.json');
   } catch (error) {
     configSpinner.fail('Failed to write configuration');
     console.error(chalk.red(error));
@@ -257,12 +257,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
   console.log(chalk.green('\n✅ Initialization complete!\n'));
   console.log(chalk.bold('Next steps:'));
   console.log('  1. Review and customize CLAUDE.md');
-  console.log('  2. Review .agent-context.json configuration');
+  console.log('  2. Review .uam.json configuration');
   if (withMemory) {
-    console.log('  3. Start memory services: agent-context memory start');
+    console.log('  3. Start memory services: uam memory start');
   }
   if (withWorktrees) {
-    console.log('  4. Create your first worktree: agent-context worktree create <slug>');
+    console.log('  4. Create your first worktree: uam worktree create <slug>');
   }
   console.log('');
 }

@@ -18,7 +18,7 @@ interface GenerateOptions {
 
 export async function generateCommand(options: GenerateOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = join(cwd, '.agent-context.json');
+  const configPath = join(cwd, '.uam.json');
 
   console.log(chalk.bold('\n📝 Generate Agent Context Files\n'));
 
@@ -28,14 +28,14 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     try {
       const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
       config = AgentContextConfigSchema.parse(raw);
-      console.log(chalk.dim(`Using config from .agent-context.json`));
+      console.log(chalk.dim(`Using config from .uam.json`));
     } catch (error) {
-      console.error(chalk.red('Invalid .agent-context.json configuration'));
+      console.error(chalk.red('Invalid .uam.json configuration'));
       console.error(error);
       return;
     }
   } else {
-    console.log(chalk.yellow('No .agent-context.json found. Run `agent-context init` first, or generating with defaults.'));
+    console.log(chalk.yellow('No .uam.json found. Run `uam init` first, or generating with defaults.'));
     config = {
       version: '1.0.0',
       project: {

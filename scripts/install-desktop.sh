@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Agent Context - Desktop Installation${NC}"
+echo -e "${GREEN}Universal Agent Memory - Desktop Installation${NC}"
 echo "============================================"
 echo ""
 
@@ -45,8 +45,8 @@ fi
 
 # Install the CLI globally
 echo ""
-echo "Installing @agent-context/cli..."
-npm install -g @agent-context/cli
+echo "Installing @universal-agent-memory/cli..."
+npm install -g @universal-agent-memory/cli
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
@@ -54,12 +54,12 @@ echo ""
 echo "Next steps:"
 echo "  1. Initialize your project:"
 echo "     $ cd /path/to/your/project"
-echo "     $ agent-context init --desktop"
+echo "     $ uam init --desktop"
 echo ""
 
 if [ "$DOCKER_AVAILABLE" = true ]; then
     echo "  2. Start local memory services (optional):"
-    echo "     $ agent-context memory start"
+    echo "     $ uam memory start"
     echo ""
     echo "     Or use cloud backends:"
 else
@@ -70,6 +70,6 @@ echo "     - GitHub: export GITHUB_TOKEN=your_token"
 echo "     - Qdrant Cloud: export QDRANT_API_KEY=your_key && export QDRANT_URL=your_url"
 echo ""
 echo "  3. Generate CLAUDE.md for your project:"
-echo "     $ agent-context generate"
+echo "     $ uam generate"
 echo ""
-echo "Documentation: https://agent-context.dev"
+echo "Documentation: https://universal-agent-memory.dev"
