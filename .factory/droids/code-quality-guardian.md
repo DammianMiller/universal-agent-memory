@@ -172,7 +172,6 @@ const user = response;
 ```
 
 ---
-
 ## Automatic Fixes
 
 When possible, suggest exact fixes:

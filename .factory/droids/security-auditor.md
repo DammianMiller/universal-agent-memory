@@ -180,7 +180,6 @@ element.innerHTML = DOMPurify.sanitize(userContent);
 ```
 
 ---
-
 ## Security Headers Checklist
 
 ```typescript

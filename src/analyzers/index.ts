@@ -64,6 +64,12 @@ export async function analyzeProject(cwd: string): Promise<ProjectAnalysis> {
   // Detect infrastructure
   detectInfrastructure(cwd, analysis);
 
+  // Detect MCP plugins
+  detectMcpPlugins(cwd, analysis);
+
+  // Detect key configuration files
+  detectKeyConfigFiles(cwd, analysis);
+
   return analysis;
 }
 
@@ -388,6 +394,82 @@ function detectInfrastructure(cwd: string, analysis: ProjectAnalysis): void {
   if (existsSync(join(cwd, 'Dockerfile')) || existsSync(join(cwd, 'docker-compose.yml'))) {
     if (!analysis.infrastructure.containerOrchestration) {
       analysis.infrastructure.containerOrchestration = 'Docker';
+    }
+  }
+}
+
+function detectMcpPlugins(cwd: string, analysis: ProjectAnalysis): void {
+  const mcpPath = join(cwd, '.mcp.json');
+  if (!existsSync(mcpPath)) return;
+
+  try {
+    const mcp = JSON.parse(readFileSync(mcpPath, 'utf-8'));
+    const plugins = mcp.mcpServers || mcp.plugins || {};
+
+    analysis.mcpPlugins = [];
+    for (const [name, config] of Object.entries(plugins)) {
+      const cfg = config as Record<string, unknown>;
+      analysis.mcpPlugins.push({
+        name,
+        purpose: (cfg.description as string) || (cfg.purpose as string) || 'MCP plugin',
+      });
+    }
+  } catch {
+    // Can't read or parse .mcp.json
+  }
+}
+
+function detectKeyConfigFiles(cwd: string, analysis: ProjectAnalysis): void {
+  // Common configuration files to detect
+  const configFiles = [
+    { file: '.uam.json', purpose: 'UAM agent memory configuration' },
+    { file: 'package.json', purpose: 'Node.js project configuration' },
+    { file: 'tsconfig.json', purpose: 'TypeScript configuration' },
+    { file: '.mcp.json', purpose: 'MCP plugins configuration' },
+    { file: 'docker-compose.yml', purpose: 'Docker Compose services' },
+    { file: 'Dockerfile', purpose: 'Container build definition' },
+    { file: '.env.example', purpose: 'Environment variable template' },
+    { file: '.gitignore', purpose: 'Git ignore patterns' },
+    { file: 'pyproject.toml', purpose: 'Python project configuration' },
+    { file: 'Cargo.toml', purpose: 'Rust project configuration' },
+    { file: 'go.mod', purpose: 'Go module definition' },
+    { file: 'pom.xml', purpose: 'Maven project configuration' },
+    { file: '.eslintrc.json', purpose: 'ESLint configuration' },
+    { file: '.eslintrc.js', purpose: 'ESLint configuration' },
+    { file: '.prettierrc', purpose: 'Prettier configuration' },
+    { file: 'vitest.config.ts', purpose: 'Vitest test configuration' },
+    { file: 'jest.config.js', purpose: 'Jest test configuration' },
+    { file: 'vite.config.ts', purpose: 'Vite build configuration' },
+    { file: 'webpack.config.js', purpose: 'Webpack build configuration' },
+  ];
+
+  for (const cfg of configFiles) {
+    if (existsSync(join(cwd, cfg.file))) {
+      // Check if not already added
+      if (!analysis.keyFiles.some(kf => kf.file === cfg.file)) {
+        analysis.keyFiles.push(cfg);
+      }
+    }
+  }
+
+  // Detect infrastructure-specific config files
+  if (analysis.infrastructure.iac === 'Terraform') {
+    const terraformConfigs = [
+      { file: 'main.tf', purpose: 'Terraform main configuration' },
+      { file: 'variables.tf', purpose: 'Terraform variables' },
+      { file: 'outputs.tf', purpose: 'Terraform outputs' },
+      { file: 'production.tfvars', purpose: 'Production environment variables' },
+    ];
+    
+    const infraPath = analysis.directories.infrastructure[0] || 'infra/terraform';
+    for (const cfg of terraformConfigs) {
+      const fullPath = join(cwd, infraPath, cfg.file);
+      if (existsSync(fullPath)) {
+        analysis.keyFiles.push({
+          file: `${infraPath}/${cfg.file}`,
+          purpose: cfg.purpose,
+        });
+      }
     }
   }
 }

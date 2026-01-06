@@ -85,7 +85,6 @@ MEMORY PATTERNS:
 ```
 
 ---
-
 ## Common Anti-Patterns & Fixes
 
 ### 1. N+1 Query Problem

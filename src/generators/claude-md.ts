@@ -173,8 +173,9 @@ async function buildContext(
     LANGUAGE_DROIDS: languageDroids,
     LANGUAGE_EXAMPLES: languageExamples,
 
-    // Repository structure
+    // Repository structure (support both old @REPOSITORY_STRUCTURE and new REPOSITORY_STRUCTURE)
     '@REPOSITORY_STRUCTURE': repoStructure,
+    REPOSITORY_STRUCTURE: repoStructure,
     STRUCTURE_DATE: new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }),
 
     // Path migrations (if detected from git history)

@@ -19,7 +19,6 @@ Ensure all code is thoroughly documented for both humans and AI agents. Maintain
 - Before any release or version bump
 
 ---
-
 ## Documentation Standards
 
 ### 1. Code Documentation (JSDoc/TSDoc)

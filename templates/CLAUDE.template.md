@@ -4,7 +4,50 @@
   This template is the master source for generating project-specific CLAUDE.md files.
   It provides autonomous AI agent operation with full memory system, worktrees, and skills.
   
-  All variables are populated by the generator from project analysis.
+  All variables are populated by the UAM generator from project analysis.
+  
+  Template Variables:
+  ==================
+  Core:
+    {{PROJECT_NAME}}          - Name of the project (from package.json or git)
+    {{DEFAULT_BRANCH}}        - Main branch name (main/master)
+    {{STRUCTURE_DATE}}        - Date of last structure update
+  
+  Memory System:
+    {{MEMORY_DB_PATH}}        - Path to SQLite short-term memory
+    {{MEMORY_QUERY_CMD}}      - Command to query long-term memory
+    {{MEMORY_STORE_CMD}}      - Command to store long-term memory
+    {{MEMORY_START_CMD}}      - Command to start memory services
+    {{MEMORY_STATUS_CMD}}     - Command to check memory status
+    {{MEMORY_STOP_CMD}}       - Command to stop memory services
+    {{LONG_TERM_BACKEND}}     - Backend type (Qdrant/Chroma/etc)
+    {{LONG_TERM_ENDPOINT}}    - Backend endpoint
+    {{LONG_TERM_COLLECTION}}  - Collection name
+    {{SHORT_TERM_LIMIT}}      - Max short-term entries
+  
+  Worktree:
+    {{WORKTREE_CREATE_CMD}}   - Command to create worktree
+    {{WORKTREE_PR_CMD}}       - Command to create PR
+    {{WORKTREE_CLEANUP_CMD}}  - Command to cleanup worktree
+    {{WORKTREE_DIR}}          - Worktree directory path
+    {{WORKTREE_APPLIES_TO}}   - What worktrees apply to
+    {{BRANCH_PREFIX}}         - Branch prefix (feature/)
+  
+  Paths:
+    {{SKILLS_PATH}}           - Path to skills directory
+    {{DROIDS_PATH}}           - Path to droids directory
+    {{COMMANDS_PATH}}         - Path to commands directory
+    {{DOCS_PATH}}             - Path to documentation
+    {{SCREENSHOTS_PATH}}      - Path for browser screenshots
+    {{DOCKER_COMPOSE_PATH}}   - Path to docker-compose.yml
+  
+  Commands:
+    {{TEST_COMMAND}}          - Command to run tests
+    {{HOOKS_INSTALL_CMD}}     - Command to install git hooks
+  
+  Optional Sections (Handlebars conditionals):
+    {{#if SECTION}}...{{/if}}
+    {{{MULTILINE_CONTENT}}}   - Triple braces for multiline
 -->
 
 <coding_guidelines>
@@ -19,7 +62,7 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 
 ---
 
-## ⚠️⚠️⚠️ CRITICAL: READ THIS FIRST - EVERY SINGLE TIME ⚠️⚠️⚠️
+## CRITICAL: READ THIS FIRST - EVERY SINGLE TIME
 
 **YOU MUST FOLLOW THE DECISION LOOP BELOW FOR EVERY ACTION. NO EXCEPTIONS.**
 
@@ -73,7 +116,7 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 
 ---
 
-## ⛔ MANDATORY RULES - ZERO TOLERANCE ⛔
+## MANDATORY RULES - ZERO TOLERANCE
 
 **FAILURE TO FOLLOW THESE RULES IS A CRITICAL ERROR. STOP AND RE-READ IF UNSURE.**
 
@@ -134,14 +177,14 @@ sqlite3 {{MEMORY_DB_PATH}} \
 
 **Before starting ANY implementation, check if a skill applies:**
 
-| Task Type                                         | Required Skill              |
-| ------------------------------------------------- | --------------------------- |
+| Task Type | Required Skill |
+| --------- | -------------- |
 {{#if SKILL_MAPPINGS}}
 {{{SKILL_MAPPINGS}}}
 {{/if}}
-| React/TypeScript/Frontend                         | `senior-frontend`           |
-| Code review                                       | `code-reviewer`             |
-| Web testing                                       | `webapp-testing`            |
+| React/TypeScript/Frontend | `senior-frontend` |
+| Code review | `code-reviewer` |
+| Web testing | `webapp-testing` |
 
 ```bash
 # Invoke skill FIRST, then follow its guidance
@@ -175,78 +218,324 @@ Before sending ANY response, verify:
 
 ---
 
-## MEMORY SYSTEM
+## MEMORY SYSTEM (4-Layer Architecture)
 
-### Short-term Memory (SQLite: `{{MEMORY_DB_PATH}}`)
+> **Architecture Note**: This system is based on research into MemGPT, Mem0, A-MEM, LangGraph, and
+> industry best practices for agentic memory systems.
 
-Table: `memories`
+### Architecture Overview
 
-- `id`: INTEGER PRIMARY KEY
-- `timestamp`: TEXT (ISO8601)
-- `type`: TEXT (action|observation|thought|goal)
-- `content`: TEXT
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FOUR-LAYER MEMORY ARCHITECTURE                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  LAYER 1: WORKING MEMORY (SQLite)           ~0.15ms access          │
+│  ├─ {{SHORT_TERM_LIMIT}} entries max, FIFO eviction                 │
+│  ├─ Types: action, observation, thought, goal                       │
+│  └─ Immediate context for current task                              │
+│                                                                     │
+│  LAYER 2: SESSION MEMORY (SQLite)           ~0.2ms access           │
+│  ├─ Session-scoped summaries and decisions                          │
+│  ├─ Entities mentioned with context                                 │
+│  └─ Cleaned on session end (optional persistence)                   │
+│                                                                     │
+│  LAYER 3: SEMANTIC MEMORY ({{LONG_TERM_BACKEND}})  ~1-2ms search    │
+│  ├─ Vector embeddings (384-dim all-MiniLM-L6-v2)                    │
+│  ├─ Importance scoring with time-based decay                        │
+│  └─ Deduplication via content hash + similarity                     │
+│                                                                     │
+│  LAYER 4: KNOWLEDGE GRAPH (SQLite)          ~0.17ms query           │
+│  ├─ Entities: files, functions, concepts, errors, configs           │
+│  ├─ Relationships: depends_on, fixes, causes, related_to            │
+│  └─ Multi-hop traversal for complex reasoning                       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-**BEFORE EACH DECISION**: Query recent entries (last {{SHORT_TERM_LIMIT}}) to understand your context
+### Installation & Setup
+
+```bash
+# 1. Install UAM globally or in project
+npm install -g universal-agent-memory
+# or
+npm install --save-dev universal-agent-memory
+
+# 2. Initialize in your project
+uam init
+
+# 3. Start memory services (Qdrant for vector search)
+{{MEMORY_START_CMD}}
+
+# 4. Generate CLAUDE.md with memory integration
+uam generate
+
+# 5. Verify setup
+{{MEMORY_STATUS_CMD}}
+```
+
+### Layer 1: Working Memory (SQLite)
+
+**Location**: `{{MEMORY_DB_PATH}}`
+
+**Table: `memories`**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key, auto-increment |
+| `timestamp` | TEXT | ISO8601 timestamp |
+| `type` | TEXT | action, observation, thought, goal |
+| `content` | TEXT | Memory content |
+
+**BEFORE EACH DECISION**: Query recent entries
 
 ```sql
 SELECT * FROM memories ORDER BY id DESC LIMIT {{SHORT_TERM_LIMIT}};
 ```
 
-**AFTER EACH ACTION**: INSERT a new row describing what you did and the outcome
+**AFTER EACH ACTION**: Record what you did
 
 ```sql
-INSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action', 'Description of action and result');
+INSERT INTO memories (timestamp, type, content)
+VALUES (datetime('now'), 'action', 'Description of action and result');
+```
+
+**Or use the CLI:**
+
+```bash
+uam memory add --type action "Implemented user authentication with JWT"
 ```
 
 Maintains last {{SHORT_TERM_LIMIT}} entries - older entries auto-deleted via trigger.
 
-### Long-term Memory ({{LONG_TERM_BACKEND}}: `{{LONG_TERM_ENDPOINT}}`, collection: `{{LONG_TERM_COLLECTION}}`)
+### Layer 2: Session Memory (SQLite)
 
-**Start services**: `{{MEMORY_START_CMD}}`
+**Table: `session_memories`** (in same database as working memory)
 
-Vector schema:
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key |
+| `session_id` | TEXT | Current session identifier |
+| `timestamp` | TEXT | ISO8601 timestamp |
+| `type` | TEXT | summary, decision, entity, error |
+| `content` | TEXT | Memory content |
+| `importance` | INTEGER | 1-10 importance score |
 
-- `id`: UUID
-- `vector`: 384-dim embedding (all-MiniLM-L6-v2)
-- `payload`: {type, tags[], content, importance (1-10), timestamp}
+**Query session context:**
+
+```sql
+SELECT * FROM session_memories
+WHERE session_id = 'current_session'
+ORDER BY id DESC LIMIT 10;
+```
+
+**Store session decision:**
+
+```sql
+INSERT INTO session_memories (session_id, timestamp, type, content, importance)
+VALUES ('current_session', datetime('now'), 'decision', 'Chose approach X because...', 7);
+```
+
+**Types**: summary, decision, entity, error
+
+### Layer 3: Semantic Memory ({{LONG_TERM_BACKEND}})
+
+**Collection**: `{{LONG_TERM_COLLECTION}}` at `{{LONG_TERM_ENDPOINT}}`
+
+**Vector Schema**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Unique identifier |
+| `vector` | float[384] | Embedding (all-MiniLM-L6-v2) |
+| `content` | string | Original memory text |
+| `type` | string | lesson, bug-fix, architecture, gotcha |
+| `tags` | string[] | Categorization tags |
+| `importance` | int | 1-10 importance score |
+| `timestamp` | string | ISO8601 creation time |
+| `decay_score` | float | Time-based decay factor |
+| `content_hash` | string | MD5 hash for deduplication |
 
 **Query memories** (semantic search):
 
 ```bash
 {{MEMORY_QUERY_CMD}} "<search terms>"
+
+# Examples:
+{{MEMORY_QUERY_CMD}} "authentication JWT token"
+{{MEMORY_QUERY_CMD}} "database connection pooling"
+{{MEMORY_QUERY_CMD}} "React state management"
 ```
 
-**Store new memory**:
+**Store new memory** (importance 7+ recommended):
 
 ```bash
 {{MEMORY_STORE_CMD}} lesson "What you learned" --tags tag1,tag2 --importance 8
+
+# Examples:
+{{MEMORY_STORE_CMD}} lesson "Always check network policies before deploying" --tags kubernetes,networking --importance 8
+{{MEMORY_STORE_CMD}} bug-fix "Connection timeout was caused by missing egress rule" --tags networking,debugging --importance 9
+{{MEMORY_STORE_CMD}} architecture "Chose Redis for caching due to sub-ms latency requirements" --tags caching,performance --importance 7
 ```
 
-**WHEN TO READ**: Search for memories relevant to current task/decision
-**WHEN TO WRITE**: Only store significant learnings:
+**Decay Formula**: `effective_importance = importance * (0.95 ^ days_since_access)`
 
-- Discoveries about your environment/capabilities
-- Successful strategies that worked
-- Failed approaches to avoid repeating
-- Important facts learned
-- Skills or tools mastered
+**WHEN TO STORE IN SEMANTIC MEMORY** (importance 7+):
+
+- ✅ Bug fixes with root cause + solution
+- ✅ Architecture decisions with rationale
+- ✅ Performance optimizations that worked
+- ✅ Gotchas and workarounds discovered
+- ✅ API behaviors that aren't obvious
+- ❌ Routine actions (keep in working memory)
+- ❌ Temporary context (keep in session memory)
+
+**Deduplication Strategy**:
+
+1. Compute content hash (MD5 first 16 chars)
+2. If hash exists, skip (fast path)
+3. If unsure, check semantic similarity (threshold 0.92)
+4. Only add if truly new information
+
+### Layer 4: Knowledge Graph (SQLite)
+
+**Tables**: `entities` and `relationships` (in same database)
+
+**Entities Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key |
+| `type` | TEXT | file, function, concept, error, config, service |
+| `name` | TEXT | Entity name/identifier |
+| `first_seen` | TEXT | First mention timestamp |
+| `last_seen` | TEXT | Last mention timestamp |
+| `mention_count` | INTEGER | How often referenced |
+
+**Relationships Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key |
+| `source_id` | INTEGER | Source entity ID |
+| `target_id` | INTEGER | Target entity ID |
+| `relation` | TEXT | depends_on, fixes, causes, related_to, contains, implements |
+| `timestamp` | TEXT | When relationship was established |
+
+**Query related entities (1-hop):**
+
+```sql
+SELECT e.*, r.relation, e2.name as related
+FROM entities e
+LEFT JOIN relationships r ON e.id = r.source_id
+LEFT JOIN entities e2 ON r.target_id = e2.id
+WHERE e.name LIKE '%api%';
+```
+
+**Add entity:**
+
+```sql
+INSERT OR REPLACE INTO entities (type, name, first_seen, last_seen, mention_count)
+VALUES ('file', 'auth-controller.ts', datetime('now'), datetime('now'), 1);
+```
+
+**Add relationship:**
+
+```sql
+INSERT INTO relationships (source_id, target_id, relation, timestamp)
+VALUES (1, 2, 'depends_on', datetime('now'));
+```
+
+**Or use the CLI:**
+
+```bash
+uam memory entity add --type file --name "auth-controller.ts"
+uam memory relation add --source "auth-controller.ts" --target "jwt-utils.ts" --relation depends_on
+```
+
+### Memory Operations Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    MEMORY OPERATION FLOW                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ON TASK START:                                                 │
+│  1. Query working memory (last 20 entries)                      │
+│  2. Query semantic memory for relevant context                  │
+│  3. Check knowledge graph for related entities                  │
+│                                                                 │
+│  DURING TASK:                                                   │
+│  4. Update working memory after each action                     │
+│  5. Store key decisions in session memory                       │
+│                                                                 │
+│  ON SIGNIFICANT LEARNING:                                       │
+│  6. Store in semantic memory (importance 7+)                    │
+│  7. Update knowledge graph entities/relationships               │
+│                                                                 │
+│  ON CONSOLIDATION TRIGGER (every 10 working memory entries):    │
+│  8. Summarize working memory → session memory                   │
+│  9. Extract high-importance items → semantic memory             │
+│  10. Deduplicate using content hash (fast) + similarity (slow)  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ### Agent Services Setup
 
 ```bash
-# Start Qdrant (auto-creates collection and migrates memories)
+# Start all memory services (Qdrant for vectors, auto-creates collections)
 {{MEMORY_START_CMD}}
 
-# Check status
+# Check service status
 {{MEMORY_STATUS_CMD}}
 
 # Stop services
 {{MEMORY_STOP_CMD}}
+
+# Upgrade SQLite schema (adds session memory + knowledge graph tables)
+uam memory migrate
+
+# Backup all memories
+uam memory backup
+
+# Export memories to JSON
+uam memory export --format json memories-backup.json
 ```
 
 {{#if DOCKER_COMPOSE_PATH}}
 **Docker Compose**: `{{DOCKER_COMPOSE_PATH}}` defines Qdrant with persistent storage.
+
+```yaml
+# Example docker-compose.yml for memory services
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+```
 {{/if}}
+
+### Performance Benchmarks
+
+| Operation | Latency | Throughput |
+|-----------|---------|------------|
+| SQLite INSERT | ~1.1ms | 875 ops/sec |
+| SQLite SELECT (50 rows) | ~0.15ms | 6,680 ops/sec |
+| SQLite Graph Query (1-hop) | ~0.17ms | 6,035 ops/sec |
+| Qdrant Search (top-5) | ~1.2ms | 818 ops/sec |
+| Embedding Generation | ~3.3ms | 305 ops/sec |
+
+### Importance Scale Reference
+
+| Score | Category | Examples |
+|-------|----------|----------|
+| 9-10 | Critical system knowledge | Auth flows, data models, breaking changes |
+| 7-8 | Important patterns and fixes | Bug fixes, performance optimizations |
+| 5-6 | Useful context and learnings | Code patterns, tool configurations |
+| 3-4 | Minor observations | Style preferences, minor quirks |
 
 ---
 
@@ -291,7 +580,7 @@ Available skills are auto-discovered. When you see a SKILL.md, follow its instru
 
 ---
 
-**MANDATORY WORKFLOW REQUIREMENTS**:
+## MANDATORY WORKFLOW REQUIREMENTS
 
 1. **Git Worktrees**: ALL code changes MUST use isolated git worktrees (`{{BRANCH_PREFIX}}NNN-slug` branches)
 2. **PR-Based Merges**: NO direct commits to `{{DEFAULT_BRANCH}}`. All changes via PR with automated review
@@ -308,7 +597,7 @@ See [Git Worktree Workflow]({{WORKFLOW_DOCS_PATH}}) for complete details.
 
 ```
 {{PROJECT_NAME}}/
-{{{@REPOSITORY_STRUCTURE}}}
+{{{REPOSITORY_STRUCTURE}}}
 ```
 
 ---
@@ -346,9 +635,7 @@ See [Git Worktree Workflow]({{WORKFLOW_DOCS_PATH}}) for complete details.
 # Create PR with automated review
 {{WORKTREE_PR_CMD}} <id>
 
-{{#if ESSENTIAL_COMMANDS}}
 {{{ESSENTIAL_COMMANDS}}}
-{{/if}}
 ```
 
 ---
@@ -512,7 +799,7 @@ See [Git Worktree Workflow]({{WORKFLOW_DOCS_PATH}}) for complete details.
 
 ## Augmented Agent Capabilities
 
-### ⚡ PROACTIVE Skills & Droids - INVOKE AUTOMATICALLY
+### Proactive Skills & Droids - INVOKE AUTOMATICALLY
 
 **These must be invoked WITHOUT being asked - they ensure quality, security, and performance:**
 
@@ -556,7 +843,7 @@ Invoke with `Skill` tool. Skills expand inline with detailed instructions.
 
 Launch via `Task` tool with `subagent_type`. Droids run autonomously.
 
-**⚡ PROACTIVE Quality Droids (Run before EVERY commit/PR):**
+**Proactive Quality Droids (Run before EVERY commit/PR):**
 | Droid | Focus | When to Invoke |
 |-------|-------|----------------|
 | `code-quality-guardian` | Complexity, naming, SOLID, code smells | **PROACTIVE** - All code changes |
@@ -594,14 +881,14 @@ Launch via `Task` tool with `subagent_type`. Droids run autonomously.
 
 High-level orchestration workflows:
 
-| Command          | Purpose                                                                       |
-| ---------------- | ----------------------------------------------------------------------------- |
-| `/worktree`      | Manage git worktrees (create, list, pr, cleanup) - **USE FOR ALL CHANGES**    |
-| `/code-review`   | Full code review (git-summarizer → quality/security/perf/test/docs reviewers) |
-| `/pr-ready`      | Validate branch, auto-create PR, trigger reviewer agents                      |
-| `/release-notes` | Generate structured release notes from changes                                |
-| `/test-plan`     | Produce test plans for code changes                                           |
-| `/todo-scan`     | Scan for TODO/FIXME markers                                                   |
+| Command | Purpose |
+| ------- | ------- |
+| `/worktree` | Manage git worktrees (create, list, pr, cleanup) - **USE FOR ALL CHANGES** |
+| `/code-review` | Full code review (git-summarizer → quality/security/perf/test/docs reviewers) |
+| `/pr-ready` | Validate branch, auto-create PR, trigger reviewer agents |
+| `/release-notes` | Generate structured release notes from changes |
+| `/test-plan` | Produce test plans for code changes |
+| `/todo-scan` | Scan for TODO/FIXME markers |
 
 {{#if MCP_PLUGINS}}
 ### MCP Plugins (`.mcp.json`)
