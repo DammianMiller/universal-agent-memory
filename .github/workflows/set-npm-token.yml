@@ -1,0 +1,37 @@
+name: Set NPM Token (Ephemeral)
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_token:
+        description: 'NPM Token to set as secret'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  set-secret-and-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set NPM_TOKEN secret
+        uses: gliech/create-github-secret-action@v1
+        with:
+          name: NPM_TOKEN
+          value: ${{ inputs.npm_token }}
+          pa_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete this workflow file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/set-npm-token.yml
+          git commit -m "chore: remove ephemeral secret-setting workflow"
+          git push
