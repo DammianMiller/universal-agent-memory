@@ -38,6 +38,13 @@ jobs:
       - name: Run tests
         run: npm test || true
 
+      - name: Check NPM_TOKEN
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "::error::NPM_TOKEN secret is not set. Please add it in repository Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+
       - name: Publish to npm
         run: npm publish --access public
         env:
