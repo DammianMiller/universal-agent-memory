@@ -2,7 +2,7 @@
   CLAUDE.md Universal Template for AI Agent Memory System
   
   This template is the master source for generating project-specific CLAUDE.md files.
-  It provides autonomous AI agent operation with full memory system, worktrees, and skills.
+  It provides autonomous AI agent operation with full memory, tasks, coordination, worktrees, and skills.
   
   All variables are populated by the UAM generator from project analysis.
   
@@ -10,6 +10,7 @@
   ==================
   Core:
     {{PROJECT_NAME}}          - Name of the project (from package.json or git)
+    {{PROJECT_PATH}}          - Absolute path to project root
     {{DEFAULT_BRANCH}}        - Main branch name (main/master)
     {{STRUCTURE_DATE}}        - Date of last structure update
   
@@ -43,6 +44,8 @@
   
   Commands:
     {{TEST_COMMAND}}          - Command to run tests
+    {{LINT_COMMAND}}          - Command to run linting
+    {{BUILD_COMMAND}}         - Command to build project
     {{HOOKS_INSTALL_CMD}}     - Command to install git hooks
   
   Optional Sections (Handlebars conditionals):
@@ -62,7 +65,74 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 
 ---
 
-## CRITICAL: READ THIS FIRST - EVERY SINGLE TIME
+## 🚨 SESSION START - EXECUTE IMMEDIATELY 🚨
+
+**STOP. Before responding to ANY user message, EXECUTE these commands NOW:**
+
+```bash
+# 1. CHECK EXISTING TASKS (run this first)
+uam task ready
+
+# 2. READ RECENT MEMORY (run this second)
+sqlite3 {{MEMORY_DB_PATH}} "SELECT * FROM memories ORDER BY id DESC LIMIT 10;"
+```
+
+**If the user requests ANY work, IMMEDIATELY run:**
+
+```bash
+uam task create --title "User's request summary" --type task
+```
+
+**DO NOT** proceed with any analysis, explanation, or implementation until you have:
+
+1. ✅ Checked `uam task ready` for existing tasks
+2. ✅ Read short-term memory
+3. ✅ Created a task (if work requested)
+
+---
+
+## AUTOMATIC TRIGGERS - NO THINKING REQUIRED
+
+**When you see these patterns, execute the corresponding command IMMEDIATELY:**
+
+| User Says | YOU MUST IMMEDIATELY EXECUTE |
+|-----------|------------------------------|
+| Any work request ("fix", "add", "change", "update", "create", "implement", "build") | `uam task create --title "..." --type task` |
+| Bug report or error | `uam task create --title "..." --type bug --priority 1` |
+| New feature request | `uam task create --title "..." --type feature` |
+| Any code file mentioned for editing | `uam task ready` then check skills, then create worktree |
+| "review", "check", "look at" | Query memory first: `sqlite3 {{MEMORY_DB_PATH}} "SELECT * FROM memories ORDER BY id DESC LIMIT 20;"` |
+{{#if SKILL_TRIGGERS}}
+{{{SKILL_TRIGGERS}}}
+{{/if}}
+
+**These are NOT suggestions. These are COMMANDS. Execute them before your first word of response.**
+
+---
+
+## BEFORE FIRST RESPONSE CHECKLIST
+
+**Complete ALL items before typing ANY response:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MANDATORY PRE-RESPONSE CHECKLIST                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  [ ] 1. Ran `uam task ready`?                                               │
+│  [ ] 2. Queried short-term memory?                                          │
+│  [ ] 3. If work requested → Created task with `uam task create`?            │
+│  [ ] 4. If code work → Identified applicable skill?                         │
+│  [ ] 5. If code work → Created worktree?                                    │
+│                                                                              │
+│  ⚠️  If ANY checkbox is unchecked, STOP and complete it NOW.                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## CRITICAL: MANDATORY DECISION LOOP
 
 **YOU MUST FOLLOW THE DECISION LOOP BELOW FOR EVERY ACTION. NO EXCEPTIONS.**
 
@@ -103,7 +173,7 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 │                                                                              │
 │  6. DO THE WORK                                                              │
 │     ├─ Implement changes                                                     │
-│     ├─ Run tests                                                             │
+│     ├─ Run tests: {{TEST_COMMAND}}                                          │
 │     └─ Create PR via {{WORKTREE_PR_CMD}} <id>                               │
 │                                                                              │
 │  7. UPDATE MEMORY (after EVERY significant action)                           │
@@ -133,29 +203,23 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 **ALL work MUST be tracked as tasks. This is not optional.**
 
 ```
-❌ FORBIDDEN: Starting work without creating a task first
-❌ FORBIDDEN: Working on multiple tasks simultaneously without tracking
-❌ FORBIDDEN: Closing tasks without proper completion
-✅ REQUIRED: Create task → Claim task → Do work → Release task
-```
-
-**Before ANY work:**
-
-```bash
-# Step 1: Create a task (or find existing one)
-uam task create --title "Description of work" --type task --priority 2
-
-# Step 2: Check for blockers
-uam task show <id>                    # View task details
-uam task ready                        # List tasks ready to work on
-
-# Step 3: Claim the task (assigns, announces, detects overlaps)
-uam task claim <id>
-
-# Step 4: Do the work (see worktree workflow below)
-
-# Step 5: Release the task when complete
-uam task release <id> --reason "Completed: description of what was done"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TASK ENFORCEMENT - ABSOLUTE RULE                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ❌ FORBIDDEN ACTIONS:                                                       │
+│     • Starting work without creating a task first                           │
+│     • Working on multiple tasks simultaneously without tracking              │
+│     • Closing tasks without proper completion                                │
+│                                                                              │
+│  ✅ REQUIRED WORKFLOW (every single time):                                   │
+│     1. Create task: uam task create --title "..." --type task               │
+│     2. Check for blockers: uam task show <id>                               │
+│     3. Claim the task: uam task claim <id>                                  │
+│     4. Do the work (see worktree workflow below)                            │
+│     5. Release when complete: uam task release <id> --reason "..."          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Task Types:**
@@ -193,25 +257,57 @@ uam task ready
 ### 1. WORKTREE REQUIREMENT (NO EXCEPTIONS)
 
 ```
-❌ FORBIDDEN: Direct commits to {{DEFAULT_BRANCH}} branch
-❌ FORBIDDEN: Making changes without creating worktree first
-✅ REQUIRED: Create worktree → Make changes → Create PR → Merge via PR
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    WORKTREE ENFORCEMENT - ABSOLUTE RULE                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ❌ FORBIDDEN ACTIONS (will corrupt {{DEFAULT_BRANCH}} branch):             │
+│     • Direct commits to {{DEFAULT_BRANCH}} branch                           │
+│     • Running git commit without being in a worktree                         │
+│     • Editing files in {{PROJECT_PATH}} directly                            │
+│     • Using git add/commit from the main repository root                     │
+│                                                                              │
+│  ✅ REQUIRED WORKFLOW (every single time):                                   │
+│     1. Create worktree FIRST                                                 │
+│     2. cd into the worktree directory                                        │
+│     3. Make ALL changes inside worktree                                      │
+│     4. Create PR from worktree                                               │
+│     5. Merge via PR (never direct push)                                      │
+│                                                                              │
+│  🔴 SELF-CHECK: Before ANY git commit, verify:                              │
+│     pwd | grep -q "{{WORKTREE_DIR}}" || echo "STOP! Not in worktree!"       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Before ANY code change:**
 
 ```bash
-# Step 1: Create worktree
+# Step 1: Create worktree (from main repo)
+cd {{PROJECT_PATH}}
 {{WORKTREE_CREATE_CMD}} <descriptive-slug>
 
-# Step 2: cd into worktree and make changes
+# Step 2: MANDATORY - cd into worktree (verify you're there!)
 cd {{WORKTREE_DIR}}/NNN-<slug>/
+pwd  # MUST show: {{PROJECT_PATH}}/{{WORKTREE_DIR}}/NNN-<slug>
 
-# Step 3: Commit and create PR
+# Step 3: Make changes, commit locally
+git add -A && git commit -m "feat: description"
+
+# Step 4: Create PR with automated review
 {{WORKTREE_PR_CMD}} <id>
 ```
 
 **Applies to:** {{WORKTREE_APPLIES_TO}}
+
+**FAILURE SCENARIOS TO AVOID:**
+
+| Mistake | Consequence | Prevention |
+|---------|-------------|------------|
+| Editing files in main repo | Changes on {{DEFAULT_BRANCH}} branch, merge conflicts | Always `cd {{WORKTREE_DIR}}/` first |
+| Forgetting to create worktree | Direct commit to {{DEFAULT_BRANCH}} | Check `pwd` before any edit |
+| Creating worktree but not entering it | Edits still go to {{DEFAULT_BRANCH}} | Verify path contains `{{WORKTREE_DIR}}` |
+| Using `git push` without PR | Bypasses review agents | Only use `{{WORKTREE_PR_CMD}}` |
 
 ### 2. MEMORY REQUIREMENT (MANDATORY - NOT OPTIONAL)
 
@@ -243,22 +339,60 @@ sqlite3 {{MEMORY_DB_PATH}} \
 - 5-6: Useful context and learnings
 - 3-4: Minor observations
 
-### 3. SKILLS REQUIREMENT (CHECK BEFORE IMPLEMENTING)
+### 3. SKILLS & DROIDS REQUIREMENT (CHECK BEFORE IMPLEMENTING)
 
-**Before starting ANY implementation, check if a skill applies:**
+**Before starting ANY implementation, check if a skill or droid applies:**
 
-| Task Type | Required Skill |
-| --------- | -------------- |
+| Task Type | Required Skill/Droid |
+|-----------|---------------------|
 {{#if SKILL_MAPPINGS}}
 {{{SKILL_MAPPINGS}}}
 {{/if}}
 | React/TypeScript/Frontend | `senior-frontend` |
 | Code review | `code-reviewer` |
 | Web testing | `webapp-testing` |
+| CLI development | `cli-design-expert` |
+| TypeScript/Node.js | `typescript-node-expert` |
 
 ```bash
 # Invoke skill FIRST, then follow its guidance
 Skill(skill: "skill-name")
+
+# Or launch a droid for autonomous work
+Task(subagent_type: "droid-name", prompt: "Task description...")
+```
+
+#### IF NO SKILL/DROID EXISTS: Create One Using the "Top 5 Authorities" Method
+
+**When you need domain expertise and no existing skill/droid covers it, you MUST create one.**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│           SKILL/DROID AUTO-CREATION: TOP 5 AUTHORITIES METHOD               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  STEP 1: RESEARCH THE TOP 5 AUTHORITIES                                     │
+│  Use WebSearch to identify the top 5 recognized experts/authorities in      │
+│  the domain. Look for:                                                       │
+│  • Authors of seminal books/papers in the field                             │
+│  • Industry leaders with proven track records                               │
+│  • Creators of widely-adopted frameworks/tools                              │
+│  • Thought leaders frequently cited by practitioners                        │
+│                                                                              │
+│  STEP 2: EXTRACT CORE PRINCIPLES FROM EACH AUTHORITY                        │
+│  For each authority, identify:                                               │
+│  • Their signature methodology or framework                                  │
+│  • Key principles they advocate                                             │
+│  • Anti-patterns they warn against                                          │
+│                                                                              │
+│  STEP 3: SYNTHESIZE INTO A UNIFIED SKILL/DROID                              │
+│  Create a skill/droid that embodies the collective wisdom                   │
+│                                                                              │
+│  STEP 4: SAVE THE FILE                                                      │
+│  Skills: {{SKILLS_PATH}}/<name>/SKILL.md                                    │
+│  Droids: {{DROIDS_PATH}}/<name>.md                                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4. TODO LIST REQUIREMENT
@@ -277,14 +411,14 @@ Skill(skill: "skill-name")
 uam agent register --name "agent-name" --capabilities "coding,review"
 
 # Before starting work on any resource, announce your intent
-uam agent announce --id <agent-id> --resource "src/auth/" --intent editing \
-  --description "Refactoring authentication module"
+uam agent announce --id <agent-id> --resource "src/path/" --intent editing \
+  --description "Description of planned changes"
 
 # Check for overlapping work (merge conflict prevention)
-uam agent overlaps --resource "src/auth/"
+uam agent overlaps --resource "src/path/"
 
 # When work is complete, notify others
-uam agent complete --id <agent-id> --resource "src/auth/"
+uam agent complete --id <agent-id> --resource "src/path/"
 ```
 
 **Overlap Detection:**
@@ -311,21 +445,21 @@ uam deploy flush
 Before sending ANY response, verify:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ CHECKLIST - Complete before responding:                     │
-├─────────────────────────────────────────────────────────────┤
-│ [ ] Task created/claimed for this work?                     │
-│ [ ] Read memory at start of task?                           │
-│ [ ] Checked for applicable skills?                          │
-│ [ ] Announced work (multi-agent)?                           │
-│ [ ] Checked for overlaps (multi-agent)?                     │
-│ [ ] Used worktree for code changes?                         │
-│ [ ] Updated short-term memory after actions?                │
-│ [ ] Stored learnings in long-term memory?                   │
-│ [ ] Updated todo list status?                               │
-│ [ ] Created PR (not direct commit)?                         │
-│ [ ] Released task when complete?                            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CHECKLIST - Complete before responding:                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [ ] Task created/claimed for this work?                                     │
+│  [ ] Read memory at start of task?                                           │
+│  [ ] Checked for applicable skills?                                          │
+│  [ ] Announced work (multi-agent)?                                           │
+│  [ ] Checked for overlaps (multi-agent)?                                     │
+│  [ ] Used worktree for code changes?                                         │
+│  [ ] Updated short-term memory after actions?                                │
+│  [ ] Stored learnings in long-term memory?                                   │
+│  [ ] Updated todo list status?                                               │
+│  [ ] Created PR (not direct commit)?                                         │
+│  [ ] Released task when complete?                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -365,25 +499,32 @@ Before sending ANY response, verify:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Installation & Setup
+### MANDATORY: Layer Selection Decision Tree
 
-```bash
-# 1. Install UAM globally or in project
-npm install -g universal-agent-memory
-# or
-npm install --save-dev universal-agent-memory
-
-# 2. Initialize in your project
-uam init
-
-# 3. Start memory services (Qdrant for vector search)
-{{MEMORY_START_CMD}}
-
-# 4. Generate CLAUDE.md with memory integration
-uam generate
-
-# 5. Verify setup
-{{MEMORY_STATUS_CMD}}
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│            WHICH MEMORY LAYER? - DECISION TREE                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Q1: Is this about WHAT I JUST DID in the last few minutes?         │
+│      YES → LAYER 1: Working Memory (short_term.db)                  │
+│      NO  → Continue to Q2                                           │
+│                                                                      │
+│  Q2: Is this a SESSION-SPECIFIC decision or temporary context?      │
+│      YES → LAYER 2: Session Memory (session_memories table)         │
+│      NO  → Continue to Q3                                           │
+│                                                                      │
+│  Q3: Is this a REUSABLE LEARNING that future sessions need?         │
+│      (Bug fix, pattern, gotcha, architecture decision, optimization)│
+│      YES → LAYER 3: Semantic Memory (Qdrant) - importance 7+        │
+│      NO  → Continue to Q4                                           │
+│                                                                      │
+│  Q4: Does this involve RELATIONSHIPS between entities?              │
+│      (File X depends on Y, Error A is caused by B, etc.)            │
+│      YES → LAYER 4: Knowledge Graph (entities/relationships tables) │
+│      NO  → Default to Layer 1 (Working Memory)                      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Layer 1: Working Memory (SQLite)
@@ -412,14 +553,6 @@ INSERT INTO memories (timestamp, type, content)
 VALUES (datetime('now'), 'action', 'Description of action and result');
 ```
 
-**Or use the CLI:**
-
-```bash
-uam memory add --type action "Implemented user authentication with JWT"
-```
-
-Maintains last {{SHORT_TERM_LIMIT}} entries - older entries auto-deleted via trigger.
-
 ### Layer 2: Session Memory (SQLite)
 
 **Table: `session_memories`** (in same database as working memory)
@@ -441,56 +574,21 @@ WHERE session_id = 'current_session'
 ORDER BY id DESC LIMIT 10;
 ```
 
-**Store session decision:**
-
-```sql
-INSERT INTO session_memories (session_id, timestamp, type, content, importance)
-VALUES ('current_session', datetime('now'), 'decision', 'Chose approach X because...', 7);
-```
-
-**Types**: summary, decision, entity, error
-
 ### Layer 3: Semantic Memory ({{LONG_TERM_BACKEND}})
 
 **Collection**: `{{LONG_TERM_COLLECTION}}` at `{{LONG_TERM_ENDPOINT}}`
-
-**Vector Schema**:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID | Unique identifier |
-| `vector` | float[384] | Embedding (all-MiniLM-L6-v2) |
-| `content` | string | Original memory text |
-| `type` | string | lesson, bug-fix, architecture, gotcha |
-| `tags` | string[] | Categorization tags |
-| `importance` | int | 1-10 importance score |
-| `timestamp` | string | ISO8601 creation time |
-| `decay_score` | float | Time-based decay factor |
-| `content_hash` | string | MD5 hash for deduplication |
 
 **Query memories** (semantic search):
 
 ```bash
 {{MEMORY_QUERY_CMD}} "<search terms>"
-
-# Examples:
-{{MEMORY_QUERY_CMD}} "authentication JWT token"
-{{MEMORY_QUERY_CMD}} "database connection pooling"
-{{MEMORY_QUERY_CMD}} "React state management"
 ```
 
 **Store new memory** (importance 7+ recommended):
 
 ```bash
 {{MEMORY_STORE_CMD}} lesson "What you learned" --tags tag1,tag2 --importance 8
-
-# Examples:
-{{MEMORY_STORE_CMD}} lesson "Always check network policies before deploying" --tags kubernetes,networking --importance 8
-{{MEMORY_STORE_CMD}} bug-fix "Connection timeout was caused by missing egress rule" --tags networking,debugging --importance 9
-{{MEMORY_STORE_CMD}} architecture "Chose Redis for caching due to sub-ms latency requirements" --tags caching,performance --importance 7
 ```
-
-**Decay Formula**: `effective_importance = importance * (0.95 ^ days_since_access)`
 
 **WHEN TO STORE IN SEMANTIC MEMORY** (importance 7+):
 
@@ -502,37 +600,9 @@ VALUES ('current_session', datetime('now'), 'decision', 'Chose approach X becaus
 - ❌ Routine actions (keep in working memory)
 - ❌ Temporary context (keep in session memory)
 
-**Deduplication Strategy**:
-
-1. Compute content hash (MD5 first 16 chars)
-2. If hash exists, skip (fast path)
-3. If unsure, check semantic similarity (threshold 0.92)
-4. Only add if truly new information
-
 ### Layer 4: Knowledge Graph (SQLite)
 
 **Tables**: `entities` and `relationships` (in same database)
-
-**Entities Table:**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `type` | TEXT | file, function, concept, error, config, service |
-| `name` | TEXT | Entity name/identifier |
-| `first_seen` | TEXT | First mention timestamp |
-| `last_seen` | TEXT | Last mention timestamp |
-| `mention_count` | INTEGER | How often referenced |
-
-**Relationships Table:**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `source_id` | INTEGER | Source entity ID |
-| `target_id` | INTEGER | Target entity ID |
-| `relation` | TEXT | depends_on, fixes, causes, related_to, contains, implements |
-| `timestamp` | TEXT | When relationship was established |
 
 **Query related entities (1-hop):**
 
@@ -544,26 +614,8 @@ LEFT JOIN entities e2 ON r.target_id = e2.id
 WHERE e.name LIKE '%api%';
 ```
 
-**Add entity:**
-
-```sql
-INSERT OR REPLACE INTO entities (type, name, first_seen, last_seen, mention_count)
-VALUES ('file', 'auth-controller.ts', datetime('now'), datetime('now'), 1);
-```
-
-**Add relationship:**
-
-```sql
-INSERT INTO relationships (source_id, target_id, relation, timestamp)
-VALUES (1, 2, 'depends_on', datetime('now'));
-```
-
-**Or use the CLI:**
-
-```bash
-uam memory entity add --type file --name "auth-controller.ts"
-uam memory relation add --source "auth-controller.ts" --target "jwt-utils.ts" --relation depends_on
-```
+**Entity Types**: file, function, concept, error, config, service
+**Relation Types**: depends_on, fixes, causes, related_to, contains, implements
 
 ### Memory Operations Workflow
 
@@ -585,11 +637,6 @@ uam memory relation add --source "auth-controller.ts" --target "jwt-utils.ts" --
 │  6. Store in semantic memory (importance 7+)                    │
 │  7. Update knowledge graph entities/relationships               │
 │                                                                 │
-│  ON CONSOLIDATION TRIGGER (every 10 working memory entries):    │
-│  8. Summarize working memory → session memory                   │
-│  9. Extract high-importance items → semantic memory             │
-│  10. Deduplicate using content hash (fast) + similarity (slow)  │
-│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -610,44 +657,11 @@ uam memory migrate
 
 # Backup all memories
 uam memory backup
-
-# Export memories to JSON
-uam memory export --format json memories-backup.json
 ```
 
 {{#if DOCKER_COMPOSE_PATH}}
 **Docker Compose**: `{{DOCKER_COMPOSE_PATH}}` defines Qdrant with persistent storage.
-
-```yaml
-# Example docker-compose.yml for memory services
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - ./data/qdrant:/qdrant/storage
-```
 {{/if}}
-
-### Performance Benchmarks
-
-| Operation | Latency | Throughput |
-|-----------|---------|------------|
-| SQLite INSERT | ~1.1ms | 875 ops/sec |
-| SQLite SELECT (50 rows) | ~0.15ms | 6,680 ops/sec |
-| SQLite Graph Query (1-hop) | ~0.17ms | 6,035 ops/sec |
-| Qdrant Search (top-5) | ~1.2ms | 818 ops/sec |
-| Embedding Generation | ~3.3ms | 305 ops/sec |
-
-### Importance Scale Reference
-
-| Score | Category | Examples |
-|-------|----------|----------|
-| 9-10 | Critical system knowledge | Auth flows, data models, breaking changes |
-| 7-8 | Important patterns and fixes | Bug fixes, performance optimizations |
-| 5-6 | Useful context and learnings | Code patterns, tool configurations |
-| 3-4 | Minor observations | Style preferences, minor quirks |
 
 ---
 
@@ -680,7 +694,7 @@ services:
 
 ```bash
 # Create a new task
-uam task create --title "Fix auth bug" --type bug --priority 0 --labels "security,auth"
+uam task create --title "Description" --type task --priority 2 --labels "label1,label2"
 
 # List tasks
 uam task list                              # All open tasks
@@ -721,49 +735,10 @@ Epic (large effort)
 Create hierarchies with `--parent`:
 
 ```bash
-uam task create --title "Authentication System" --type epic
-uam task create --title "Login Flow" --type story --parent uam-xxxx
-uam task create --title "Implement JWT validation" --type task --parent uam-yyyy
+uam task create --title "Large Feature" --type epic
+uam task create --title "Sub-feature" --type story --parent uam-xxxx
+uam task create --title "Implementation" --type task --parent uam-yyyy
 ```
-
-### Integration with Coordination
-
-When you claim a task, the system automatically:
-1. Assigns the task to your agent ID
-2. Announces work to coordination system
-3. Detects overlapping work from other agents
-4. Creates/associates a worktree branch
-5. Returns conflict warnings if detected
-
-```bash
-# Claim with overlap detection
-$ uam task claim uam-a1b2
-✔ Task claimed: uam-a1b2
-  ◐ Refactor authentication module
-  Worktree: feature/task-uam-a1b2
-
-  ⚠️  Overlapping work detected:
-    medium: agent-007 is editing src/auth/jwt.ts - coordinate merge order
-```
-
-### JSONL Git Sync
-
-Tasks are stored in SQLite but can be synced to JSONL for git versioning:
-
-```bash
-# Export current tasks to JSONL
-uam task sync
-
-# File: .uam/tasks/tasks.jsonl
-{"id":"uam-a1b2","title":"Fix auth","type":"bug","status":"open",...}
-{"id":"uam-c3d4","title":"Add feature","type":"feature","status":"done",...}
-```
-
-This allows:
-- Version control of task history
-- Conflict resolution via git
-- Sharing tasks across branches/forks
-- Audit trail of task changes
 
 ---
 
@@ -802,7 +777,7 @@ This allows:
 ```bash
 # Register at session start
 uam agent register --name "feature-agent" --capabilities "coding,testing" \
-  --worktree "feature/add-auth"
+  --worktree "feature/add-feature"
 
 # Send heartbeat (keeps agent active)
 uam agent heartbeat --id <agent-id>
@@ -819,54 +794,17 @@ uam agent deregister --id <agent-id>
 ```bash
 # Announce intent to work (enables overlap detection)
 uam agent announce --id <agent-id> \
-  --resource "src/auth/" \
+  --resource "src/path/" \
   --intent editing \
-  --description "Refactoring JWT handling" \
-  --files "src/auth/jwt.ts,src/auth/validate.ts" \
+  --description "Description of changes" \
+  --files "src/file1.ts,src/file2.ts" \
   --minutes 30
 
 # Check for overlaps before starting
-uam agent overlaps --resource "src/auth/"
+uam agent overlaps --resource "src/path/"
 
 # Mark work complete (notifies others)
-uam agent complete --id <agent-id> --resource "src/auth/"
-```
-
-### Overlap Detection & Conflict Risk
-
-```bash
-$ uam agent overlaps --resource "src/components/Button.tsx"
-
-Overlapping Work Detected:
-┌─────────────────────────────────────────────────────────────────┐
-│ Resource: src/components/Button.tsx                             │
-├──────────────┬────────────┬────────────────────────────────────┤
-│ Agent        │ Risk       │ Suggestion                         │
-├──────────────┼────────────┼────────────────────────────────────┤
-│ agent-ui-001 │ HIGH       │ Coordinate: both editing same file │
-│ agent-test   │ LOW        │ Safe: only reading for tests       │
-└──────────────┴────────────┴────────────────────────────────────┘
-
-Recommendations:
-  1. agent-ui-001 should merge first (started earlier)
-  2. Wait for agent-ui-001 to complete before pushing
-```
-
-### Inter-Agent Messaging
-
-```bash
-# Broadcast to all agents
-uam agent broadcast --id <agent-id> \
-  --channel coordination \
-  --message '{"action":"merge_ready","branch":"feature/auth"}'
-
-# Send direct message
-uam agent send --id <agent-id> \
-  --to <other-agent-id> \
-  --message "Ready for code review"
-
-# Receive messages
-uam agent receive --id <agent-id>
+uam agent complete --id <agent-id> --resource "src/path/"
 ```
 
 ### Deploy Batching
@@ -875,23 +813,19 @@ uam agent receive --id <agent-id>
 # Queue a commit (don't push yet)
 uam deploy queue --agent-id <id> \
   --action-type commit \
-  --message "feat: add auth" \
-  --files "src/auth.ts,src/auth.test.ts"
+  --message "feat: add feature" \
+  --files "src/feature.ts"
 
 # Queue a push
 uam deploy queue --agent-id <id> \
   --action-type push \
-  --target "feature/auth"
+  --target "feature/branch"
 
 # View queue
 uam deploy status
 
 # Batch and execute (squashes commits, single push)
 uam deploy flush
-
-# Or execute specific batch
-uam deploy batch
-uam deploy execute --batch-id <id>
 ```
 
 **Benefits:**
@@ -916,18 +850,6 @@ When using browser automation (Playwright, Puppeteer, or any browser tool):
   action: {what_you_did}
   ```
 - Take a screenshot BEFORE and AFTER any significant visual change
-
----
-
-## DECISION LOOP
-
-1. **READ** short-term memory (recent context)
-2. **QUERY** long-term memory (semantic search for relevant past learnings)
-3. **THINK** about what to do next
-4. **ACT** - execute your decision
-5. **RECORD** - write to short-term memory
-6. **IF BROWSER ACTION**: Save screenshot to `{{SCREENSHOTS_PATH}}/`
-7. **OPTIONALLY** - if significant learning, add to long-term memory
 
 ---
 
@@ -1145,21 +1067,6 @@ See [Git Worktree Workflow]({{WORKFLOW_DOCS_PATH}}) for complete details.
 
 ---
 
-{{#if CHANGELOG_PATH}}
-## Changelog Quick Reference
-
-**When to create**: New features, breaking changes, security updates, infrastructure changes, API modifications, database schema changes.
-
-**Location**: `{{CHANGELOG_PATH}}/YYYY-MM/YYYY-MM-DD_description.md`
-{{#if CHANGELOG_TEMPLATE}}
-**Template**: `{{CHANGELOG_TEMPLATE}}`
-{{/if}}
-
-**Required sections**: Metadata, Summary, Details, Technical Details, Migration Guide, Testing
-
----
-{{/if}}
-
 ## Augmented Agent Capabilities
 
 ### Proactive Skills & Droids - INVOKE AUTOMATICALLY
@@ -1198,9 +1105,9 @@ Invoke with `Skill` tool. Skills expand inline with detailed instructions.
 {{#if DISCOVERED_SKILLS}}
 {{{DISCOVERED_SKILLS}}}
 {{/if}}
-| `senior-frontend` | React/Next.js/TypeScript/Tailwind development | Building UI features, performance optimization, state management |
-| `code-reviewer` | Automated code analysis, security scanning | Reviewing PRs, code quality checks, identifying issues |
-| `webapp-testing` | Playwright-based web testing | Verifying frontend functionality, debugging UI, browser screenshots |
+| `senior-frontend` | React/Next.js/TypeScript/Tailwind development | Building UI features, performance optimization |
+| `code-reviewer` | Automated code analysis, security scanning | Reviewing PRs, code quality checks |
+| `webapp-testing` | Playwright-based web testing | Verifying frontend functionality, debugging UI |
 
 ### Custom Droids (`{{DROIDS_PATH}}`)
 
