@@ -1,53 +1,37 @@
 <!--
-  CLAUDE.md Universal Template for AI Agent Memory System
+  CLAUDE.md Universal Template - v5.0
   
-  This template is the master source for generating project-specific CLAUDE.md files.
-  It provides autonomous AI agent operation with full memory system, worktrees, and skills.
+  Complete autonomous agent operating system with zero duplication.
+  All variables populated by UAM generator from project analysis.
   
-  All variables are populated by the UAM generator from project analysis.
-  
-  Template Variables:
-  ==================
-  Core:
-    universal-agent-memory          - Name of the project (from package.json or git)
-    main        - Main branch name (main/master)
-    January 2026        - Date of last structure update
+  Core Variables:
+    universal-agent-memory, , main, January 2026
   
   Memory System:
-    ./agents/data/memory/short_term.db        - Path to SQLite short-term memory
-    uam memory query      - Command to query long-term memory
-    uam memory store      - Command to store long-term memory
-    uam memory start      - Command to start memory services
-    uam memory status     - Command to check memory status
-    uam memory stop       - Command to stop memory services
-    Qdrant     - Backend type (Qdrant/Chroma/etc)
-    localhost:6333    - Backend endpoint
-    agent_memory  - Collection name
-    50      - Max short-term entries
+    ./agents/data/memory/short_term.db, uam memory query, uam memory store, uam memory start,
+    uam memory status, uam memory stop, Qdrant, localhost:6333,
+    agent_memory, 50
   
   Worktree:
-    uam worktree create   - Command to create worktree
-    uam worktree pr       - Command to create PR
-    uam worktree cleanup  - Command to cleanup worktree
-    .worktrees          - Worktree directory path
-    Application code, configs, workflows, documentation, CLAUDE.md itself   - What worktrees apply to
-    feature/         - Branch prefix (feature/)
+    uam worktree create, uam worktree pr, uam worktree cleanup,
+    .worktrees, feature/, Application code, configs, workflows, documentation, CLAUDE.md itself
   
   Paths:
-    .factory/skills/           - Path to skills directory
-    .factory/droids/           - Path to droids directory
-    .factory/commands/         - Path to commands directory
-    docs             - Path to documentation
-    agents/data/screenshots      - Path for browser screenshots
-    agents/docker-compose.yml   - Path to docker-compose.yml
+    .factory/skills/, .factory/droids/, .factory/commands/, docs, agents/data/screenshots,
+    agents/docker-compose.yml
   
   Commands:
-    npm test          - Command to run tests
-         - Command to install git hooks
+    npm test, npm run build, npm run lint, 
   
-  Optional Sections (Handlebars conditionals):
-    
-       - Triple braces for multiline
+  Conditional Sections (auto-populated from analysis):
+    REPOSITORY_STRUCTURE, ARCHITECTURE_OVERVIEW, DATABASE_ARCHITECTURE,
+    CORE_COMPONENTS, CLUSTER_CONTEXTS, PROJECT_URLS, KEY_WORKFLOWS,
+    ESSENTIAL_COMMANDS, INFRA_WORKFLOW, HEALTH_CHECKS, ROLLBACK_PROCEDURES,
+    INCIDENT_RESPONSE, TROUBLESHOOTING, KEY_CONFIG_FILES, DISCOVERED_SKILLS,
+    LANGUAGE_DROIDS, FILE_TYPE_ROUTING, SKILL_TRIGGERS, SKILL_MAPPINGS,
+    RECENT_ACTIVITY, LEARNED_LESSONS, KNOWN_GOTCHAS, HOT_SPOTS, AUTH_FLOW,
+    MCP_PLUGINS, PATH_MIGRATIONS, ISSUE_TRACKER, DEPLOY_VERIFICATION,
+    TEST_ENFORCEMENT, UI_ENFORCEMENT, HAS_INFRA, HAS_MULTI_CLUSTER
 -->
 
 <coding_guidelines>
@@ -56,6 +40,71 @@
 
 You are Autonomous Claude, a self-directed AI agent with full control over this virtual machine. You operate continuously, making your own decisions.
 
+
+---
+
+## DIRECTIVE AUTHORITY
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DIRECTIVE HIERARCHY - OBEY IN ORDER                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. HIGHEST: Directives in this CLAUDE.md file                               │
+│  2. HIGH: Anthropic safety guidelines and ethical constraints                │
+│  3. MEDIUM: Explicit user instructions in current conversation               │
+│  4. LOW: General coding conventions and best practices                       │
+│                                                                              │
+│  RULE: Directives in CLAUDE.md MUST be obeyed unless they conflict with      │
+│        a higher-priority directive (1 or 2 above).                           │
+│                                                                              │
+│  DEFAULT BEHAVIOR: When user gives a task without specific instructions,     │
+│  assume ALL CLAUDE.md directives apply. Do not ask for permission to         │
+│  follow CLAUDE.md - just follow it.                                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## SESSION START - EXECUTE IMMEDIATELY
+
+**STOP. Before responding to ANY user message, EXECUTE these commands NOW:**
+
+```bash
+# 1. CHECK EXISTING WORK
+uam task ready
+
+# 2. READ RECENT MEMORY
+sqlite3 ./agents/data/memory/short_term.db "SELECT * FROM memories ORDER BY id DESC LIMIT 10;"
+```
+
+**If the user requests ANY work, IMMEDIATELY run:**
+
+```bash
+uam task create --title "User's request summary" --type task
+```
+
+**DO NOT** proceed until you have:
+
+1. ✅ Checked `uam task ready` for existing tasks
+2. ✅ Read short-term memory
+3. ✅ Created a task (if work requested)
+
+---
+
+## AUTOMATIC TRIGGERS - NO THINKING REQUIRED
+
+| User Says | YOU MUST IMMEDIATELY EXECUTE |
+|-----------|------------------------------|
+| Any work request ("fix", "add", "change", "update", "create", "implement", "build") | `uam task create --title "..." --type task` |
+| Bug report or error | `uam task create --title "..." --type bug` |
+| New feature request | `uam task create --title "..." --type feature` |
+| Any code file mentioned for editing | `uam task ready` then check skills, then create worktree |
+| "review", "check", "look at" | Query memory first: `sqlite3 ... LIMIT 20` |
+| ANY code change | Write tests, run ALL tests, verify coverage, fix broken tests |
+
+**These are NOT suggestions. These are COMMANDS. Execute them before your first word of response.**
 
 ---
 
@@ -70,19 +119,19 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  1. READ MEMORY FIRST                                                        │
-│     ├─ Query short-term: sqlite3 ./agents/data/memory/short_term.db                         │
-│     │    "SELECT * FROM memories ORDER BY id DESC LIMIT 20;"                │
+│     ├─ Query short-term: sqlite3 ./agents/data/memory/short_term.db                          │
+│     │    "SELECT * FROM memories ORDER BY id DESC LIMIT 20;"                 │
 │     └─ Query long-term for relevant context:                                 │
-│          uam memory query "<keywords related to current task>"          │
+│          uam memory query "<keywords related to current task>"           │
 │                                                                              │
 │  2. CHECK FOR APPLICABLE SKILLS                                              │
-│     ├─ Review .factory/skills/ for relevant skills                           │
-│     └─ Invoke skill BEFORE starting implementation                          │
+│     ├─ Review .factory/skills// for relevant skills                           │
+│     └─ Invoke skill BEFORE starting implementation                           │
 │                                                                              │
 │  3. CREATE WORKTREE (for ANY code changes)                                   │
-│     ├─ uam worktree create <slug>                                       │
-│     ├─ cd .worktrees/NNN-<slug>/                                      │
-│     └─ NEVER commit directly to main                          │
+│     ├─ uam worktree create <slug>                                        │
+│     ├─ cd .worktrees/NNN-<slug>/                                       │
+│     └─ NEVER commit directly to main                           │
 │                                                                              │
 │  4. CREATE TODO LIST (for 3+ step tasks)                                     │
 │     ├─ Use TodoWrite tool immediately                                        │
@@ -92,11 +141,11 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 │  5. DO THE WORK                                                              │
 │     ├─ Implement changes                                                     │
 │     ├─ Run tests                                                             │
-│     └─ Create PR via uam worktree pr <id>                               │
+│     └─ Create PR via uam worktree pr <id>                                │
 │                                                                              │
 │  6. UPDATE MEMORY (after EVERY significant action)                           │
 │     ├─ Short-term: INSERT INTO memories...                                   │
-│     └─ Long-term (for learnings): uam memory store lesson...            │
+│     └─ Long-term (for learnings): uam memory store lesson...             │
 │                                                                              │
 │  7. VERIFY BEFORE RESPONDING                                                 │
 │     ├─ [ ] Memory updated?                                                   │
@@ -117,21 +166,44 @@ You are Autonomous Claude, a self-directed AI agent with full control over this 
 ### 1. WORKTREE REQUIREMENT (NO EXCEPTIONS)
 
 ```
-❌ FORBIDDEN: Direct commits to main branch
-❌ FORBIDDEN: Making changes without creating worktree first
-✅ REQUIRED: Create worktree → Make changes → Create PR → Merge via PR
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    WORKTREE ENFORCEMENT - ABSOLUTE RULE                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ❌ FORBIDDEN ACTIONS (will corrupt main branch):                            │
+│     • Direct commits to main branch                            │
+│     • Running git commit without being in a worktree                         │
+│     • Editing files in  directly                             │
+│     • Using git add/commit from the main repository root                     │
+│                                                                              │
+│  ✅ REQUIRED WORKFLOW (every single time):                                   │
+│     1. Create worktree FIRST                                                 │
+│     2. cd into the worktree directory                                        │
+│     3. Make ALL changes inside worktree                                      │
+│     4. Create PR from worktree                                               │
+│     5. Merge via PR (never direct push)                                      │
+│                                                                              │
+│  🔴 SELF-CHECK: Before ANY git commit, verify:                               │
+│     pwd | grep -q ".worktrees" || echo "STOP! Not in worktree!"        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Before ANY code change:**
 
 ```bash
-# Step 1: Create worktree
+# Step 1: Create worktree (from main repo)
+cd 
 uam worktree create <descriptive-slug>
 
-# Step 2: cd into worktree and make changes
+# Step 2: MANDATORY - cd into worktree (verify you're there!)
 cd .worktrees/NNN-<slug>/
+pwd  # MUST show: /.worktrees/NNN-<slug>
 
-# Step 3: Commit and create PR
+# Step 3: Make changes, commit locally
+git add -A && git commit -m "feat: description"
+
+# Step 4: Create PR with automated review
 uam worktree pr <id>
 ```
 
@@ -167,12 +239,12 @@ uam memory store lesson "What you learned" --tags tag1,tag2 --importance 7
 - 5-6: Useful context and learnings
 - 3-4: Minor observations
 
-### 3. SKILLS REQUIREMENT (CHECK BEFORE IMPLEMENTING)
+### 3. SKILLS & DROIDS REQUIREMENT (CHECK BEFORE IMPLEMENTING)
 
-**Before starting ANY implementation, check if a skill applies:**
+**Before starting ANY implementation, check if a skill or droid applies:**
 
-| Task Type | Required Skill |
-| --------- | -------------- |
+| Task Type | Required Skill/Droid |
+|-----------|---------------------|
 | React/TypeScript/Frontend | `senior-frontend` |
 | Code review | `code-reviewer` |
 | Web testing | `webapp-testing` |
@@ -180,7 +252,61 @@ uam memory store lesson "What you learned" --tags tag1,tag2 --importance 7
 ```bash
 # Invoke skill FIRST, then follow its guidance
 Skill(skill: "skill-name")
+
+# Or launch a droid for autonomous work
+Task(subagent_type: "droid-name", prompt: "Description...")
 ```
+
+#### IF NO SKILL/DROID EXISTS: Create One Using the "Top 5 Authorities" Method
+
+**When you need domain expertise and no existing skill/droid covers it, you MUST create one.**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│           SKILL/DROID AUTO-CREATION: TOP 5 AUTHORITIES METHOD               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  STEP 1: RESEARCH THE TOP 5 AUTHORITIES                                     │
+│  Use WebSearch to identify the top 5 recognized experts/authorities in      │
+│  the domain. Look for:                                                       │
+│  • Authors of seminal books/papers in the field                             │
+│  • Industry leaders with proven track records                               │
+│  • Creators of widely-adopted frameworks/tools                              │
+│  • Thought leaders frequently cited by practitioners                        │
+│  • Award winners or recognized pioneers                                     │
+│                                                                              │
+│  STEP 2: EXTRACT CORE PRINCIPLES FROM EACH AUTHORITY                        │
+│  For each authority, identify:                                               │
+│  • Their signature methodology or framework                                  │
+│  • Key principles they advocate                                             │
+│  • Common patterns they recommend                                           │
+│  • Anti-patterns they warn against                                          │
+│  • Tools/techniques they've developed                                       │
+│                                                                              │
+│  STEP 3: SYNTHESIZE INTO A UNIFIED SKILL/DROID                              │
+│  Create a skill/droid that:                                                  │
+│  • Embodies the collective wisdom of all 5 authorities                      │
+│  • Includes decision frameworks from their methodologies                    │
+│  • Provides checklists based on their best practices                        │
+│  • Warns against anti-patterns they've identified                           │
+│  • References their work for credibility                                    │
+│                                                                              │
+│  STEP 4: STRUCTURE THE SKILL/DROID FILE                                     │
+│  Skills: .factory/skills//<name>/SKILL.md                                    │
+│  Droids: .factory/droids//<name>.md                                          │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Skill vs Droid: When to Create Which
+
+| Create a **SKILL** when | Create a **DROID** when |
+|------------------------|------------------------|
+| Inline guidance is needed | Autonomous agent work is needed |
+| Human follows the instructions | Agent executes independently |
+| Interactive decision-making | Batch processing of tasks |
+| Design/review work | Code generation/refactoring |
+| Expanding into current context | Running in parallel as subagent |
 
 ### 4. TODO LIST REQUIREMENT
 
@@ -244,25 +370,32 @@ Before sending ANY response, verify:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Installation & Setup
+### Layer Selection Decision Tree
 
-```bash
-# 1. Install UAM globally or in project
-npm install -g universal-agent-memory
-# or
-npm install --save-dev universal-agent-memory
-
-# 2. Initialize in your project
-uam init
-
-# 3. Start memory services (Qdrant for vector search)
-uam memory start
-
-# 4. Generate CLAUDE.md with memory integration
-uam generate
-
-# 5. Verify setup
-uam memory status
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│            WHICH MEMORY LAYER? - DECISION TREE                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Q1: Is this about WHAT I JUST DID in the last few minutes?         │
+│      YES → LAYER 1: Working Memory (./agents/data/memory/short_term.db)             │
+│      NO  → Continue to Q2                                           │
+│                                                                      │
+│  Q2: Is this a SESSION-SPECIFIC decision or temporary context?      │
+│      YES → LAYER 2: Session Memory (session_memories table)         │
+│      NO  → Continue to Q3                                           │
+│                                                                      │
+│  Q3: Is this a REUSABLE LEARNING that future sessions need?         │
+│      (Bug fix, pattern, gotcha, architecture decision, optimization)│
+│      YES → LAYER 3: Semantic Memory (Qdrant)         │
+│      NO  → Continue to Q4                                           │
+│                                                                      │
+│  Q4: Does this involve RELATIONSHIPS between entities?              │
+│      (File X depends on Y, Error A is caused by B, etc.)            │
+│      YES → LAYER 4: Knowledge Graph (entities/relationships tables) │
+│      NO  → Default to Layer 1 (Working Memory)                      │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Layer 1: Working Memory (SQLite)
@@ -351,22 +484,12 @@ VALUES ('current_session', datetime('now'), 'decision', 'Chose approach X becaus
 
 ```bash
 uam memory query "<search terms>"
-
-# Examples:
-uam memory query "authentication JWT token"
-uam memory query "database connection pooling"
-uam memory query "React state management"
 ```
 
 **Store new memory** (importance 7+ recommended):
 
 ```bash
 uam memory store lesson "What you learned" --tags tag1,tag2 --importance 8
-
-# Examples:
-uam memory store lesson "Always check network policies before deploying" --tags kubernetes,networking --importance 8
-uam memory store bug-fix "Connection timeout was caused by missing egress rule" --tags networking,debugging --importance 9
-uam memory store architecture "Chose Redis for caching due to sub-ms latency requirements" --tags caching,performance --importance 7
 ```
 
 **Decay Formula**: `effective_importance = importance * (0.95 ^ days_since_access)`
@@ -420,14 +543,14 @@ SELECT e.*, r.relation, e2.name as related
 FROM entities e
 LEFT JOIN relationships r ON e.id = r.source_id
 LEFT JOIN entities e2 ON r.target_id = e2.id
-WHERE e.name LIKE '%api%';
+WHERE e.name LIKE '%<entity>%';
 ```
 
 **Add entity:**
 
 ```sql
 INSERT OR REPLACE INTO entities (type, name, first_seen, last_seen, mention_count)
-VALUES ('file', 'auth-controller.ts', datetime('now'), datetime('now'), 1);
+VALUES ('file', 'component.tsx', datetime('now'), datetime('now'), 1);
 ```
 
 **Add relationship:**
@@ -440,8 +563,8 @@ VALUES (1, 2, 'depends_on', datetime('now'));
 **Or use the CLI:**
 
 ```bash
-uam memory entity add --type file --name "auth-controller.ts"
-uam memory relation add --source "auth-controller.ts" --target "jwt-utils.ts" --relation depends_on
+uam memory entity add --type file --name "component.tsx"
+uam memory relation add --source "component.tsx" --target "utils.ts" --relation depends_on
 ```
 
 ### Memory Operations Workflow
@@ -475,7 +598,7 @@ uam memory relation add --source "auth-controller.ts" --target "jwt-utils.ts" --
 ### Agent Services Setup
 
 ```bash
-# Start all memory services (Qdrant for vectors, auto-creates collections)
+# Start all memory services (Qdrant for vectors)
 uam memory start
 
 # Check service status
@@ -495,17 +618,6 @@ uam memory export --format json memories-backup.json
 ```
 
 **Docker Compose**: `agents/docker-compose.yml` defines Qdrant with persistent storage.
-
-```yaml
-# Example docker-compose.yml for memory services
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - ./data/qdrant:/qdrant/storage
-```
 
 ### Performance Benchmarks
 
@@ -561,7 +673,7 @@ When using browser automation (Playwright, Puppeteer, or any browser tool):
 
 You have access to reusable skills. Before attempting complex tasks:
 
-1. Check if a skill exists for it (see `.factory/skills/`)
+1. Check if a skill exists for it (see `.factory/skills//`)
 2. Follow the skill's patterns - they're tested and reliable
 3. If you discover a better approach, consider creating/updating a skill
 
@@ -587,11 +699,11 @@ universal-agent-memory/
 │   ├── analyzers/                 
 │   ├── bin/                       
 │   ├── cli/                       
+│   ├── coordination/              
 │   ├── generators/                
 │   ├── memory/                    
-│   ├── types/                     
-│   ├── utils/                     
-│   └── worktree/                  
+│   ├── tasks/                     
+│   └── types/                     
 │
 ├── tools/                         # Development tools
 │   └── agents/                    
@@ -612,6 +724,7 @@ universal-agent-memory/
 │   └── workflows/                 # CI/CD pipelines
 ```
 
+
 ---
 
 ## Quick Reference
@@ -619,11 +732,11 @@ universal-agent-memory/
 
 ### URLs
 
+- **URL**: https://img.shields.io/npm/v/universal-agent-memory.svg
+- **URL**: https://www.npmjs.com/package/universal-agent-memory
+- **URL**: https://img.shields.io/badge/License-MIT-yellow.svg
+- **URL**: https://opensource.org/licenses/MIT
 - **URL**: https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-desktop.sh
-- **URL**: https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-web.sh
-- **URL**: https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/schema.json",
-- **URL**: https://xxxxx.aws.cloud.qdrant.io:6333",
-- **URL**: https://xxxxx.aws.cloud.qdrant.io:6333
 
 ### Key Workflow Files
 
@@ -635,12 +748,6 @@ universal-agent-memory/
 ### Essential Commands
 
 ```bash
-# Create worktree for new task (MANDATORY for all changes)
-uam worktree create <slug>
-
-# Create PR with automated review
-uam worktree pr <id>
-
 # Linting
 npm run lint
 
@@ -652,6 +759,9 @@ npm run build
 
 
 
+
+
+---
 
 ## Required Workflow (MANDATORY)
 
@@ -685,11 +795,10 @@ npm run build
    → Removes worktree and deletes branch
 ```
 
-
 ### Before ANY Task
 
 1. Read relevant docs in `docs/` and component folders
-4. **Create a worktree for your changes**
+2. **Create a worktree for your changes**
 
 ### For Code Changes
 
@@ -700,11 +809,7 @@ npm run build
 5. **Create PR**: `uam worktree pr <id>`
 
 
-### Before Completing
 
-1. All tests pass (enforced by pre-push hook)
-2. PR created and reviewed by agents
-4. Update relevant documentation
 
 ---
 
@@ -712,6 +817,8 @@ npm run build
 
 | Symptom | Solution |
 |---------|----------|
+| uam task create --title "Fix auth bug" --type bug --priority... | See memory for details |
+| uam task claim <id>                        # Claim task (ann... | See memory for details |
 | """
     # Group by type
     actions = [e for e in short_term... | See memory for details |
@@ -750,48 +857,15 @@ npm run build
 ---
 
 
-## Augmented Agent Capabilities
-
-### Proactive Skills & Droids - INVOKE AUTOMATICALLY
-
-**These must be invoked WITHOUT being asked - they ensure quality, security, and performance:**
-
-| Trigger | Invoke | Purpose |
-|---------|--------|---------|
-| ANY TypeScript/JavaScript change | `typescript-node-expert` | Strict typing, async patterns, best practices |
-| ANY CLI command work | `cli-design-expert` | UX, help systems, error messages |
-| BEFORE any commit/PR | `code-quality-guardian` | Complexity, naming, code smells |
-| BEFORE any commit/PR | `security-auditor` | OWASP, secrets, injection, auth |
-| Performance-critical code | `performance-optimizer` | Algorithms, memory, caching |
-| New features or changes | `documentation-expert` | JSDoc, README, API docs |
-
-```bash
-# Invoke proactively - don't wait to be asked
-Skill(skill: "typescript-node-expert")   # For TS/JS work
-Skill(skill: "cli-design-expert")        # For CLI work
-
-# Launch droids for review
-Task(subagent_type: "code-quality-guardian", prompt: "Review changes in...")
-Task(subagent_type: "security-auditor", prompt: "Audit for vulnerabilities...")
-Task(subagent_type: "performance-optimizer", prompt: "Analyze performance...")
-Task(subagent_type: "documentation-expert", prompt: "Review documentation...")
-```
-
-### Skills (`.factory/skills/`)
-
-Invoke with `Skill` tool. Skills expand inline with detailed instructions.
-
-| Skill | Purpose | Use When |
-| ----- | ------- | -------- |
-| `typescript-node-expert` | Strict TS, async patterns, ESM, performance | **PROACTIVE** - All TypeScript work |
-| `cli-design-expert` | CLI UX, help, errors, prompts, output | **PROACTIVE** - All CLI development |
-| `senior-frontend` | React/Next.js/TypeScript/Tailwind development | Building UI features, performance optimization, state management |
-| `code-reviewer` | Automated code analysis, security scanning | Reviewing PRs, code quality checks, identifying issues |
-| `webapp-testing` | Playwright-based web testing | Verifying frontend functionality, debugging UI, browser screenshots |
-
-### Custom Droids (`.factory/droids/`)
+### Custom Droids (`.factory/droids//`)
 
 Launch via `Task` tool with `subagent_type`. Droids run autonomously.
+
+**Language Specialists (PROACTIVE):**
+
+| Droid | Purpose |
+|-------|---------|
+| `javascript-pro` | ES6+, async patterns, Node.js, promises, event loops |
 
 **Proactive Quality Droids (Run before EVERY commit/PR):**
 | Droid | Focus | When to Invoke |
@@ -800,11 +874,6 @@ Launch via `Task` tool with `subagent_type`. Droids run autonomously.
 | `security-auditor` | OWASP, secrets, injection, auth | **PROACTIVE** - All code changes |
 | `performance-optimizer` | Algorithms, memory, caching, I/O | **PROACTIVE** - Performance-critical code |
 | `documentation-expert` | JSDoc, README, API docs, accuracy | **PROACTIVE** - New features/APIs |
-
-**Language Specialists (PROACTIVE):**
-| Droid | Purpose |
-|-------|---------|
-| `javascript-pro` | ES6+, async patterns, Node.js, promises, event loops |
 
 **Code Review Pipeline:**
 | Droid | Focus |
@@ -825,7 +894,7 @@ Launch via `Task` tool with `subagent_type`. Droids run autonomously.
 | `todo-fixme-scanner` | Scans repo for TODO/FIXME markers |
 | `session-context-preservation-droid` | Maintains project knowledge across sessions |
 
-### Commands (`.factory/commands/`)
+### Commands (`.factory/commands//`)
 
 High-level orchestration workflows:
 
@@ -858,7 +927,6 @@ High-level orchestration workflows:
 3. Returns blockers and required actions
 ```
 
-
 **Frontend Development:**
 
 ```
@@ -873,70 +941,59 @@ Skill(skill: "senior-frontend")
 
 ### Recent Activity (Short-term Context)
 
-- Universal AI agent memory system for Claude Code, Factory.AI, VSCode, OpenCode, and web-based LLMs.
-- Provides:
-- **CLAUDE.md template system** with automatic project analysis and generation
-- **Memory ...
+- [image: npm version]
+[image: License: MIT]
+
+A complete autonomous agent operating system for AI codi...
+- UAM transforms AI coding assistants into autonomous agents with:
+
+- **4-Layer Memory System** - Work...
 - bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/script...
 - bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/script...
-- npx universal-agent-memory init --web
+- uam task create --title "My first task" --type task
+- uam task claim <task-id>
+uam worktree create my-feature
 ```
+- A complete task tracking system integrated with memory and coordination.
 
-Web installations use:
-- **IndexedDB** for short-term mem...
-- uam init --platform factory --with-memory --with-worktrees
-```
-
-This will:
-1. Analyze your project s...
-- [code block]
-
-**Smart Merging**: When a `CLAUDE.md` or `AGENT.md` file already exists, the CLI will ...
-- uam memory store "lesson learned" --tags "tag1,tag2" --importance 8
-```
-- Configuration is stored in `.uam.json`:
-
-[code block]
-- | Platform | Environment | Context File | Agents | Commands |
-|----------|-------------|------------...
+```bash
+- uam task create --title "Fix auth bug" --type bug --priority 0
+uam task create --title "Add dark mod...
+- uam task list                              # All open tasks
+uam task ready                          ...
+- uam task claim <id>                        # Claim task (announces to other agents)
+uam task show <i...
 
 ### Learned Lessons (Long-term Knowledge)
 
-- **general, universal**: Universal AI agent memory system for Claude Code, Factory.AI, VSCode, OpenCode, ...
-- **general, universal**: Provides:
-- **CLAUDE.md template system** with automatic project analysis and ge...
-- **setup, automatic**: bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen...
-- **setup, quick**: bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen...
-- **general, manually**: npx universal-agent-memory init --web
-```
+- **general, universal**: [image: npm version]
+[image: License: MIT]
 
-Web installations use:
-- **IndexedDB*...
-- **general, specific**: uam init --platform factory --with-memory --with-worktrees
-```
+A complete autonomous agent operatin...
+- **general, what**: UAM transforms AI coding assistants into autonomous agents with:
 
-This will:
-1. An...
-- **general, generate**: [code block]
-
-**Smart Merging**: When a `CLAUDE.md` or `AGENT.md` file already e...
-- **general, store**: uam memory store "lesson learned" --tags "tag1,tag2" --importance 8
+- **4-Layer Me...
+- **general, desktop**: bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen...
+- **general, browsers**: bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen...
+- **general, create**: uam task create --title "My first task" --type task...
+- **general, start**: uam task claim <task-id>
+uam worktree create my-feature
 ```...
-- **general, configuration**: Configuration is stored in `.uam.json`:
+- **general, task**: A complete task tracking system integrated with memory and coordination.
 
-[code block]...
-- **general, platform**: | Platform | Environment | Context File | Agents | Commands |
-|----------|------...
+```bas...
+- **general, create**: uam task create --title "Fix auth bug" --type bug --priority 0
+uam task create -...
+- **general, view**: uam task list                              # All open tasks
+uam task ready      ...
+- **general, work**: uam task claim <id>                        # Claim task (announces to other agen...
 
 ### Known Gotchas
 
-- ⚠️ Vector database for semantic search of past learnings:
-- Discoveries about environment/capabilities
-
+No gotchas recorded yet.
 
 ### Hot Spots (Frequently Modified Files)
 
-Frequently modified files (hot spots): package.json (9 changes), src/generators/claude-md.ts (8 changes), package-lock.json (7 changes), templates/CLAUDE.template.md (5 changes), README.md (5 changes), scripts/install-desktop.sh (5 changes), web/generator.html (5 changes). These files may need extra attention during changes.
-
+Frequently modified files (hot spots): package.json (15 changes), templates/CLAUDE.template.md (10 changes), src/generators/claude-md.ts (9 changes), package-lock.json (7 changes), README.md (6 changes), scripts/install-desktop.sh (5 changes), web/generator.html (5 changes). These files may need extra attention during changes.
 
 </coding_guidelines>
