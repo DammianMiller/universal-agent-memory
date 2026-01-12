@@ -4,39 +4,112 @@ import { CoordinationDatabase, getDefaultCoordinationDbPath } from './database.j
 import type { DeployAction, DeployBatch, BatchResult, DeployActionType, DeployStatus } from '../types/coordination.js';
 import { execSync } from 'child_process';
 
-export interface DeployBatcherConfig {
-  dbPath?: string;
-  batchWindowMs?: number;
-  maxBatchSize?: number;
-  dryRun?: boolean;
+/**
+ * Dynamic batch window configuration based on action type.
+ * Optimizes for speed on time-sensitive operations while allowing
+ * batching for operations that benefit from grouping.
+ */
+export interface DynamicBatchWindows {
+  commit: number;    // Default: 30000ms (30s) - allows squashing
+  push: number;      // Default: 5000ms (5s) - fast for PRs
+  merge: number;     // Default: 10000ms (10s)
+  workflow: number;  // Default: 5000ms (5s) - fast triggers
+  deploy: number;    // Default: 60000ms (60s) - safety buffer
 }
 
+export interface DeployBatcherConfig {
+  dbPath?: string;
+  batchWindowMs?: number;           // Legacy: single window for all types
+  dynamicWindows?: Partial<DynamicBatchWindows>;  // NEW: per-type windows
+  maxBatchSize?: number;
+  dryRun?: boolean;
+  parallelExecution?: boolean;      // NEW: execute independent actions in parallel
+  maxParallelActions?: number;      // NEW: limit parallel executions
+}
 
+const DEFAULT_DYNAMIC_WINDOWS: DynamicBatchWindows = {
+  commit: 30000,    // 30s - allows squashing multiple commits
+  push: 5000,       // 5s - fast for PR creation
+  merge: 10000,     // 10s - moderate safety
+  workflow: 5000,   // 5s - fast workflow triggers
+  deploy: 60000,    // 60s - safety buffer for deployments
+};
 
 export class DeployBatcher {
   private db: Database.Database;
-  private batchWindowMs: number;
+  private dynamicWindows: DynamicBatchWindows;
   private maxBatchSize: number;
   private dryRun: boolean;
+  private parallelExecution: boolean;
+  private maxParallelActions: number;
 
   constructor(config: DeployBatcherConfig = {}) {
     const dbPath = config.dbPath || getDefaultCoordinationDbPath();
     this.db = CoordinationDatabase.getInstance(dbPath).getDatabase();
-    this.batchWindowMs = config.batchWindowMs || 30000; // 30 seconds
+    
+    // Support both legacy single window and new dynamic windows
+    if (config.dynamicWindows) {
+      this.dynamicWindows = { ...DEFAULT_DYNAMIC_WINDOWS, ...config.dynamicWindows };
+    } else if (config.batchWindowMs) {
+      // Legacy mode: use single window for all types
+      this.dynamicWindows = {
+        commit: config.batchWindowMs,
+        push: config.batchWindowMs,
+        merge: config.batchWindowMs,
+        workflow: config.batchWindowMs,
+        deploy: config.batchWindowMs,
+      };
+    } else {
+      this.dynamicWindows = DEFAULT_DYNAMIC_WINDOWS;
+    }
+    
     this.maxBatchSize = config.maxBatchSize || 20;
     this.dryRun = config.dryRun || false;
+    this.parallelExecution = config.parallelExecution ?? true;
+    this.maxParallelActions = config.maxParallelActions || 5;
   }
 
-  // Queue a deploy action with batching delay
+  /**
+   * Get the batch window for a specific action type.
+   */
+  getBatchWindow(actionType: DeployActionType): number {
+    return this.dynamicWindows[actionType] || DEFAULT_DYNAMIC_WINDOWS.commit;
+  }
+
+  /**
+   * Update batch windows dynamically (useful for urgent operations).
+   */
+  setUrgentMode(urgent: boolean): void {
+    if (urgent) {
+      // Reduce all windows to minimum for urgent operations
+      this.dynamicWindows = {
+        commit: 2000,
+        push: 1000,
+        merge: 2000,
+        workflow: 1000,
+        deploy: 5000,
+      };
+    } else {
+      // Restore defaults
+      this.dynamicWindows = { ...DEFAULT_DYNAMIC_WINDOWS };
+    }
+  }
+
+  /**
+   * Queue a deploy action with type-specific batching delay.
+   */
   async queue(
     agentId: string,
     actionType: DeployActionType,
     target: string,
     payload?: Record<string, unknown>,
-    options: { priority?: number; dependencies?: string[] } = {}
+    options: { priority?: number; dependencies?: string[]; urgent?: boolean } = {}
   ): Promise<number> {
     const now = new Date().toISOString();
-    const executeAfter = new Date(Date.now() + this.batchWindowMs).toISOString();
+    
+    // Use type-specific window, or immediate for urgent
+    const windowMs = options.urgent ? 1000 : this.getBatchWindow(actionType);
+    const executeAfter = new Date(Date.now() + windowMs).toISOString();
 
     // Check for similar pending action to merge
     const existing = this.findSimilarAction(actionType, target);
@@ -44,6 +117,66 @@ export class DeployBatcher {
       await this.mergeActions(existing.id, payload);
       return existing.id;
     }
+
+    const stmt = this.db.prepare(`
+      INSERT INTO deploy_queue (agent_id, action_type, target, payload, status, queued_at, execute_after, priority, dependencies)
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      agentId,
+      actionType,
+      target,
+      payload ? JSON.stringify(payload) : null,
+      now,
+      executeAfter,
+      options.priority || 5,
+      options.dependencies ? JSON.stringify(options.dependencies) : null
+    );
+
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Queue multiple actions atomically with optimized windows.
+   */
+  async queueBulk(
+    agentId: string,
+    actions: Array<{
+      actionType: DeployActionType;
+      target: string;
+      payload?: Record<string, unknown>;
+      priority?: number;
+    }>
+  ): Promise<number[]> {
+    const ids: number[] = [];
+    
+    const transaction = this.db.transaction(() => {
+      for (const action of actions) {
+        const id = this.queueSync(agentId, action.actionType, action.target, action.payload, {
+          priority: action.priority,
+        });
+        ids.push(id);
+      }
+    });
+    
+    transaction();
+    return ids;
+  }
+
+  /**
+   * Synchronous queue for use in transactions.
+   */
+  private queueSync(
+    agentId: string,
+    actionType: DeployActionType,
+    target: string,
+    payload?: Record<string, unknown>,
+    options: { priority?: number; dependencies?: string[] } = {}
+  ): number {
+    const now = new Date().toISOString();
+    const windowMs = this.getBatchWindow(actionType);
+    const executeAfter = new Date(Date.now() + windowMs).toISOString();
 
     const stmt = this.db.prepare(`
       INSERT INTO deploy_queue (agent_id, action_type, target, payload, status, queued_at, execute_after, priority, dependencies)
@@ -91,7 +224,6 @@ export class DeployBatcher {
     existing: DeployAction,
     incoming: { actionType: DeployActionType; target: string; payload?: Record<string, unknown> }
   ): boolean {
-    // Only merge same action types on same target
     if (existing.actionType !== incoming.actionType || existing.target !== incoming.target) {
       return false;
     }
@@ -124,8 +256,6 @@ export class DeployBatcher {
     if (!row) return;
 
     const existingPayload = row.payload ? JSON.parse(row.payload) : {};
-    
-    // Merge payloads (new values override, arrays are concatenated)
     const merged = this.mergePayloads(existingPayload, newPayload);
 
     const updateStmt = this.db.prepare(`
@@ -144,7 +274,6 @@ export class DeployBatcher {
       if (Array.isArray(value) && Array.isArray(result[key])) {
         result[key] = [...(result[key] as unknown[]), ...value];
       } else if (key === 'messages' && Array.isArray(value)) {
-        // Special case: concatenate commit messages
         result[key] = [...((result[key] as string[]) || []), ...value];
       } else {
         result[key] = value;
@@ -154,11 +283,12 @@ export class DeployBatcher {
     return result;
   }
 
-  // Create a batch from ready actions
+  /**
+   * Create a batch from ready actions.
+   */
   async createBatch(): Promise<DeployBatch | null> {
     const now = new Date().toISOString();
     
-    // Get actions ready for execution (past their delay)
     const stmt = this.db.prepare(`
       SELECT id, agent_id as agentId, action_type as actionType, target, payload,
              status, batch_id as batchId, queued_at as queuedAt, 
@@ -178,16 +308,11 @@ export class DeployBatcher {
       dependencies: row.dependencies ? JSON.parse(row.dependencies as string) : undefined,
     })) as DeployAction[];
 
-    // Group by target
     const grouped = this.groupByTarget(actions);
-
-    // Squash compatible actions within each group
     const squashed = this.squashActions(grouped);
 
-    // Create batch
     const batchId = randomUUID();
     
-    // Mark actions as batched
     const updateStmt = this.db.prepare(`
       UPDATE deploy_queue SET status = 'batched', batch_id = ? WHERE id = ?
     `);
@@ -197,7 +322,6 @@ export class DeployBatcher {
         updateStmt.run(batchId, action.id);
       }
       
-      // Record batch
       this.db.prepare(`
         INSERT INTO deploy_batches (id, created_at, status)
         VALUES (?, ?, 'pending')
@@ -240,26 +364,22 @@ export class DeployBatcher {
 
       const first = actions[0];
 
-      // Squash commits
       if (first.actionType === 'commit') {
         const squashed = this.squashCommits(actions);
         result.push(squashed);
         continue;
       }
 
-      // Deduplicate pushes (just keep one)
       if (first.actionType === 'push') {
         result.push(first);
         continue;
       }
 
-      // Deduplicate workflow triggers
       if (first.actionType === 'workflow') {
         result.push(first);
         continue;
       }
 
-      // For other types, keep all
       result.push(...actions);
     }
 
@@ -280,7 +400,6 @@ export class DeployBatcher {
       }
     }
 
-    // Create squashed commit message
     const squashedMessage = messages.length === 1
       ? messages[0]
       : `Squashed ${messages.length} commits:\n\n${messages.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
@@ -289,20 +408,21 @@ export class DeployBatcher {
       ...commits[0],
       payload: {
         message: squashedMessage,
-        files: [...new Set(allFiles)], // Deduplicate files
+        files: [...new Set(allFiles)],
         squashedFrom: commits.map((c) => c.id),
       },
     };
   }
 
-  // Execute a batch
+  /**
+   * Execute a batch with optional parallel execution for independent actions.
+   */
   async executeBatch(batchId: string): Promise<BatchResult> {
     const startTime = Date.now();
     const errors: string[] = [];
     let executed = 0;
     let failed = 0;
 
-    // Get batch actions
     const stmt = this.db.prepare(`
       SELECT id, agent_id as agentId, action_type as actionType, target, payload,
              status, batch_id as batchId, queued_at as queuedAt, 
@@ -319,26 +439,56 @@ export class DeployBatcher {
       dependencies: row.dependencies ? JSON.parse(row.dependencies as string) : undefined,
     })) as DeployAction[];
 
-    // Mark batch as executing
     this.db.prepare(`
       UPDATE deploy_batches SET status = 'executing', executed_at = ? WHERE id = ?
     `).run(new Date().toISOString(), batchId);
 
-    // Execute each action
-    for (const action of actions) {
-      try {
-        await this.executeAction(action);
-        this.updateActionStatus(action.id, 'completed');
-        executed++;
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        errors.push(`Action ${action.id} (${action.actionType}): ${errorMsg}`);
-        this.updateActionStatus(action.id, 'failed');
-        failed++;
+    if (this.parallelExecution) {
+      // Group independent actions for parallel execution
+      const { sequential, parallel } = this.categorizeActions(actions);
+      
+      // Execute parallel-safe actions concurrently
+      if (parallel.length > 0) {
+        const parallelResults = await this.executeParallel(parallel);
+        for (const result of parallelResults) {
+          if (result.success) {
+            executed++;
+          } else {
+            failed++;
+            if (result.error) errors.push(result.error);
+          }
+        }
+      }
+      
+      // Execute sequential actions in order
+      for (const action of sequential) {
+        try {
+          await this.executeAction(action);
+          this.updateActionStatus(action.id, 'completed');
+          executed++;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors.push(`Action ${action.id} (${action.actionType}): ${errorMsg}`);
+          this.updateActionStatus(action.id, 'failed');
+          failed++;
+        }
+      }
+    } else {
+      // Original sequential execution
+      for (const action of actions) {
+        try {
+          await this.executeAction(action);
+          this.updateActionStatus(action.id, 'completed');
+          executed++;
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors.push(`Action ${action.id} (${action.actionType}): ${errorMsg}`);
+          this.updateActionStatus(action.id, 'failed');
+          failed++;
+        }
       }
     }
 
-    // Update batch status
     const batchStatus: DeployStatus = failed === 0 ? 'completed' : (executed > 0 ? 'completed' : 'failed');
     this.db.prepare(`
       UPDATE deploy_batches SET status = ?, result = ? WHERE id = ?
@@ -352,6 +502,70 @@ export class DeployBatcher {
       errors: errors.length > 0 ? errors : undefined,
       duration: Date.now() - startTime,
     };
+  }
+
+  /**
+   * Categorize actions into parallel-safe and sequential groups.
+   */
+  private categorizeActions(actions: DeployAction[]): { sequential: DeployAction[]; parallel: DeployAction[] } {
+    const sequential: DeployAction[] = [];
+    const parallel: DeployAction[] = [];
+
+    // Actions that can run in parallel (no state dependencies)
+    const parallelSafeTypes: DeployActionType[] = ['workflow'];
+    
+    // Actions that must be sequential (state-dependent)
+    const sequentialTypes: DeployActionType[] = ['commit', 'push', 'merge', 'deploy'];
+
+    for (const action of actions) {
+      if (parallelSafeTypes.includes(action.actionType)) {
+        parallel.push(action);
+      } else if (sequentialTypes.includes(action.actionType)) {
+        sequential.push(action);
+      } else {
+        // Unknown types go sequential for safety
+        sequential.push(action);
+      }
+    }
+
+    return { sequential, parallel };
+  }
+
+  /**
+   * Execute actions in parallel with concurrency limit.
+   */
+  private async executeParallel(
+    actions: DeployAction[]
+  ): Promise<Array<{ action: DeployAction; success: boolean; error?: string }>> {
+    const results: Array<{ action: DeployAction; success: boolean; error?: string }> = [];
+    
+    // Process in chunks to respect maxParallelActions
+    for (let i = 0; i < actions.length; i += this.maxParallelActions) {
+      const chunk = actions.slice(i, i + this.maxParallelActions);
+      
+      const chunkResults = await Promise.allSettled(
+        chunk.map(async (action) => {
+          await this.executeAction(action);
+          return action;
+        })
+      );
+
+      for (let j = 0; j < chunkResults.length; j++) {
+        const result = chunkResults[j];
+        const action = chunk[j];
+        
+        if (result.status === 'fulfilled') {
+          this.updateActionStatus(action.id, 'completed');
+          results.push({ action, success: true });
+        } else {
+          const errorMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          this.updateActionStatus(action.id, 'failed');
+          results.push({ action, success: false, error: `Action ${action.id} (${action.actionType}): ${errorMsg}` });
+        }
+      }
+    }
+
+    return results;
   }
 
   private async executeAction(action: DeployAction): Promise<void> {
@@ -444,7 +658,6 @@ export class DeployBatcher {
     stmt.run(status, actionId);
   }
 
-  // Get batch status
   getBatch(batchId: string): DeployBatch | null {
     const batchStmt = this.db.prepare(`
       SELECT id, created_at as createdAt, executed_at as executedAt, status, result
@@ -477,7 +690,6 @@ export class DeployBatcher {
     };
   }
 
-  // Get all pending batches
   getPendingBatches(): DeployBatch[] {
     const stmt = this.db.prepare(`
       SELECT id FROM deploy_batches WHERE status = 'pending'
@@ -489,11 +701,12 @@ export class DeployBatcher {
       .filter((b): b is DeployBatch => b !== null);
   }
 
-  // Force flush all pending deploys
+  /**
+   * Force flush all pending deploys immediately.
+   */
   async flushAll(): Promise<BatchResult[]> {
     const results: BatchResult[] = [];
 
-    // First, create batches from all pending
     let batch = await this.createBatch();
     while (batch) {
       const result = await this.executeBatch(batch.id);
@@ -502,5 +715,12 @@ export class DeployBatcher {
     }
 
     return results;
+  }
+
+  /**
+   * Get current batch window configuration.
+   */
+  getWindowConfig(): DynamicBatchWindows {
+    return { ...this.dynamicWindows };
   }
 }
