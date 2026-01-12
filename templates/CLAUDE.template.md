@@ -1,14 +1,11 @@
 <!--
-  CLAUDE.md Universal Template - v6.0
+  CLAUDE.md Universal Template - v7.0
   
-  OPTIMIZATIONS IN THIS VERSION:
-  - 30% token reduction via compression and deduplication
-  - Multi-agent coordination protocol (P0)
-  - Session memory enforcement (P0)
-  - Parallel droid invocation patterns (P1)
-  - Dynamic task routing (P1)
-  - Capability-based agent routing (P2)
-  - Modular conditional sections (P3)
+  CHANGES IN THIS VERSION:
+  - All project-specific content uses Handlebars placeholders
+  - No hardcoded project data (Pay2U removed)
+  - Simplified memory references (agent-managed, not user-managed)
+  - Template variables documented inline
   
   Core Variables:
     {{PROJECT_NAME}}, {{PROJECT_PATH}}, {{DEFAULT_BRANCH}}, {{STRUCTURE_DATE}}
@@ -59,8 +56,7 @@
 
 ```bash
 uam task ready                                    # Check existing work
-sqlite3 {{MEMORY_DB_PATH}} "SELECT * FROM memories ORDER BY id DESC LIMIT 10;"
-sqlite3 {{MEMORY_DB_PATH}} "SELECT * FROM session_memories WHERE session_id='current' ORDER BY id DESC LIMIT 5;"
+uam memory query "recent context"                 # Check memory for context
 uam agent status                                  # Check other active agents
 ```
 
@@ -135,81 +131,60 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 │                    EXECUTE FOR EVERY TASK                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. MEMORY   │ sqlite3 {{MEMORY_DB_PATH}} "...LIMIT 20"         │
-│              │ {{MEMORY_QUERY_CMD}} "<keywords>"                 │
-│              │ Check session_memories for current context        │
+│  1. MEMORY   │ uam memory query "<keywords>"                     │
+│              │ Check for relevant past context                   │
 │                                                                  │
-│  2. AGENTS   │ uam agent overlaps --resource "<files>"          │
+│  2. AGENTS   │ uam agent overlaps --resource "<files>"           │
 │              │ If overlap: coordinate or wait                    │
 │                                                                  │
-│  3. SKILLS   │ Check {{SKILLS_PATH}}/ for applicable skill      │
+│  3. SKILLS   │ Check {{SKILLS_PATH}} for applicable skill        │
 │              │ Invoke BEFORE implementing                        │
 │                                                                  │
-│  4. WORKTREE │ {{WORKTREE_CREATE_CMD}} <slug>                   │
-│              │ cd {{WORKTREE_DIR}}/NNN-<slug>/                  │
-│              │ NEVER commit to {{DEFAULT_BRANCH}}               │
+│  4. WORKTREE │ {{WORKTREE_CREATE_CMD}} <slug>                    │
+│              │ cd {{WORKTREE_DIR}}/NNN-<slug>/                   │
+│              │ NEVER commit to {{DEFAULT_BRANCH}}                │
 │                                                                  │
-│  5. WORK     │ Implement → Test → {{WORKTREE_PR_CMD}}           │
+│  5. WORK     │ Implement → Test → {{WORKTREE_PR_CMD}}            │
 │                                                                  │
-│  6. MEMORY   │ Update short-term after actions                   │
-│              │ Update session_memories for decisions             │
-│              │ Store lessons in long-term (importance 7+)        │
+│  6. MEMORY   │ Store important learnings for future sessions     │
+│              │ uam memory store "lesson" --importance 7+         │
 │                                                                  │
-│  7. VERIFY   │ ☐ Memory ☐ Worktree ☐ PR ☐ Skills ☐ Agents      │
+│  7. VERIFY   │ ☐ Memory ☐ Worktree ☐ PR ☐ Skills ☐ Agents        │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🧠 FOUR-LAYER MEMORY SYSTEM
+## 🧠 MEMORY SYSTEM
+
+**Memory is managed automatically.** Query for context, store important learnings.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  L1: WORKING      │ SQLite memories     │ {{SHORT_TERM_LIMIT}} max │ <1ms   │
-│  L2: SESSION      │ SQLite session_mem  │ Current session      │ <5ms   │
-│  L3: SEMANTIC     │ {{LONG_TERM_BACKEND}}│ Vector search        │ ~50ms  │
-│  L4: KNOWLEDGE    │ SQLite entities     │ Graph relationships  │ <20ms  │
+│  L1: WORKING      │ Recent actions       │ {{SHORT_TERM_LIMIT}} max │ Auto-managed  │
+│  L2: SESSION      │ Current session      │ Per session              │ Auto-managed  │
+│  L3: SEMANTIC     │ Long-term learnings  │ {{LONG_TERM_BACKEND}}    │ Store lessons │
+│  L4: KNOWLEDGE    │ Entity relationships │ SQLite                   │ Auto-managed  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Layer Selection
+### When to Store Memories
 
-| Question | YES → Layer |
-|----------|-------------|
-| Just did this (last few minutes)? | L1: Working |
-| Session-specific decision/context? | L2: Session |
-| Reusable learning for future? | L3: Semantic |
-| Entity relationships? | L4: Knowledge Graph |
+| Situation | Action |
+|-----------|--------|
+| Learned something reusable | `uam memory store "lesson" --importance 8` |
+| Fixed a tricky bug | `uam memory store "bug fix" --tags bug-fix --importance 7` |
+| Discovered a gotcha | `uam memory store "gotcha" --tags gotcha --importance 9` |
+| Completed a task | Memory auto-updates |
 
-### Memory Commands
+### When to Query Memories
 
-```bash
-# L1: Working Memory
-sqlite3 {{MEMORY_DB_PATH}} "INSERT INTO memories (timestamp,type,content) VALUES (datetime('now'),'action','...');"
-
-# L2: Session Memory (NEW)
-sqlite3 {{MEMORY_DB_PATH}} "INSERT INTO session_memories (session_id,timestamp,type,content,importance) VALUES ('current',datetime('now'),'decision','...',7);"
-
-# L3: Semantic Memory  
-{{MEMORY_STORE_CMD}} lesson "..." --tags t1,t2 --importance 8
-
-# L4: Knowledge Graph
-sqlite3 {{MEMORY_DB_PATH}} "INSERT INTO entities (type,name,first_seen,last_seen,mention_count) VALUES ('file','x.ts',datetime('now'),datetime('now'),1);"
-sqlite3 {{MEMORY_DB_PATH}} "INSERT INTO relationships (source_id,target_id,relation,timestamp) VALUES (1,2,'depends_on',datetime('now'));"
-```
-
-### Consolidation Rules
-
-- **Trigger**: Every 10 working memory entries
-- **Action**: Summarize → session_memories, Extract lessons → semantic memory
-- **Dedup**: Skip if content_hash exists OR similarity > 0.92
-
-### Decay Formula
-
-```
-effective_importance = importance × (0.95 ^ days_since_access)
-```
+| Situation | Action |
+|-----------|--------|
+| Starting new work | `uam memory query "relevant keywords"` |
+| Debugging | `uam memory query "similar error"` |
+| Understanding patterns | `uam memory query "how we did X"` |
 
 ---
 
@@ -273,49 +248,49 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 | code file for editing | check overlaps → skills → worktree |
 | review/check/look | query memory first |
 | ANY code change | tests required |
-{{#if SKILL_TRIGGERS}}
-{{{SKILL_TRIGGERS}}}
-{{/if}}
 
 ---
 
 ## 📁 REPOSITORY STRUCTURE
 
-{{#if REPOSITORY_STRUCTURE}}
 ```
 {{PROJECT_NAME}}/
 {{{REPOSITORY_STRUCTURE}}}
 ```
-{{/if}}
-
-{{#if PATH_MIGRATIONS}}
-### Path Migrations
-{{{PATH_MIGRATIONS}}}
-{{/if}}
 
 ---
 
 {{#if ARCHITECTURE_OVERVIEW}}
 ## 🏗️ Architecture
-{{{ARCHITECTURE_OVERVIEW}}}
-{{/if}}
 
-{{#if DATABASE_ARCHITECTURE}}
-### Database
-{{{DATABASE_ARCHITECTURE}}}
+{{{ARCHITECTURE_OVERVIEW}}}
+
+---
 {{/if}}
 
 {{#if CORE_COMPONENTS}}
 ## 🔧 Components
+
 {{{CORE_COMPONENTS}}}
+
+---
+{{/if}}
+
+{{#if DATABASE_ARCHITECTURE}}
+## 🗄️ Database
+
+{{{DATABASE_ARCHITECTURE}}}
+
+---
 {{/if}}
 
 {{#if AUTH_FLOW}}
 ## 🔐 Authentication
+
 {{{AUTH_FLOW}}}
-{{/if}}
 
 ---
+{{/if}}
 
 ## 📋 Quick Reference
 
@@ -326,11 +301,6 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 ```
 {{/if}}
 
-{{#if PROJECT_URLS}}
-### URLs
-{{{PROJECT_URLS}}}
-{{/if}}
-
 {{#if KEY_WORKFLOWS}}
 ### Workflows
 ```
@@ -338,34 +308,25 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 ```
 {{/if}}
 
-{{#if ESSENTIAL_COMMANDS}}
 ### Commands
 ```bash
-{{{ESSENTIAL_COMMANDS}}}
-```
+{{#if TEST_COMMAND}}
+# Tests
+{{TEST_COMMAND}}
 {{/if}}
+
+{{#if BUILD_COMMAND}}
+# Build
+{{BUILD_COMMAND}}
+{{/if}}
+
+{{#if LINT_COMMAND}}
+# Linting
+{{LINT_COMMAND}}
+{{/if}}
+```
 
 ---
-
-{{#if DISCOVERED_SKILLS}}
-## 🎯 Skills & Droids
-
-### Proactive Invocation (AUTO-TRIGGER)
-
-| Trigger | Invoke | Purpose |
-|---------|--------|---------|
-| TS/JS change | `typescript-node-expert` | Strict typing, async |
-| CLI work | `cli-design-expert` | UX, help, errors |
-| Before commit | `code-quality-guardian` | Quality gate |
-| Before commit | `security-auditor` | Security gate |
-| Perf-critical | `performance-optimizer` | Optimization |
-| New features | `documentation-expert` | Docs accuracy |
-
-### Available Skills
-| Skill | Purpose | Use When |
-|-------|---------|----------|
-{{{DISCOVERED_SKILLS}}}
-{{/if}}
 
 {{#if LANGUAGE_DROIDS}}
 ### Language Droids
@@ -374,13 +335,11 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 {{{LANGUAGE_DROIDS}}}
 {{/if}}
 
-{{#if COMMANDS_PATH}}
-### Commands
-| Command | Purpose |
-|---------|---------|
-| `/worktree` | Manage worktrees (create, list, pr, cleanup) |
-| `/code-review` | Full parallel review pipeline |
-| `/pr-ready` | Validate branch, create PR |
+{{#if DISCOVERED_SKILLS}}
+### Skills
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+{{{DISCOVERED_SKILLS}}}
 {{/if}}
 
 {{#if MCP_PLUGINS}}
@@ -392,55 +351,55 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 
 ---
 
-{{#if INFRA_WORKFLOW}}
+{{#if HAS_INFRA}}
 ## 🏭 Infrastructure Workflow
+
 {{{INFRA_WORKFLOW}}}
+
+---
 {{/if}}
 
-{{#if TEST_ENFORCEMENT}}
 ## 🧪 Testing Requirements
-{{{TEST_ENFORCEMENT}}}
-{{else}}
-## 🧪 Testing Requirements
+
 1. Create worktree
 2. Update/create tests
 3. Run `{{TEST_COMMAND}}`
-4. Run linting
+{{#if LINT_COMMAND}}
+4. Run `{{LINT_COMMAND}}`
+{{/if}}
 5. Create PR
-{{/if}}
-
-{{#if UI_ENFORCEMENT}}
-## 🎨 UI Requirements
-{{{UI_ENFORCEMENT}}}
-{{/if}}
 
 ---
 
 {{#if TROUBLESHOOTING}}
 ## 🔧 Troubleshooting
+
 {{{TROUBLESHOOTING}}}
+
+---
 {{/if}}
 
 {{#if KEY_CONFIG_FILES}}
 ## ⚙️ Config Files
+
 | File | Purpose |
 |------|---------|
 {{{KEY_CONFIG_FILES}}}
-{{/if}}
 
 ---
+{{/if}}
 
 ## ✅ Completion Checklist
 
 ```
 ☐ Tests pass
 ☐ Lint/typecheck pass  
-☐ Worktree used (not main)
-☐ Memory updated
+☐ Worktree used (not {{DEFAULT_BRANCH}})
+☐ Memory updated (if learned something)
 ☐ PR created
 ☐ Parallel reviews passed
 {{#if HAS_INFRA}}
-☐ Terraform plan verified
+☐ Infrastructure plan verified
 {{/if}}
 ☐ No secrets in code
 ```
@@ -480,7 +439,7 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 │     └─ Repeat until 100% working                                │
 │                                                                  │
 │  5. COMPLETE                                                     │
-│     ├─ Update memory with learnings                             │
+│     ├─ Store learnings: uam memory store "what I learned"       │
 │     ├─ Close related tasks/issues                               │
 │     └─ Announce completion                                      │
 │                                                                  │
@@ -511,9 +470,10 @@ gh run view <run-id>
 
 ---
 
-{{#if RECENT_ACTIVITY}}
+{{#if PREPOPULATED_KNOWLEDGE}}
 ## 📊 Project Knowledge
 
+{{#if RECENT_ACTIVITY}}
 ### Recent Activity
 {{{RECENT_ACTIVITY}}}
 {{/if}}
@@ -531,6 +491,7 @@ gh run view <run-id>
 {{#if HOT_SPOTS}}
 ### Hot Spots
 {{{HOT_SPOTS}}}
+{{/if}}
 {{/if}}
 
 </coding_guidelines>

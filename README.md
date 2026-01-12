@@ -3,397 +3,214 @@
 [![npm version](https://img.shields.io/npm/v/universal-agent-memory.svg)](https://www.npmjs.com/package/universal-agent-memory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A complete autonomous agent operating system for AI coding assistants. Provides memory, task management, agent coordination, and workflow automation for Claude Code, Factory.AI, VSCode, OpenCode, and web-based LLMs.
+**Give your AI coding assistant persistent memory and autonomous workflows.**
 
-## What It Does
+UAM transforms AI coding assistants (Claude Code, Factory.AI, etc.) into autonomous agents that remember context across sessions, coordinate with other agents, and follow consistent workflows.
 
-UAM transforms AI coding assistants into autonomous agents with:
+## How It Works
 
-- **4-Layer Memory System** - Working, session, semantic, and knowledge graph memory
-- **Task Management** - Git-backed issue tracking with dependency DAG (superior to Beads)
-- **Agent Coordination** - Multi-agent overlap detection and merge conflict prevention
-- **Deploy Batching** - Batch commits/pushes to save CI minutes
-- **Git Worktree Automation** - Isolated development branches with PR workflows
-- **CLAUDE.md Generation** - Auto-generated project context files
+1. **Install UAM** in your project
+2. **Generate CLAUDE.md** - a context file your AI reads automatically
+3. **The AI handles everything** - memory, tasks, worktrees, coordination
 
-## Installation
+**You don't manage memory manually.** The AI agent reads CLAUDE.md and autonomously uses the memory system, creates worktrees, tracks tasks, and coordinates with other agents.
 
-### Quick Install (Recommended)
+## Quick Start
 
 ```bash
-# Install globally
+# Install
 npm install -g universal-agent-memory
 
 # Initialize in your project
 cd your-project
-uam init --interactive
+uam init --with-memory --with-worktrees
+
+# Start memory services (optional, for persistent semantic memory)
+uam memory start
+
+# Generate the CLAUDE.md context file
+uam generate
+```
+
+That's it! Your AI assistant now has:
+- **Persistent memory** across sessions
+- **Task tracking** with dependencies
+- **Git worktree workflows** (never commits to main)
+- **Multi-agent coordination** (prevents merge conflicts)
+
+## Example: Working With an AI Agent
+
+After setup, just talk to your AI assistant normally:
+
+```
+You: "Fix the authentication bug in the login handler"
+
+AI: *Automatically:*
+  1. Checks memory for past context on auth/login
+  2. Creates task: "Fix auth bug in login handler"
+  3. Creates worktree: feature/fix-auth-bug
+  4. Makes changes, runs tests
+  5. Creates PR
+  6. Stores learnings in memory for next time
+```
+
+The AI follows the workflow defined in CLAUDE.md without you managing any of it.
+
+## What Gets Generated
+
+`uam generate` creates a `CLAUDE.md` file that includes:
+
+- **Project structure** auto-detected from your codebase
+- **Memory system** configuration (SQLite + Qdrant)
+- **Workflow rules** (worktrees, testing, PR creation)
+- **Agent coordination** protocols
+- **Troubleshooting** from git history
+
+The AI reads this file and follows the instructions autonomously.
+
+## Installation Options
+
+### npm (Recommended)
+
+```bash
+npm install -g universal-agent-memory
 ```
 
 ### One-Line Installers
 
 ```bash
-# Desktop (with Docker for Qdrant)
+# Desktop (includes Docker for Qdrant)
 bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-desktop.sh)
 
 # Web browsers (claude.ai, factory.ai)
 bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-web.sh)
 ```
 
-### Using npx (No Install)
+### npx (No Install)
 
 ```bash
 npx universal-agent-memory init --interactive
 ```
 
-## Quick Start
+## Commands
 
-```bash
-# 1. Initialize project
-uam init --with-memory --with-worktrees
-
-# 2. Start memory services (requires Docker)
-uam memory start
-
-# 3. Generate CLAUDE.md
-uam generate
-
-# 4. Create your first task
-uam task create --title "My first task" --type task
-
-# 5. Start working
-uam task claim <task-id>
-uam worktree create my-feature
-```
-
-## Core Features
-
-### Task Management
-
-A complete task tracking system integrated with memory and coordination.
-
-```bash
-# Create tasks
-uam task create --title "Fix auth bug" --type bug --priority 0
-uam task create --title "Add dark mode" --type feature --priority 2
-
-# View tasks
-uam task list                              # All open tasks
-uam task ready                             # Tasks with no blockers
-uam task blocked                           # Blocked tasks
-uam task stats                             # Statistics
-
-# Work on tasks
-uam task claim <id>                        # Claim task (announces to other agents)
-uam task show <id>                         # View details
-uam task release <id> --reason "Fixed"     # Complete task
-
-# Dependencies
-uam task dep --from <child> --to <parent>  # Add blocker
-uam task undep --from <child> --to <parent># Remove blocker
-
-# Git sync (version control your tasks)
-uam task sync                              # Export to JSONL
-uam task compact --days 90                 # Archive old tasks
-```
-
-**Task Types**: `task`, `bug`, `feature`, `chore`, `epic`, `story`
-
-**Priority Levels**: P0 (critical) → P4 (backlog)
-
-### Memory System
-
-4-layer architecture for complete context retention.
-
-```bash
-# Start services
-uam memory start                           # Start Qdrant (Docker)
-uam memory status                          # Check status
-uam memory stop                            # Stop services
-
-# Query memories
-uam memory query "authentication JWT"      # Semantic search
-
-# Store learnings
-uam memory store "lesson learned" --tags "auth,security" --importance 8
-```
-
-**Layers:**
-
-| Layer | Storage | Purpose | Speed |
-|-------|---------|---------|-------|
-| L1: Working | SQLite | Recent actions (last 50) | ~0.15ms |
-| L2: Session | SQLite | Session decisions | ~0.2ms |
-| L3: Semantic | Qdrant | Reusable learnings | ~1-2ms |
-| L4: Knowledge Graph | SQLite | Entity relationships | ~0.17ms |
-
-### Agent Coordination
-
-Multi-agent support with overlap detection and messaging.
-
-```bash
-# Register agent
-uam agent register --name "feature-agent" --capabilities "coding,review"
-
-# Announce work (enables overlap detection)
-uam agent announce --id <agent-id> --resource "src/auth/" --intent editing
-
-# Check for conflicts
-uam agent overlaps --resource "src/auth/"
-
-# Complete work
-uam agent complete --id <agent-id> --resource "src/auth/"
-
-# Status
-uam agent status                           # View all agents
-uam coord status                           # Coordination overview
-```
-
-**Conflict Risk Levels**: `none`, `low`, `medium`, `high`, `critical`
-
-### Deploy Batching
-
-Batch multiple commits/pushes to reduce CI runs.
-
-```bash
-# Queue commits
-uam deploy queue --agent-id <id> --action-type commit \
-  --message "feat: add feature" --files "src/feature.ts"
-
-# View queue
-uam deploy status
-
-# Execute batched deploys
-uam deploy flush                           # Squashes commits, single push
-```
-
-### Git Worktrees
-
-Isolated development branches with automated PR workflow.
-
-```bash
-# Create worktree
-uam worktree create my-feature             # Creates feature/NNN-my-feature
-
-# List worktrees
-uam worktree list
-
-# Create PR
-uam worktree pr <id>                       # Push + create PR
-
-# Cleanup
-uam worktree cleanup <id>                  # Remove worktree + delete branch
-```
-
-### CLAUDE.md Generation
-
-Auto-generate context files for AI assistants.
-
-```bash
-# Analyze project
-uam analyze --output json
-
-# Generate CLAUDE.md
-uam generate                               # Interactive merge with existing
-uam generate --force                       # Overwrite
-uam generate --dry-run                     # Preview only
-```
-
-## Command Reference
-
-### Core Commands
+### Essential Commands
 
 | Command | Description |
 |---------|-------------|
 | `uam init` | Initialize UAM in a project |
-| `uam analyze` | Analyze project structure |
-| `uam generate` | Generate CLAUDE.md |
-| `uam sync` | Sync between platforms |
+| `uam generate` | Generate/update CLAUDE.md |
+| `uam memory start` | Start Qdrant (for semantic memory) |
+| `uam memory status` | Check if services are running |
 
-### Task Commands
+### Task Commands (Used by AI)
 
 | Command | Description |
 |---------|-------------|
 | `uam task create` | Create a new task |
-| `uam task list` | List tasks (with filters) |
-| `uam task show <id>` | Show task details |
-| `uam task claim <id>` | Claim task for work |
-| `uam task release <id>` | Complete and release task |
-| `uam task ready` | Show unblocked tasks |
-| `uam task blocked` | Show blocked tasks |
-| `uam task dep` | Add dependency |
-| `uam task stats` | Show statistics |
-| `uam task sync` | Sync with JSONL |
+| `uam task list` | List all tasks |
+| `uam task ready` | Show tasks with no blockers |
+| `uam task claim <id>` | Claim a task for work |
 
-### Memory Commands
+### Worktree Commands (Used by AI)
 
 | Command | Description |
 |---------|-------------|
-| `uam memory start` | Start Qdrant (Docker) |
-| `uam memory stop` | Stop memory services |
-| `uam memory status` | Check service status |
-| `uam memory query` | Semantic search |
-| `uam memory store` | Store a learning |
+| `uam worktree create <name>` | Create isolated branch |
+| `uam worktree pr <id>` | Create PR from worktree |
+| `uam worktree cleanup <id>` | Remove worktree |
 
-### Agent Commands
+### Agent Coordination (Used by AI)
 
 | Command | Description |
 |---------|-------------|
-| `uam agent register` | Register new agent |
-| `uam agent announce` | Announce work on resource |
-| `uam agent overlaps` | Check for conflicts |
-| `uam agent complete` | Mark work complete |
-| `uam agent status` | Show agent status |
-| `uam agent broadcast` | Send to all agents |
-| `uam agent send` | Direct message |
-| `uam agent receive` | Get pending messages |
+| `uam agent overlaps` | Check for file conflicts |
+| `uam agent announce` | Announce work on files |
+| `uam agent status` | View active agents |
 
-### Coordination Commands
+## Memory Architecture
 
-| Command | Description |
-|---------|-------------|
-| `uam coord status` | Overview of coordination |
-| `uam coord flush` | Execute pending deploys |
-| `uam coord cleanup` | Clean stale data |
+UAM uses a 4-layer memory system, all managed automatically by the AI:
 
-### Deploy Commands
+| Layer | Purpose | Storage |
+|-------|---------|---------|
+| Working | Recent actions (last 50) | SQLite |
+| Session | Current session context | SQLite |
+| Semantic | Reusable learnings | Qdrant |
+| Knowledge Graph | Entity relationships | SQLite |
 
-| Command | Description |
-|---------|-------------|
-| `uam deploy queue` | Queue a deploy action |
-| `uam deploy status` | View deploy queue |
-| `uam deploy batch` | Create batch from queue |
-| `uam deploy execute` | Execute a batch |
-| `uam deploy flush` | Batch and execute all |
-
-### Worktree Commands
-
-| Command | Description |
-|---------|-------------|
-| `uam worktree create` | Create feature worktree |
-| `uam worktree list` | List all worktrees |
-| `uam worktree pr` | Create PR from worktree |
-| `uam worktree cleanup` | Remove worktree |
-
-### Droids Commands
-
-| Command | Description |
-|---------|-------------|
-| `uam droids list` | List available droids |
-| `uam droids add` | Add a new droid |
-| `uam droids import` | Import from path |
+**You don't need to understand this** - the AI handles memory storage and retrieval automatically based on the CLAUDE.md instructions.
 
 ## Configuration
 
-Configuration is stored in `.uam.json`:
+After `uam init`, configuration is in `.uam.json`:
 
 ```json
 {
-  "version": "1.0.0",
   "project": {
     "name": "my-project",
     "defaultBranch": "main"
   },
   "memory": {
-    "shortTerm": {
-      "enabled": true,
-      "path": "./agents/data/memory/short_term.db",
-      "maxEntries": 50
-    },
-    "longTerm": {
-      "enabled": true,
-      "provider": "qdrant",
-      "endpoint": "localhost:6333",
-      "collection": "agent_memory"
-    }
+    "shortTerm": { "enabled": true },
+    "longTerm": { "enabled": true, "provider": "qdrant" }
   },
   "worktrees": {
     "enabled": true,
-    "directory": ".worktrees",
-    "branchPrefix": "feature/"
+    "directory": ".worktrees"
   }
 }
 ```
 
 ## Platform Support
 
-| Platform | Environment | Context File | Agents/Droids |
-|----------|-------------|--------------|---------------|
-| Claude Code | Desktop | `CLAUDE.md` | `.claude/agents/` |
-| claude.ai | Web | `CLAUDE.md` | Project context |
-| Factory.AI | Desktop | `CLAUDE.md` | `.factory/droids/` |
-| factory.ai | Web | `CLAUDE.md` | Project context |
-| VSCode | Desktop | `CLAUDE.md` | Extension-based |
-| OpenCode | Desktop | `opencode.json` | `.opencode/agent/` |
-
-## Workflow Engine
-
-UAM enforces a 5-phase workflow for every agent action:
-
-```
-START → TASK → CONTEXT → WORK → COMPLETE
-```
-
-1. **START**: Check existing tasks, read memory
-2. **TASK**: Create/claim task before any work
-3. **CONTEXT**: Query memory, check skills
-4. **WORK**: Create worktree, make changes, test, PR
-5. **COMPLETE**: Update memory, release task
-
-Each phase has **gates** that must pass before proceeding.
-
-## Memory Backends
-
-### Desktop
-
-- **Short-term**: SQLite (local file)
-- **Long-term**: Qdrant (Docker) or Qdrant Cloud
-
-### Web (claude.ai, factory.ai)
-
-- **Short-term**: IndexedDB (browser)
-- **Long-term**: GitHub or Qdrant Cloud
-
-```bash
-# Cloud backends (optional)
-export QDRANT_API_KEY=your_key
-export QDRANT_URL=https://xxx.aws.cloud.qdrant.io:6333
-export GITHUB_TOKEN=your_token
-```
+| Platform | Context File | Works With |
+|----------|--------------|------------|
+| Claude Code | `CLAUDE.md` | Desktop app |
+| Factory.AI | `CLAUDE.md` | Desktop/web |
+| claude.ai | `CLAUDE.md` | Web browser |
+| VSCode + Extensions | `CLAUDE.md` | Desktop |
 
 ## Built-in Droids
 
+Quality review agents that run automatically before PRs:
+
 | Droid | Purpose |
 |-------|---------|
-| `code-quality-guardian` | Code review, complexity, SOLID |
-| `security-auditor` | OWASP, secrets, injection |
-| `performance-optimizer` | Algorithms, memory, caching |
-| `documentation-expert` | JSDoc, README, accuracy |
-
-## Development
-
-```bash
-# Clone
-git clone https://github.com/DammianMiller/universal-agent-memory.git
-cd universal-agent-memory
-
-# Install
-npm install
-
-# Build
-npm run build
-
-# Test
-npm test
-
-# Run locally
-npm start -- init --interactive
-```
+| `code-quality-guardian` | Code review, SOLID principles |
+| `security-auditor` | OWASP, secrets detection |
+| `performance-optimizer` | Algorithm efficiency |
+| `documentation-expert` | Docs completeness |
 
 ## Requirements
 
 - Node.js 18+
-- Docker (for local Qdrant)
+- Docker (optional, for persistent semantic memory)
 - Git
+
+## FAQ
+
+**Q: Do I need to run memory commands manually?**  
+A: No. The AI reads CLAUDE.md and manages memory automatically.
+
+**Q: What if I don't have Docker?**  
+A: UAM works without Docker. You lose semantic (long-term) memory, but short-term and session memory still work via SQLite.
+
+**Q: Can multiple AI agents work on the same project?**  
+A: Yes. UAM includes coordination protocols to prevent merge conflicts.
+
+**Q: How do I update CLAUDE.md after project changes?**  
+A: Run `uam generate` again. It will intelligently merge with your existing file.
+
+## Development
+
+```bash
+git clone https://github.com/DammianMiller/universal-agent-memory.git
+cd universal-agent-memory
+npm install
+npm run build
+npm test
+```
 
 ## License
 
@@ -401,6 +218,6 @@ MIT
 
 ## Links
 
-- [GitHub Repository](https://github.com/DammianMiller/universal-agent-memory)
-- [npm Package](https://www.npmjs.com/package/universal-agent-memory)
-- [Issue Tracker](https://github.com/DammianMiller/universal-agent-memory/issues)
+- [GitHub](https://github.com/DammianMiller/universal-agent-memory)
+- [npm](https://www.npmjs.com/package/universal-agent-memory)
+- [Issues](https://github.com/DammianMiller/universal-agent-memory/issues)

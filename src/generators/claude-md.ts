@@ -737,16 +737,29 @@ function getDesktopTemplate(): string {
   // Check locations in order:
   // 1. User's project templates directory
   // 2. Package's templates directory (for npm installed version)
+  // 3. Node modules (when installed as dependency)
+  // 4. Fallback inline template
   const userTemplatePath = join(process.cwd(), 'templates/CLAUDE.template.md');
   const packageTemplatePath = join(__dirname, '../../templates/CLAUDE.template.md');
+  const nodeModulesPath = join(process.cwd(), 'node_modules/universal-agent-memory/templates/CLAUDE.template.md');
   
-  if (existsSync(userTemplatePath)) {
-    return readFileSync(userTemplatePath, 'utf-8');
+  const templatePaths = [
+    { path: userTemplatePath, name: 'project templates' },
+    { path: packageTemplatePath, name: 'package templates' },
+    { path: nodeModulesPath, name: 'node_modules' },
+  ];
+
+  for (const { path, name } of templatePaths) {
+    if (existsSync(path)) {
+      try {
+        return readFileSync(path, 'utf-8');
+      } catch (e) {
+        console.warn(`Warning: Found template at ${name} but couldn't read it: ${e}`);
+      }
+    }
   }
-  
-  if (existsSync(packageTemplatePath)) {
-    return readFileSync(packageTemplatePath, 'utf-8');
-  }
+
+  console.info('Using built-in fallback template. For full features, ensure templates/CLAUDE.template.md exists.');
 
   // Fallback inline template for desktop
   return `<coding_guidelines>

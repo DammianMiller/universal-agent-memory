@@ -3,10 +3,11 @@ import ora from 'ora';
 import inquirer from 'inquirer';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 import { analyzeProject } from '../analyzers/index.js';
 import { generateClaudeMd } from '../generators/claude-md.js';
 import { AgentContextConfigSchema } from '../types/index.js';
-import { mergeClaudeMd } from '../utils/merge-claude-md.js';
+import { mergeClaudeMd, validateMerge } from '../utils/merge-claude-md.js';
 import type { AgentContextConfig, Platform } from '../types/index.js';
 
 interface GenerateOptions {
@@ -16,9 +17,82 @@ interface GenerateOptions {
   web?: boolean;
 }
 
+interface DependencyStatus {
+  git: boolean;
+  docker: boolean;
+  node: boolean;
+  qdrant: boolean;
+}
+
+function checkDependencies(): DependencyStatus {
+  const status: DependencyStatus = {
+    git: false,
+    docker: false,
+    node: true, // We're running, so Node exists
+    qdrant: false,
+  };
+
+  try {
+    execSync('git --version', { stdio: 'pipe' });
+    status.git = true;
+  } catch {
+    // git not found
+  }
+
+  try {
+    execSync('docker --version', { stdio: 'pipe' });
+    status.docker = true;
+    
+    // Check if Qdrant container is running
+    try {
+      const output = execSync('docker ps --filter "name=qdrant" --format "{{.Names}}"', { stdio: 'pipe' }).toString();
+      status.qdrant = output.includes('qdrant');
+    } catch {
+      // docker ps failed
+    }
+  } catch {
+    // docker not found
+  }
+
+  return status;
+}
+
+// Print dependency status - used when verbose flag is enabled
+export function printDependencyHelp(deps: DependencyStatus): void {
+  console.log(chalk.bold('\n📦 Dependency Status:\n'));
+  
+  console.log(`  ${deps.git ? '✅' : '❌'} Git: ${deps.git ? 'Available' : 'Not found'}`);
+  if (!deps.git) {
+    console.log(chalk.dim('     Install: https://git-scm.com/downloads'));
+  }
+  
+  console.log(`  ${deps.docker ? '✅' : '⚠️ '} Docker: ${deps.docker ? 'Available' : 'Not found (optional)'}`);
+  if (!deps.docker) {
+    console.log(chalk.dim('     Install for semantic memory: https://docs.docker.com/get-docker/'));
+  }
+  
+  console.log(`  ${deps.qdrant ? '✅' : '⚠️ '} Qdrant: ${deps.qdrant ? 'Running' : 'Not running (optional)'}`);
+  if (deps.docker && !deps.qdrant) {
+    console.log(chalk.dim('     Start with: uam memory start'));
+  } else if (!deps.docker) {
+    console.log(chalk.dim('     Requires Docker - UAM works without it (no semantic memory)'));
+  }
+  
+  console.log('');
+}
+
 export async function generateCommand(options: GenerateOptions): Promise<void> {
   const cwd = process.cwd();
   const configPath = join(cwd, '.uam.json');
+
+  // Check dependencies
+  const deps = checkDependencies();
+  
+  if (!deps.git) {
+    console.error(chalk.red('\n❌ Git is required but not found.'));
+    console.log(chalk.dim('  Install Git: https://git-scm.com/downloads\n'));
+    process.exit(1);
+  }
 
   console.log(chalk.bold('\n📝 Generate Agent Context Files\n'));
 
@@ -147,6 +221,19 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     const newClaudeMd = await generateClaudeMd(analysis, effectiveConfig);
     const claudeMd = existingContent ? mergeClaudeMd(existingContent, newClaudeMd) : newClaudeMd;
 
+    // Validate merge if we merged existing content
+    if (existingContent) {
+      const validation = validateMerge(existingContent, claudeMd);
+      if (!validation.valid) {
+        genSpinner.warn(`Merged with warnings`);
+        console.log(chalk.yellow('\n  Merge validation warnings:'));
+        for (const warning of validation.warnings) {
+          console.log(chalk.dim(`    - ${warning}`));
+        }
+        console.log('');
+      }
+    }
+
     if (options.dryRun) {
       genSpinner.succeed(`${existingContent ? 'Merged' : 'Generated'} (dry run)`);
       console.log(chalk.dim(`\n--- ${targetFileName} Preview ---\n`));
@@ -156,7 +243,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       writeFileSync(targetPath, claudeMd);
       genSpinner.succeed(`${existingContent ? 'Merged and updated' : 'Generated'} ${targetFileName}`);
       if (existingContent) {
-        console.log(chalk.dim('  Preserved custom sections from existing file'));
+        console.log(chalk.dim('  Preserved custom sections and extracted valuable content from existing file'));
       }
     }
   } catch (error) {
@@ -187,6 +274,24 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   if (!options.dryRun) {
     console.log(chalk.green('\n✅ Generation complete!\n'));
+    
+    // Print helpful next steps
+    console.log(chalk.bold('Next Steps:\n'));
+    console.log('  1. Your AI assistant will now read CLAUDE.md automatically');
+    console.log('  2. The AI handles memory, tasks, and workflows autonomously');
+    console.log('  3. Just talk to your AI naturally - it follows the CLAUDE.md instructions\n');
+    
+    // Show optional enhancements
+    if (!deps.docker || !deps.qdrant) {
+      console.log(chalk.dim('Optional: For persistent semantic memory across sessions:'));
+      if (!deps.docker) {
+        console.log(chalk.dim('  - Install Docker: https://docs.docker.com/get-docker/'));
+      }
+      if (deps.docker && !deps.qdrant) {
+        console.log(chalk.dim('  - Start Qdrant: uam memory start'));
+      }
+      console.log('');
+    }
   }
 }
 
