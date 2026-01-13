@@ -172,16 +172,66 @@ async function stopServices(cwd: string): Promise<void> {
   }
 }
 
-async function queryMemory(_cwd: string, search: string, limit: number): Promise<void> {
+async function queryMemory(cwd: string, search: string, limit: number): Promise<void> {
   console.log(chalk.bold(`\n🔍 Searching for: "${search}" (limit: ${limit})\n`));
 
-  // TODO: Implement actual Qdrant query
-  console.log(chalk.yellow('Memory query not yet implemented'));
-  console.log(chalk.dim('This will search the Qdrant vector database for semantically similar memories'));
+  // Load config
+  const configPath = join(cwd, '.uam.json');
+  let config: AgentContextConfig;
+  if (existsSync(configPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      config = AgentContextConfigSchema.parse(raw);
+    } catch {
+      config = {
+        version: '1.0.0',
+        project: { name: 'project', defaultBranch: 'main' },
+      };
+    }
+  } else {
+    config = {
+      version: '1.0.0',
+      project: { name: 'project', defaultBranch: 'main' },
+    };
+  }
+
+  // Query short-term memory (SQLite) first
+  const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+  if (existsSync(dbPath)) {
+    try {
+      const shortTermDb = new SQLiteShortTermMemory({
+        dbPath,
+        projectId: config.project.name,
+        maxEntries: config.memory?.shortTerm?.maxEntries || 50,
+      });
+
+      const results = await shortTermDb.query(search, limit);
+      await shortTermDb.close();
+
+      if (results.length > 0) {
+        console.log(chalk.green(`Found ${results.length} results in short-term memory:\n`));
+        for (const r of results) {
+          const typeColor = r.type === 'action' ? chalk.blue :
+                           r.type === 'observation' ? chalk.cyan :
+                           r.type === 'thought' ? chalk.magenta :
+                           chalk.yellow;
+          console.log(`  ${typeColor(`[${r.type}]`)} ${chalk.dim(r.timestamp.slice(0, 10))}`);
+          console.log(`    ${r.content.slice(0, 150)}${r.content.length > 150 ? '...' : ''}\n`);
+        }
+      } else {
+        console.log(chalk.dim('No results in short-term memory'));
+      }
+    } catch (error) {
+      console.log(chalk.yellow('Could not query short-term memory:'), error);
+    }
+  }
+
+  // Query long-term memory (Qdrant) if available
+  console.log(chalk.dim('\nNote: Long-term semantic search requires Qdrant + embedding service (not yet integrated)'));
 }
 
 async function storeMemory(
-  _cwd: string,
+  cwd: string,
   content: string,
   tags?: string,
   importance: number = 5
@@ -191,9 +241,56 @@ async function storeMemory(
   console.log(chalk.dim(`Tags: ${tags || 'none'}`));
   console.log(chalk.dim(`Importance: ${importance}/10`));
 
-  // TODO: Implement actual Qdrant store
-  console.log(chalk.yellow('\nMemory storage not yet implemented'));
-  console.log(chalk.dim('This will embed the content and store in Qdrant'));
+  // Load config
+  const configPath = join(cwd, '.uam.json');
+  let config: AgentContextConfig;
+  if (existsSync(configPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      config = AgentContextConfigSchema.parse(raw);
+    } catch {
+      config = {
+        version: '1.0.0',
+        project: { name: 'project', defaultBranch: 'main' },
+      };
+    }
+  } else {
+    config = {
+      version: '1.0.0',
+      project: { name: 'project', defaultBranch: 'main' },
+    };
+  }
+
+  // Determine memory type based on importance
+  const memoryType: 'action' | 'observation' | 'thought' | 'goal' = 
+    importance >= 8 ? 'goal' :
+    importance >= 6 ? 'thought' :
+    tags?.includes('observation') ? 'observation' : 'action';
+
+  // Store in short-term memory (SQLite) - always available
+  const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+  try {
+    const shortTermDb = new SQLiteShortTermMemory({
+      dbPath,
+      projectId: config.project.name,
+      maxEntries: config.memory?.shortTerm?.maxEntries || 50,
+    });
+
+    await shortTermDb.store(memoryType, content);
+    await shortTermDb.close();
+
+    console.log(chalk.green('\n✓ Stored in short-term memory (SQLite)'));
+    console.log(chalk.dim(`  Type: ${memoryType}`));
+    console.log(chalk.dim(`  Path: ${dbPath}`));
+  } catch (error) {
+    console.log(chalk.red('Failed to store in short-term memory:'), error);
+  }
+
+  // Note about long-term storage
+  if (importance >= 7) {
+    console.log(chalk.dim('\nNote: High-importance memories should also be stored in long-term memory.'));
+    console.log(chalk.dim('Long-term semantic storage requires Qdrant + embedding service (not yet integrated).'));
+  }
 }
 
 async function prepopulateFromSources(cwd: string, options: MemoryOptions): Promise<void> {
