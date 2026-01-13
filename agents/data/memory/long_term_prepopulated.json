@@ -1,0 +1,2038 @@
+[
+  {
+    "id": "doc-README-universal-agent-memory-(uam)-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "[image: npm version]\n[image: License: MIT]\n\n**Give your AI coding assistant persistent memory, intelligent task routing, and better code generation.**\n\nUAM transforms AI coding assistants (Claude Code, Factory.AI, etc.) into autonomous agents with:\n\n- **Endless Context** - Memory persists with the project, not the conversation\n- **Intelligent Task Routing** - Tasks automatically route to specialized expert droids\n- **Better Code Generation** - Code Field prompts produce 100% assumption stating\n- **Safe Git Workflows** - Worktrees prevent direct commits to main\n- **Complete Close-Out** - Merge → Deploy → Monitor → Fix loop ensures 100% completion",
+    "tags": [
+      "general",
+      "universal",
+      "agent",
+      "memory"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Universal Agent Memory (UAM)",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-that's-it.-your-ai-now-has-superpowers.-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "```\n\nNo clicking through prompts. No manual configuration. It just works.",
+    "tags": [
+      "general",
+      "that's",
+      "your",
+      "superpowers."
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "That's it. Your AI now has superpowers.",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-🧠-endless-context-through-project-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Your AI's context is NOT limited to the conversation.**\n\nMemory persists with the project in SQLite databases that travel with the code:\n\n[code block]\n\nThis means:\n- Recall decisions from weeks/months ago\n- Learn from past mistakes (gotchas never repeated)\n- Understand why code is the way it is\n- Seamless handoff between sessions\n\n**The AI queries memory before every task** - it never starts from zero.",
+    "tags": [
+      "general",
+      "endless",
+      "context",
+      "through"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "🧠 Endless Context Through Project Memory",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-🎯-intelligent-task-routing-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "Tasks automatically route to specialized expert droids:\n\n| Task Type | Routed To | Result |\n|-----------|-----------|--------|\n| TypeScript/JS | `typescript-node-expert` | Proper typing, async patterns |\n| Security review | `security-auditor` | OWASP checks, secrets detection |\n| Performance | `performance-optimizer` | Algorithm analysis, caching |\n| Documentation | `documentation-expert` | Complete, accurate docs |\n| Code quality | `code-quality-guardian` | SOLID, complexity checks |\n\n**Missing an expert?** The AI generates one:\n[code block]",
+    "tags": [
+      "general",
+      "intelligent",
+      "task",
+      "routing"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "🎯 Intelligent Task Routing",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-🔒-code-field---better-code-generation-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "Based on context-field research, UAM includes a 4-line prompt that dramatically improves code quality:\n\n[code block]\n\n**Results from 72 tests:**\n- 100% assumption stating (vs 0% baseline)\n- 89% bug detection in code review (vs 39% baseline)  \n- 100% refusal of impossible requests (vs 0% baseline)\n- 320% more hidden issues found in debugging\n\nEvery code generation task applies Code Field automatically.",
+    "tags": [
+      "general",
+      "code",
+      "field",
+      "better"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "🔒 Code Field - Better Code Generation",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-🌳-safe-git-workflows-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**The AI never commits directly to main.**\n\nAll changes use worktrees:\n\n```bash",
+    "tags": [
+      "general",
+      "safe",
+      "workflows"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "🌳 Safe Git Workflows",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-✅-complete-close-out-workflow-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "Work isn't \"done\" until it's deployed and verified:\n\n[code block]\n\nThe AI follows this loop automatically:\n1. Get PR approved, merge to main\n2. Verify CI/CD runs, check deployment\n3. Monitor logs, verify functionality\n4. If issues: create hotfix worktree, repeat\n\n**The AI stores learnings after every completed task** for future sessions.",
+    "tags": [
+      "general",
+      "complete",
+      "close",
+      "workflow"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "✅ Complete Close-Out Workflow",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-desktop-(includes-docker-for-semantic-search)-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-desktop.sh)",
+    "tags": [
+      "general",
+      "desktop",
+      "(includes",
+      "docker"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Desktop (includes Docker for semantic search)",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-web-browsers-(claude.ai,-factory.ai)-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-web.sh)\n```",
+    "tags": [
+      "general",
+      "browsers",
+      "(claude.ai,",
+      "factory.ai)"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Web browsers (claude.ai, factory.ai)",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-essential-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam init` | Initialize/update UAM (auto-merges, never loses data) |\n| `uam generate` | Regenerate CLAUDE.md from project analysis |\n| `uam update` | Update templates while preserving customizations |",
+    "tags": [
+      "general",
+      "essential"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Essential",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam memory status` | Check memory system status |\n| `uam memory query <search>` | Search memories |\n| `uam memory store <content>` | Store a learning |\n| `uam memory start` | Start Qdrant for semantic search |\n| `uam memory prepopulate` | Populate from docs and git history |",
+    "tags": [
+      "general",
+      "memory"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Memory",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-tasks-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam task create` | Create tracked task |\n| `uam task list` | List all tasks |\n| `uam task claim <id>` | Claim task (announces to other agents) |\n| `uam task release <id>` | Complete task |",
+    "tags": [
+      "general",
+      "tasks"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Tasks",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-worktrees-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam worktree create <name>` | Create isolated branch |\n| `uam worktree pr <id>` | Create PR from worktree |\n| `uam worktree cleanup <id>` | Remove worktree |",
+    "tags": [
+      "general",
+      "worktrees"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Worktrees",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-droids-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam droids list` | List available expert droids |\n| `uam droids add <name>` | Create new expert droid |",
+    "tags": [
+      "general",
+      "droids"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Droids",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-coordination-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Command | Description |\n|---------|-------------|\n| `uam agent status` | View active agents |\n| `uam agent overlaps` | Check for file conflicts |\n| `uam coord status` | Coordination overview |",
+    "tags": [
+      "general",
+      "coordination"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Coordination",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-how-it-works-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. **Install & Init**: `npm i -g universal-agent-memory && uam init`\n\n2. **CLAUDE.md Generated**: Auto-populated with project structure, commands, droids\n\n3. **AI Reads CLAUDE.md**: Follows the embedded workflows automatically\n\n4. **Every Task**:\n   - Query memory for context\n   - Check for agent overlaps\n   - Route to specialist droids if needed\n   - Create worktree for changes\n   - Apply Code Field for better code\n   - Run tests, create PR\n   - Store learnings in memory\n\n5.",
+    "tags": [
+      "general",
+      "works"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "How It Works",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-how-it-works-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Close-Out**: Merge → Deploy → Monitor → Fix loop until 100%",
+    "tags": [
+      "general",
+      "works"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "How It Works",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-memory-architecture-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "[code block]\n\n**Data is never deleted.** Memory databases persist with the project.\n\nUpdate with `uam init` or `uam generate` always merges - nothing is lost.",
+    "tags": [
+      "architecture",
+      "memory"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Memory Architecture",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-platform-support-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Platform | Context File | Works With |\n|----------|--------------|------------|\n| Claude Code | `CLAUDE.md` | Desktop app |\n| Factory.AI | `CLAUDE.md` | Desktop/web |\n| claude.ai | `CLAUDE.md` | Web browser |\n| VSCode | `CLAUDE.md` | Extensions |",
+    "tags": [
+      "general",
+      "platform",
+      "support"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Platform Support",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-built-in-expert-droids-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Droid | Specialization |\n|-------|----------------|\n| `code-quality-guardian` | SOLID, complexity, naming |\n| `security-auditor` | OWASP, secrets, injection |\n| `performance-optimizer` | Algorithms, memory, caching |\n| `documentation-expert` | JSDoc, README, accuracy |",
+    "tags": [
+      "general",
+      "built",
+      "expert",
+      "droids"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Built-in Expert Droids",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-requirements-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "- Node.js 18+\n- Git\n- Docker (optional, for semantic search)",
+    "tags": [
+      "general",
+      "requirements"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Requirements",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-faq-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Q: Do I need to manage memory manually?**\nA: No. The AI queries and stores memory automatically per CLAUDE.md instructions. **Q: What if I don't have Docker?**\nA: UAM works without Docker. You lose semantic search but SQLite memory still works. **Q: Can multiple AI agents work on the same project?**\nA: Yes. UAM includes coordination protocols to prevent merge conflicts. **Q: How do I update without losing my customizations?**\nA: Run `uam init` or `uam generate`.",
+    "tags": [
+      "troubleshooting"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "FAQ",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-faq-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "Updates always merge - nothing is lost. **Q: What's Code Field?**\nA: A prompt technique that makes AI state assumptions before coding. Based on context-field research.",
+    "tags": [
+      "troubleshooting"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "FAQ",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-README-attribution-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "Code Field prompts based on research from NeoVertex1/context-field.",
+    "tags": [
+      "general",
+      "attribution"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "documentation",
+      "file": "README.md",
+      "section": "Attribution",
+      "docTitle": "Universal Agent Memory (UAM)"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-agentic-ai-memory-systems:-comparative-analysis-&-recommendations-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Date:** 2026-01-06\n**Author:** Claude (Autonomous Agent)\n**Version:** 1.0\n**Status:** Research Complete\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "agentic",
+      "memory",
+      "systems:"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Agentic AI Memory Systems: Comparative Analysis & Recommendations",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-executive-summary-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "This document provides a comprehensive analysis of leading agentic AI memory systems, comparing them against the current Pay2U implementation. Based on extensive research into MemGPT, LangGraph, Mem0, A-MEM, OpenAI Assistants API, and AutoGPT memory architectures, I present performance benchmarks, architectural trade-offs, and specific recommendations for optimizing the existing CLAUDE.md memory configuration.",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "executive",
+      "summary"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Executive Summary",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-key-findings-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. **Current Implementation is Solid**: The two-tier SQLite (short-term) + Qdrant (long-term) architecture aligns with industry best practices\n2. **Missing Critical Feature**: No mid-term memory layer for session context (MemoryOS approach)\n3. **Missing Graph Relationships**: Current system lacks entity relationship tracking (Mem0ᵍ approach)\n4. **Optimization Opportunity**: Memory consolidation/summarization not implemented\n5.",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "findings"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Key Findings",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-key-findings-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Performance Gap**: No memory decay/importance scoring for retrieval optimization\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "findings"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Key Findings",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-1.2-current-statistics-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "- **Short-term entries**: 15 (of 50 max)\n- **Long-term vectors**: 84 points in Qdrant\n- **Embedding model**: all-MiniLM-L6-v2 (384 dimensions)\n- **Vector index**: HNSW (m=16, ef_construct=100)",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "current",
+      "statistics"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "1.2 Current Statistics",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-1.3-strengths-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Aspect             | Rating | Notes                                 |\n| ------------------ | ------ | ------------------------------------- |\n| Simplicity         | ★★★★★  | Easy to understand and maintain       |\n| Persistence        | ★★★★☆  | Docker-based Qdrant with volume mount |\n| Semantic Search    | ★★★★☆  | Effective cosine similarity retrieval |\n| Query Latency      | ★★★★☆  | SQLite <1ms, Qdrant ~50-100ms         |\n| Storage Efficiency | ★★★☆☆  | No compression or quantization        |",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "strengths"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "1.3 Strengths",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-1.4-weaknesses-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Issue                    | Impact                                | Industry Benchmark         |\n| ------------------------ | ------------------------------------- | -------------------------- |\n| No mid-term memory       | Session context lost                  | MemoryOS has 3-tier        |\n| No relationship tracking | Can't reason about entity connections | Mem0ᵍ uses graph DB        |\n| No memory consolidation  | Redundant entries accumulate          | A-MEM consolidates         |\n| No decay mechanism       | Stale memories never removed          | MemGPT has tiered eviction |\n| No summarization         | Context window waste                  | LangGraph summarizes       |\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "weaknesses"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "1.4 Weaknesses",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.1-memgpt-(letta)---hierarchical-memory-management-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Architecture:**\n\n[code block]\n\n**Key Innovation:** LLM self-manages memory via function calls (OS-inspired virtual memory)\n\n**Pros:**\n\n- Infinite context through paging\n- Self-directed memory operations\n- Automatic summarization\n- Message compression\n\n**Cons:**\n\n- Complex implementation\n- Higher latency (function calls add rounds)\n- Token overhead for memory operations\n- Requires careful prompt engineering\n\n**Performance:**\n\n- ROUGE-L improvement: 15-20% over baseline\n- Retrieval accuracy: 78-82%\n- Latency: 200-500ms per memory operation",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "memgpt",
+      "(letta)",
+      "hierarchical"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.1 MemGPT (Letta) - Hierarchical Memory Management",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.2-langgraph/langchain---state-based-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Architecture:**\n\n[code block]\n\n**Key Innovation:** Explicit state management with reducer functions, time-travel debugging\n\n**Pros:**\n\n- Explicit, predictable state transitions\n- Multiple persistence backends\n- Human-in-the-loop interrupts\n- Graph-based workflow control\n- Strong typing (TypedDict)\n\n**Cons:**\n\n- More boilerplate code\n- Steeper learning curve\n- Memory not truly semantic by default\n- Requires manual memory management design\n\n**Performance:**\n\n- Checkpoint save: 5-50ms (depends on backend)\n- State retrieval: 1-10ms\n- Summary generation: 100-500ms",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "langgraph/langchain",
+      "state",
+      "based"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.2 LangGraph/LangChain - State-Based Memory",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.3-mem0---memory-centric-architecture-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "**Architecture:**\n\n[code block]\n\n**Key Innovation:** Intelligent fact extraction + deduplication + graph relationships\n\n**Benchmarks (LOCOMO dataset):**\n| System | Accuracy | Latency | Tokens/Query |\n|--------|----------|---------|--------------|\n| Full Context | 52.1% | 2.1s | 15,000+ |\n| OpenAI Memory | 52.9% | 0.9s | 3,000 |\n| MemGPT | 58.2% | 1.8s | 4,500 |\n| LangMem | 48.3% | 60s | 1,200 |\n| **Mem0** | **66.9%** | **1.4s** | **2,000** |\n| **Mem0ᵍ** | **68.5%** | 2.6s | 3,500 |\n\n**Pros:**\n\n- Best accuracy on multi-session tasks\n- Efficient token usage (90% reduction)\n- 91% latency reduction vs full context\n- Graph variant captures relationships\n- Open-source with commercial tier\n\n**Cons:**\n\n- LLM dependency for extraction (cost)\n- Graph version adds complexity\n- Requires careful entity resolution\n- Higher initial setup complexity",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "mem0",
+      "memory",
+      "centric"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.3 Mem0 - Memory-Centric Architecture",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.4-a-mem---agentic-memory-(zettelkasten-inspired)-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Architecture:**\n\n[code block]\n\n**Key Innovation:** Self-organizing knowledge network inspired by Zettelkasten note-taking\n\n**Pros:**\n\n- Emergent knowledge structure\n- Memories evolve over time\n- Multi-hop reasoning capability\n- Low computational overhead\n- Outperforms SOTA on 6 foundation models\n\n**Cons:**\n\n- Complex linking logic\n- Potential for circular references\n- Requires careful deduplication\n- Limited real-world production deployments",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "agentic",
+      "memory",
+      "(zettelkasten"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.4 A-MEM - Agentic Memory (Zettelkasten-Inspired)",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.5-openai-assistants/responses-api---thread-based-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Architecture:**\n\n[code block]\n\n**Pros:**\n\n- Managed infrastructure\n- Automatic truncation\n- Simple API\n- Built-in file handling\n\n**Cons:**\n\n- No cross-thread memory\n- No semantic retrieval\n- Black-box context management\n- Vendor lock-in\n- Being deprecated for Responses API",
+    "tags": [
+      "api",
+      "agentic_memory_systems_analysis",
+      "openai",
+      "assistants/responses",
+      "thread"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.5 OpenAI Assistants/Responses API - Thread-Based Memory",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.6-autogpt---dual-memory-+-plugin-architecture-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "**Architecture:**\n\n[code block]\n\n**Pros:**\n\n- Goal-oriented memory\n- Plugin extensibility\n- Multiple vector DB backends\n- Task continuity\n\n**Cons:**\n\n- No sophisticated consolidation\n- Basic retrieval (no graph)\n- Experimental stability\n- High token consumption\n\n---",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "autogpt",
+      "dual",
+      "memory"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2.6 AutoGPT - Dual Memory + Plugin Architecture",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-3.1-feature-comparison-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Feature              | Pay2U Current | MemGPT        | LangGraph      | Mem0       | A-MEM     | OpenAI    |\n| -------------------- | ------------- | ------------- | -------------- | ---------- | --------- | --------- |\n| Short-term memory    | ✅ SQLite     | ✅ In-context | ✅ State       | ✅ Buffer  | ✅ Buffer | ✅ Thread |\n| Mid-term memory      | ❌            | ✅ Working    | ✅ Checkpoint  | ❌         | ❌        | ❌        |\n| Long-term memory     | ✅ Qdrant     | ✅ Archival   | ✅ VectorStore | ✅ Vector  | ✅ Vector | ❌        |\n| Graph relationships  | ❌            | ❌            | ❌             | ✅ (Mem0ᵍ) | ✅ Links  | ❌        |\n| Semantic search      | ✅            | ✅            | ✅             | ✅         | ✅        | ❌        |\n| Memory consolidation | ❌            | ✅            | ✅ Summary     | ✅         | ✅        | ❌        |\n| Decay/eviction       | ✅ FIFO       | ✅ Paging     | ✅ Manual      | ❌         | ❌        | Auto      |\n| Importance scoring   | ✅ Manual     | ❌            | ❌             | ❌         | ✅ Auto   | ❌        |\n| Self-management      | ❌            | ✅            | ❌             | ❌         | ✅        | ❌        |",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "feature",
+      "comparison"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "3.1 Feature Comparison",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-3.2-performance-comparison-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Metric                   | Pay2U    | MemGPT    | LangGraph | Mem0      | A-MEM     |\n| ------------------------ | -------- | --------- | --------- | --------- | --------- |\n| Setup complexity         | Low      | High      | Medium    | Medium    | High      |\n| Query latency            | 50-100ms | 200-500ms | 1-50ms    | 1.4s      | 100-200ms |\n| Token efficiency         | Medium   | Low       | High      | Very High | High      |\n| Accuracy (multi-session) | ~50%     | ~58%      | ~55%      | ~67%      | ~65%      |\n| Scalability              | High     | Medium    | High      | High      | Medium    |\n| Maintenance              | Low      | High      | Medium    | Low       | Medium    |",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "performance",
+      "comparison"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "3.2 Performance Comparison",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-3.3-use-case-fit-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Use Case                     | Best System         | Why                                |\n| ---------------------------- | ------------------- | ---------------------------------- |\n| Long document analysis       | MemGPT              | Unlimited archival, paging         |\n| Multi-agent workflows        | LangGraph           | State management, checkpointing    |\n| Personal assistants          | Mem0                | User preference tracking           |\n| Knowledge workers            | A-MEM               | Zettelkasten linking               |\n| Simple chatbots              | OpenAI              | Managed, low complexity            |\n| **Autonomous coding agents** | **Mem0 + Enhanced** | **Balance of efficiency + recall** |\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "case"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "3.3 Use Case Fit",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-4.2-implementation-priority-matrix-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Enhancement             | Priority | Effort | Impact | Complexity |\n| ----------------------- | -------- | ------ | ------ | ---------- |\n| Session memory layer    | P0       | Medium | High   | Low        |\n| Memory consolidation    | P0       | Medium | High   | Medium     |\n| Time-based decay        | P1       | Low    | Medium | Low        |\n| Deduplication           | P1       | Medium | High   | Medium     |\n| Knowledge graph         | P2       | High   | High   | High       |\n| Auto-importance scoring | P2       | Medium | Medium | Medium     |\n| Memory summarization    | P3       | High   | Medium | High       |",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "implementation",
+      "priority",
+      "matrix"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "4.2 Implementation Priority Matrix",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-4.3-specific-code-improvements-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "#### 4.3.1 Add Session Memory Table\n\n[code block]\n\n#### 4.3.2 Enhanced Qdrant Payload Schema\n\n```python",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "specific",
+      "code",
+      "improvements"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "4.3 Specific Code Improvements",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-enhanced-memory-point-structure-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "point = PointStruct(\n    id=str(uuid.uuid4()),\n    vector=embedding,\n    payload={\n        \"original_id\": memory_id,\n        \"type\": memory_type,\n        \"tags\": tags,\n        \"importance\": importance,  # 1-10\n        \"content\": content,\n        \"timestamp\": timestamp,\n        # NEW FIELDS\n        \"decay_score\": 1.0,  # Decays over time\n        \"last_accessed\": timestamp,\n        \"access_count\": 0,\n        \"linked_entities\": [],  # Entity IDs from knowledge graph\n        \"source_session\": session_id,\n        \"content_hash\": hashlib.md5(content.encode()).hexdigest()[:16]\n    }\n)\n[code block]python\ndef consolidate_memories(short_term_entries: list) -> dict:\n    \"\"\"\n    Consolidate short-term memories into session/long-term.",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "enhanced",
+      "memory",
+      "point"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Enhanced memory point structure",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-enhanced-memory-point-structure-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "Inspired by Mem0's extraction pipeline.",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "enhanced",
+      "memory",
+      "point"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Enhanced memory point structure",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-enhanced-memory-point-structure-2",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "\"\"\"\n    # Group by type\n    actions = [e for e in short_term_entries if e['type'] == 'action']\n    observations = [e for e in short_term_entries if e['type'] == 'observation']\n\n    # Extract key facts using simple heuristics (no LLM needed)\n    facts = []\n    for action in actions:\n        if any(kw in action['content'].lower() for kw in ['fixed', 'resolved', 'created', 'updated']):\n            facts.append({\n                'type': 'lesson',\n                'content': action['content'],\n                'importance': 7\n            })\n\n    # Deduplicate against existing long-term memories\n    # using content hash and semantic similarity\n\n    return {\n        'session_summary': summarize_entries(short_term_entries),\n        'new_facts': deduplicate(facts),\n        'entities': extract_entities(short_term_entries)\n    }\n[code block]sql\n-- Lightweight graph in SQLite\nCREATE TABLE entities (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    type TEXT NOT NULL CHECK(type IN ('file', 'function', 'concept', 'error', 'config')),\n    name TEXT NOT NULL,\n    context TEXT,\n    first_seen TEXT NOT NULL,\n    last_seen TEXT NOT NULL,\n    mention_count INTEGER DEFAULT 1,\n    UNIQUE(type, name)\n);\n\nCREATE TABLE relationships (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    source_id INTEGER NOT NULL,\n    target_id INTEGER NOT NULL,\n    relation TEXT NOT NULL CHECK(relation IN ('depends_on', 'fixes', 'causes', 'related_to', 'contains')),\n    weight REAL DEFAULT 1.0,\n    timestamp TEXT NOT NULL,\n    FOREIGN KEY (source_id) REFERENCES entities(id),\n    FOREIGN KEY (target_id) REFERENCES entities(id)\n);\n\nCREATE INDEX idx_relationships_source ON relationships(source_id);\nCREATE INDEX idx_relationships_target ON relationships(target_id);\n```",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "enhanced",
+      "memory",
+      "point"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Enhanced memory point structure",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-four-layer-architecture-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "1. **Working Memory** (SQLite: `short_term.db`)\n\n   - 50 entries, FIFO eviction\n   - Types: action, observation, thought, goal\n   - Access: <1ms\n\n2. **Session Memory** (SQLite: `short_term.db`, session_memories table)\n\n   - Session-scoped summaries and decisions\n   - Consolidated every 10 working memory entries\n   - Cleaned on session end\n\n3.",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "four",
+      "layer"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Four-Layer Architecture",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-four-layer-architecture-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "thought",
+    "content": "**Semantic Memory** (Qdrant: `claude_memory` collection)\n\n   - Vector embeddings + enhanced metadata\n   - Time-based decay scoring\n   - Deduplication via content hash + similarity\n\n4. **Knowledge Graph** (SQLite: `short_term.db`, entities/relationships tables)\n   - Entities: files, functions, concepts, errors\n   - Relationships: depends_on, fixes, causes, related_to\n   - Multi-hop queries for complex reasoning",
+    "tags": [
+      "architecture",
+      "agentic_memory_systems_analysis",
+      "four",
+      "layer"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Four-Layer Architecture",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-1.-check-working-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "sqlite3 tools/agents/data/memory/short_term.db \\\n  \"SELECT * FROM memories ORDER BY id DESC LIMIT 20;\"",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "check",
+      "working",
+      "memory"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "1. Check working memory",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-2.-query-semantic-memory-for-relevant-context-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "tools/agents/.venv/bin/python tools/agents/scripts/query_memory.py long \"<task keywords>\"",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "query",
+      "semantic",
+      "memory"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "2. Query semantic memory for relevant context",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-3.-check-knowledge-graph-for-related-entities-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "sqlite3 tools/agents/data/memory/short_term.db \\\n  \"SELECT e.*, r.relation, e2.name as related\n   FROM entities e\n   LEFT JOIN relationships r ON e.id = r.source_id\n   LEFT JOIN entities e2 ON r.target_id = e2.id\n   WHERE e.name LIKE '%<keyword>%';\"\n[code block]`\n\n**AFTER EACH ACTION:**\n\n```bash",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "check",
+      "knowledge",
+      "graph"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "3. Check knowledge graph for related entities",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-update-working-memory-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "sqlite3 tools/agents/data/memory/short_term.db \\\n  \"INSERT INTO memories (timestamp, type, content) VALUES (datetime('now'), 'action', 'Description');\"",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "update",
+      "working",
+      "memory"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Update working memory",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-if-significant-learning-(importance->=-7):-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "tools/agents/.venv/bin/python tools/agents/scripts/query_memory.py store lesson \\\n  \"What you learned\" --tags tag1,tag2 --importance 8\n```",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "significant",
+      "learning",
+      "(importance"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "If significant learning (importance >= 7):",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-decay-and-consolidation-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "- **Decay Formula:** `effective_score = importance * (0.95 ^ days_since_access)`\n- **Consolidation Trigger:** Every 10 working memory entries\n- **Deduplication:** Skip if content_hash exists OR similarity > 0.92\n\n```\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "decay",
+      "consolidation"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Decay and Consolidation",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-5.1-benchmark-categories-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. **Retrieval Accuracy**\n   - Precision@k for relevant memories\n   - Recall on known facts\n   - Multi-hop reasoning success rate\n\n2. **Latency**\n   - Write latency (insert new memory)\n   - Read latency (retrieve memories)\n   - Search latency (semantic query)\n\n3. **Token Efficiency**\n   - Context tokens per query\n   - Memory overhead per session\n\n4. **Scalability**\n   - Performance at 100, 1K, 10K, 100K memories\n   - Degradation curve analysis",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "benchmark",
+      "categories"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "5.1 Benchmark Categories",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-5.2-benchmark-implementation-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "See `tools/agents/benchmarks/` for implementation files:\n- `benchmark_retrieval.py` - Accuracy benchmarks\n- `benchmark_latency.py` - Performance benchmarks\n- `benchmark_scalability.py` - Scale tests\n- `run_all_benchmarks.py` - Full suite\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "benchmark",
+      "implementation"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "5.2 Benchmark Implementation",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-6.1-automated-migration-between-systems-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "The migration tool supports:\n- SQLite → Qdrant (current)\n- Qdrant → Mem0 (new option)\n- Qdrant → A-MEM format (export)\n- JSON → Any target\n\nSee `tools/agents/scripts/memory_migration.py` for implementation.",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "automated",
+      "migration",
+      "between"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "6.1 Automated Migration Between Systems",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-6.2-rollback-plan-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. All migrations create backups automatically\n2. Backup location: `tools/agents/data/memory/backups/`\n3. Restore command: `python memory_migration.py restore <backup_id>`\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "rollback",
+      "plan"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "6.2 Rollback Plan",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-7.1-summary-of-findings-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. **Pay2U's current architecture is fundamentally sound** - the two-tier SQLite + Qdrant design follows industry patterns\n\n2. **Key gaps identified:**\n   - No session-level memory layer\n   - No relationship/graph tracking\n   - No memory consolidation/summarization\n   - No time-based decay\n\n3. **Recommended enhancements in priority order:**\n   - P0: Session memory + consolidation\n   - P1: Decay scoring + deduplication\n   - P2: Knowledge graph + auto-importance\n\n4.",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "summary",
+      "findings"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "7.1 Summary of Findings",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-7.1-summary-of-findings-1",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "**Avoid over-engineering:**\n   - Don't implement full MemGPT self-management (too complex)\n   - Don't add LLM-based extraction (cost overhead)\n   - Don't use separate graph database (SQLite sufficient)",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "summary",
+      "findings"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "7.1 Summary of Findings",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-7.2-estimated-impact-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "| Metric | Current | After Enhancement | Improvement |\n|--------|---------|-------------------|-------------|\n| Context retention | ~50% | ~70% | +40% |\n| Token efficiency | Medium | High | +30% |\n| Query accuracy | ~60% | ~75% | +25% |\n| Maintenance burden | Low | Low-Medium | Slight increase |",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "estimated",
+      "impact"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "7.2 Estimated Impact",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-7.3-next-steps-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. ✅ Complete this analysis document\n2. ⏳ Implement benchmark suite\n3. ⏳ Implement session memory layer\n4. ⏳ Add consolidation logic\n5. ⏳ Update CLAUDE.md with new patterns\n6. ⏳ Validate with production workload\n\n---",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "next",
+      "steps"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "7.3 Next Steps",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-appendix-a:-research-sources-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "1. MemGPT Paper: \"MemGPT: Towards LLMs as Operating Systems\" (2024)\n2. Mem0 Paper: \"Building Production-Ready AI Agents with Scalable Long-Term Memory\" (2025)\n3. A-MEM Paper: \"A-MEM: Agentic Memory for LLM Agents\" (NeurIPS 2025)\n4. MemoryOS Paper: \"Memory Operating System for AI Agents\" (EMNLP 2025)\n5. LangChain/LangGraph Documentation (2025)\n6. OpenAI Assistants API Documentation (2025)\n7. Thoughtworks Technology Radar (November 2025)",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "appendix",
+      "research",
+      "sources"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Appendix A: Research Sources",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "doc-AGENTIC_MEMORY_SYSTEMS_ANALYSIS-appendix-b:-glossary-0",
+    "timestamp": "2026-01-13T11:46:09.091Z",
+    "type": "observation",
+    "content": "- **Decay Score**: Multiplicative factor reducing memory importance over time\n- **Consolidation**: Process of summarizing and deduplicating memories\n- **Knowledge Graph**: Entity-relationship representation of domain knowledge\n- **Semantic Memory**: Long-term storage with vector embeddings for similarity search\n- **Working Memory**: Short-term buffer for immediate context\n- **Session Memory**: Mid-term storage scoped to a single interaction session\n```",
+    "tags": [
+      "general",
+      "agentic_memory_systems_analysis",
+      "appendix",
+      "glossary"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "documentation",
+      "file": "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+      "section": "Appendix B: Glossary",
+      "docTitle": "Agentic AI Memory Systems: Comparative Analysis & Recommendations"
+    }
+  },
+  {
+    "id": "git-fix-eb2ebf2f",
+    "timestamp": "2026-01-13T19:04:30+11:00",
+    "type": "observation",
+    "content": "Bug fixed: fix: update command uses correct template, consolidate CLI options|Fixes:. - Fixed Zod schema defaulting webDatabase which forced web template",
+    "tags": [
+      "bug-fix",
+      "config",
+      "src",
+      "typescript"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "eb2ebf2f7c71dbcb6c09dae5048f948bad7e22ed",
+      "author": "Miller Tech",
+      "files": [
+        ".uam.json",
+        "package-lock.json",
+        "package.json",
+        "src/bin/cli.ts",
+        "src/cli/init.ts",
+        "src/cli/update.ts",
+        "src/types/config.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-fix-8c19d317",
+    "timestamp": "2026-01-03T16:20:12+11:00",
+    "type": "observation",
+    "content": "Bug fixed: fix: read version from package.json instead of hardcoding|- CLI now dynamically reads version from package.json. - Version 0.1.2 published to npm Affected files: package-lock.json, package.json, src/bin/cli.ts.",
+    "tags": [
+      "bug-fix",
+      "config",
+      "src",
+      "typescript"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "8c19d317f0f6cd41ceb95d2fa3758006cee260b6",
+      "author": "Miller Tech",
+      "files": [
+        "package-lock.json",
+        "package.json",
+        "src/bin/cli.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-fix-ffdd72d3",
+    "timestamp": "2026-01-03T14:38:01+11:00",
+    "type": "observation",
+    "content": "Bug fixed: fix: improve install scripts with GitHub fallback and add npm publish workflow|- Install scripts now fall back to cloning from GitHub if npm package unavailable. - Install to ~/.universal-agent-memory for persistent installation Affected files: .github/workflows/npm-publish.yml, scripts/install-desktop.sh, scripts/install-web.sh.",
+    "tags": [
+      "bug-fix",
+      ".github",
+      "config",
+      "scripts"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "ffdd72d32d1253ef49b516a1a1cafda9b2ef4e62",
+      "author": "Miller Tech",
+      "files": [
+        ".github/workflows/npm-publish.yml",
+        "scripts/install-desktop.sh",
+        "scripts/install-web.sh"
+      ]
+    }
+  },
+  {
+    "id": "git-fix-f139b103",
+    "timestamp": "2026-01-03T14:28:16+11:00",
+    "type": "observation",
+    "content": "Bug fixed: fix: update URLs to use raw GitHub URLs and fix npm publishing|- Replace non-existent universal-agent-memory.dev URLs with raw GitHub URLs. - Add publishConfig for npm public package publishing Affected files: AGENT.md, README.md, package.json, scripts/install-desktop.sh, src/cli/init.ts.",
+    "tags": [
+      "bug-fix",
+      "docs",
+      "config",
+      "scripts",
+      "src",
+      "typescript"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "f139b103c0e67b4d1bd338367f4d3e73295d5b56",
+      "author": "Miller Tech",
+      "files": [
+        "AGENT.md",
+        "README.md",
+        "package.json",
+        "scripts/install-desktop.sh",
+        "src/cli/init.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-fd87be7b",
+    "timestamp": "2026-01-13T22:45:39+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: ingest prepopulate into all memory layers|Co-authored-by: factory-droid[bot] <138933559+factory-droid[bot]@users.noreply.github.com>",
+    "tags": [
+      "feature",
+      "src",
+      "typescript"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "git",
+      "commit": "fd87be7b4d58cfde730e1b88dd81a1d4b2946b00",
+      "author": "Miller Tech",
+      "files": [
+        "src/cli/memory.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-72747950",
+    "timestamp": "2026-01-13T18:58:42+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: universal template v9.0 with Code Field integration (#5)|BREAKING: Template is now fully universal with Handlebars placeholders.. All Pay2U-specific content removed and replaced with dynamic population.",
+    "tags": [
+      "feature",
+      "config",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "72747950e94cb1aa3a30d1dc9440f4a8fc3b775d",
+      "author": "Miller Tech",
+      "files": [
+        "package-lock.json",
+        "package.json",
+        "templates/CLAUDE.template.md",
+        "templates/archive/CLAUDE.template.root-v6.md",
+        "templates/archive/CLAUDE.template.v6.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-42fbd1ec",
+    "timestamp": "2026-01-13T18:31:35+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: integrate context-field research with attribution (#4) (#4)|- Add Code Field 4-line prompt (100% assumption stating, 89% bug detection). - Add attribution and license citation for NeoVertex1/context-field",
+    "tags": [
+      "feature",
+      "docs",
+      "src",
+      "typescript",
+      "templates"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "42fbd1ec589a33aee780b82759eee45ed94d9f53",
+      "author": "Dammian Miller",
+      "files": [
+        "README.md",
+        "src/bin/cli.ts",
+        "src/cli/init.ts",
+        "src/cli/memory.ts",
+        "src/cli/update.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-dab4b1e2",
+    "timestamp": "2026-01-13T12:42:13+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: implement memory query and store CLI commands (#3)|- memory query now searches SQLite short-term memory. - memory store now writes to SQLite with proper type inference",
+    "tags": [
+      "feature",
+      "src",
+      "typescript"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "dab4b1e26c1a3d256723f41acb27d3fd842b5299",
+      "author": "Dammian Miller",
+      "files": [
+        "src/cli/memory.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-9a069834",
+    "timestamp": "2026-01-13T10:09:41+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: simplify docs for agent-centric usage, cleanup template (#2)|BREAKING: Template v7.0 with agent-focused documentation. Changes:",
+    "tags": [
+      "feature",
+      "docs",
+      "src",
+      "typescript",
+      "templates"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "9a06983484f73dfe3bf2e9a0d293dc13a54534b1",
+      "author": "Dammian Miller",
+      "files": [
+        "README.md",
+        "src/cli/generate.ts",
+        "src/generators/claude-md.ts",
+        "src/utils/merge-claude-md.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-99735bff",
+    "timestamp": "2026-01-12T23:17:37+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: comprehensive template optimization v6.0 - quality, collaboration, cost, time (#1)|* feat: comprehensive template optimization v6.0. BREAKING CHANGES: Template structure significantly revised",
+    "tags": [
+      "feature",
+      "docs",
+      "src",
+      "typescript",
+      "templates"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "99735bff5ae30d26fab7c241133dc123c922f769",
+      "author": "Dammian Miller",
+      "files": [
+        "CLAUDE.md",
+        "src/coordination/capability-router.ts",
+        "src/coordination/deploy-batcher.ts",
+        "src/coordination/index.ts",
+        "src/generators/template-loader.ts",
+        "src/memory/serverless-qdrant.ts",
+        "src/types/config.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-c7c952c3",
+    "timestamp": "2026-01-12T22:41:51+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): v5.0 - comprehensive template with directive authority, session start, auto-triggers|- Added directive authority hierarchy (CLAUDE.md > safety > user > conventions). - Added session start protocol (check tasks, read memory, create task)",
+    "tags": [
+      "feature",
+      "docs",
+      "templates"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "c7c952c34f045a4053ecd9e4b3d44784c339e50a",
+      "author": "Miller Tech",
+      "files": [
+        "CLAUDE.md",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-442f8397",
+    "timestamp": "2026-01-11T22:44:10+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): v4.0 - comprehensive auto-population from project analysis|Major template improvements:. - Enhanced analyzer with detection for auth, clusters, components, file types",
+    "tags": [
+      "feature",
+      "docs",
+      "config",
+      "src",
+      "typescript",
+      "templates"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "442f8397d675d5fdda1fb180b4f351e3c24baad8",
+      "author": "Miller Tech",
+      "files": [
+        "CLAUDE.pay2u.md",
+        "package.json",
+        "src/analyzers/index.ts",
+        "src/generators/claude-md.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-860c4c4a",
+    "timestamp": "2026-01-11T22:27:45+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): enhance v3.1 with task routing and ops sections|Template improvements:. - Add Task Routing matrix by request type (bug/feature/perf/security/docs)",
+    "tags": [
+      "feature",
+      "config",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "860c4c4a7f5be3b98d9783ad2a7b7cb30eff5ea1",
+      "author": "Miller Tech",
+      "files": [
+        "package.json",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-42f761a1",
+    "timestamp": "2026-01-11T00:45:09+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: optimize CLAUDE.md template - 66% size reduction, zero duplication|BREAKING: Template structure completely redesigned for v3.0. Changes:",
+    "tags": [
+      "feature",
+      "config",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "42f761a12275c42e95d9f18f5344e497d3f62a42",
+      "author": "Miller Tech",
+      "files": [
+        "package.json",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-7ca3a375",
+    "timestamp": "2026-01-11T00:34:39+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: enhance CLAUDE.md template with aggressive enforcement patterns|- Add session start commands (immediate task check and memory read). - Add automatic trigger table (work requests → task creation)",
+    "tags": [
+      "feature",
+      "config",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "7ca3a375ff591610c57b5bf96992d3ff2c5ae3be",
+      "author": "Miller Tech",
+      "files": [
+        "package.json",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-7615bf4e",
+    "timestamp": "2026-01-10T23:35:18+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: add agent coordination system and task management|- Agent coordination: register, heartbeat, work announcements, overlap detection. - Deploy batching: queue commits/pushes, batch execution, squash commits",
+    "tags": [
+      "feature",
+      ".factory",
+      "docs",
+      "config",
+      "agents",
+      "docker"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "git",
+      "commit": "7615bf4e572d0092a16afff9a1e27e7c9fe60a50",
+      "author": "Miller Tech",
+      "files": [
+        ".factory/droids/code-quality-guardian.md",
+        ".factory/droids/documentation-expert.md",
+        ".factory/droids/performance-optimizer.md",
+        ".factory/droids/security-auditor.md",
+        ".uam.json",
+        "CLAUDE.md",
+        "agents/docker-compose.yml",
+        "docs/research/AGENTIC_MEMORY_SYSTEMS_ANALYSIS.md",
+        "package.json",
+        "src/bin/cli.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-4405d16e",
+    "timestamp": "2026-01-06T19:33:47+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: add comprehensive 4-layer memory system to CLAUDE.md template|- Add full 4-layer memory architecture (Working, Session, Semantic, Knowledge Graph). - Include installation & setup guide with CLI commands",
+    "tags": [
+      "feature",
+      ".factory",
+      "docs",
+      "src",
+      "typescript",
+      "templates"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "4405d16e9b16dd9770ea0efe2e0c5eb7c50deb09",
+      "author": "Miller Tech",
+      "files": [
+        ".factory/droids/code-quality-guardian.md",
+        ".factory/droids/documentation-expert.md",
+        ".factory/droids/performance-optimizer.md",
+        ".factory/droids/security-auditor.md",
+        "src/analyzers/index.ts",
+        "src/generators/claude-md.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-b56f9c71",
+    "timestamp": "2026-01-03T17:16:37+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: add proactive skills and droids for quality, security, performance, docs|New Skills (invoke proactively):. - typescript-node-expert: Strict TS, async patterns, ESM, performance best practices",
+    "tags": [
+      "feature",
+      ".factory",
+      "docs",
+      "config",
+      "src",
+      "typescript"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "git",
+      "commit": "b56f9c711cb09c454413b82fc211e9689d076dea",
+      "author": "Miller Tech",
+      "files": [
+        ".factory/droids/code-quality-guardian.md",
+        ".factory/droids/documentation-expert.md",
+        ".factory/droids/performance-optimizer.md",
+        ".factory/droids/security-auditor.md",
+        ".factory/skills/cli-design-expert/SKILL.md",
+        ".factory/skills/typescript-node-expert/SKILL.md",
+        "CLAUDE.md",
+        "package-lock.json",
+        "package.json",
+        "src/generators/claude-md.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-12f8ba97",
+    "timestamp": "2026-01-03T16:43:21+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: universal CLAUDE.md template with auto-population from git history|- Complete template with decision loop, memory system, worktree workflow. - Auto-populates from git history (short-term: recent commits, long-term: lessons)",
+    "tags": [
+      "feature",
+      "config",
+      "src",
+      "typescript",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "12f8ba97e9cfcf1e7bc62bb90157179bcb2b6fbb",
+      "author": "Miller Tech",
+      "files": [
+        "package-lock.json",
+        "package.json",
+        "src/generators/claude-md.ts",
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-9603c41c",
+    "timestamp": "2026-01-02T00:42:57+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): add mandatory decision loop to web generator and template|- Add CLAUDE.template.md with full parameterized template. - Update web generator with exact decision loop structure",
+    "tags": [
+      "feature",
+      "templates",
+      "docs",
+      "web"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "9603c41c94f80bb234530b746d1ec4118fccaf67",
+      "author": "Miller Tech",
+      "files": [
+        "templates/CLAUDE.template.md",
+        "web/generator.html"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-fbf2f90f",
+    "timestamp": "2025-12-30T23:09:49+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(web): add mandatory rules section to web generator|- Add MANDATORY RULES section at top with branch/worktree requirements. - Update agent intro to 'Autonomous Claude, a self-directed AI agent'",
+    "tags": [
+      "feature",
+      "web"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "fbf2f90ffae14a87d2361547774b234490f8b30a",
+      "author": "Miller Tech",
+      "files": [
+        "web/generator.html"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-0ca9fb55",
+    "timestamp": "2025-12-30T23:08:50+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): add mandatory rules section and enhance CLAUDE.md structure|- Add MANDATORY RULES section at top with worktree/branch, memory, todo requirements. - Update agent intro to 'Autonomous Claude, a self-directed AI agent'",
+    "tags": [
+      "feature",
+      "src",
+      "typescript"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "0ca9fb554f49085fa9723024a640df981ae1c3bb",
+      "author": "Miller Tech",
+      "files": [
+        "src/generators/claude-md.ts",
+        "src/utils/merge-claude-md.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-803975df",
+    "timestamp": "2025-12-29T14:44:58+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(skills): add Unreal Engine developer skill for agentic game development|- Add comprehensive SKILL.md with MCP integration (runreal + chongdashu). - Include Python scripting patterns for editor automation",
+    "tags": [
+      "feature",
+      ".factory",
+      "docs"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "803975df8968d1a78dd95509e61d45a5c9266af1",
+      "author": "Miller Tech",
+      "files": [
+        ".factory/skills/unreal-engine-developer/SKILL.md",
+        ".factory/skills/unreal-engine-developer/references.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-7e978d74",
+    "timestamp": "2025-12-28T23:43:12+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(web): add memory system, decision loop, and workflow to web generator|- Add localStorage short-term memory with project-specific key. - Add GitHub .agent-context/memory/ for long-term memory storage",
+    "tags": [
+      "feature",
+      "web"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "7e978d748d074d29ad24284f8221886780d6dc1e",
+      "author": "Miller Tech",
+      "files": [
+        "web/generator.html"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-4dfef71a",
+    "timestamp": "2025-12-28T23:37:38+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): add memory and worktree instructions to web platform|- Add MANDATORY WORKFLOW REQUIREMENTS for web (feature branches). - Add Git Branch Workflow section for web platform",
+    "tags": [
+      "feature",
+      "src",
+      "typescript"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "4dfef71a59caf758e81d3d2f031c242105025fb6",
+      "author": "Miller Tech",
+      "files": [
+        "src/generators/claude-md.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-ef0446e4",
+    "timestamp": "2025-12-28T23:21:27+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(template): update agent template based on pay2u.md structure|- Add MANDATORY memory triggers with 7 trigger conditions. - Add Agent Services Setup section for desktop",
+    "tags": [
+      "feature",
+      "src",
+      "typescript"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "ef0446e4c9883635e16421b4ca93eadc2a240cde",
+      "author": "Miller Tech",
+      "files": [
+        "src/generators/claude-md.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-2eba852b",
+    "timestamp": "2025-12-28T22:34:16+11:00",
+    "type": "observation",
+    "content": "Feature added: feat(memory): implement short-term memory backend with IndexedDB and SQLite support|- Added factory for creating short-term memory instances based on environment (web or desktop).. - Implemented IndexedDBShortTermMemory class for web environments with methods for storing, retrieving, and querying memory entries.",
+    "tags": [
+      "feature",
+      "config",
+      "docs",
+      "scripts",
+      "src",
+      "typescript"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "git",
+      "commit": "2eba852b07444c6d4c5f68d90e6c9735f7f5ed39",
+      "author": "Miller Tech",
+      "files": [
+        ".agent-context.json",
+        "AGENT.md",
+        "README.md",
+        "package-lock.json",
+        "package.json",
+        "scripts/install-desktop.sh",
+        "scripts/install-web.sh",
+        "src/bin/cli.ts",
+        "src/cli/generate.ts",
+        "src/cli/init.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-18b53942",
+    "timestamp": "2025-12-28T13:47:14+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: implement smart merging for CLAUDE.md and AGENT.md files, preserving custom sections|",
+    "tags": [
+      "feature",
+      "docs",
+      "src",
+      "typescript",
+      "tests"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "git",
+      "commit": "18b53942cd5446fb21980684428c23e172a8357a",
+      "author": "Miller Tech",
+      "files": [
+        "README.md",
+        "src/cli/generate.ts",
+        "src/cli/init.ts",
+        "src/utils/merge-claude-md.test.ts",
+        "src/utils/merge-claude-md.ts"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-d4886f9a",
+    "timestamp": "2025-12-27T01:30:11+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: add initial configuration and development guide for agent-context|",
+    "tags": [
+      "feature",
+      "config",
+      "docs"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "git",
+      "commit": "d4886f9a5f82d447bc41a0f3bc0c0d209658e360",
+      "author": "Miller Tech",
+      "files": [
+        ".agent-context.json",
+        "CLAUDE.md",
+        "WARP.md"
+      ]
+    }
+  },
+  {
+    "id": "git-feat-7cd0ca8e",
+    "timestamp": "2025-12-27T00:49:08+11:00",
+    "type": "observation",
+    "content": "Feature added: feat: initial agent-context package|Universal AI agent context system for Claude Code, Factory.AI, VSCode, and OpenCode.. Features:",
+    "tags": [
+      "feature"
+    ],
+    "importance": 6,
+    "metadata": {
+      "source": "git",
+      "commit": "7cd0ca8e5e9665bb47db9cc50e227bb337d1eedd",
+      "author": "Miller Tech",
+      "files": []
+    }
+  },
+  {
+    "id": "git-refactor-8a5a514a",
+    "timestamp": "2026-01-03T15:53:31+11:00",
+    "type": "thought",
+    "content": "Architectural change: refactor: update CLAUDE.md template with universal scaffolding|- Add generator instructions as HTML comments. Reasoning: - Add default values syntax ({{VAR|default}}) for common paths",
+    "tags": [
+      "refactor",
+      "architecture",
+      "templates",
+      "docs"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git",
+      "commit": "8a5a514aa6f6c0190b11368987e7e6b85fd71a62",
+      "author": "Miller Tech",
+      "files": [
+        "templates/CLAUDE.template.md"
+      ]
+    }
+  },
+  {
+    "id": "git-refactor-72262e1e",
+    "timestamp": "2026-01-03T13:43:35+11:00",
+    "type": "thought",
+    "content": "Architectural change: refactor: rename to universal-agent-memory|BREAKING CHANGE: Package and CLI renamed from agent-context to universal-agent-memory. Reasoning: - Package: @agent-context/cli -> @universal-agent-memory/cli",
+    "tags": [
+      "refactor",
+      "architecture",
+      "config",
+      "docs",
+      "scripts"
+    ],
+    "importance": 9,
+    "metadata": {
+      "source": "git",
+      "commit": "72262e1e04eb306da201ff9d0f70597c93f5028d",
+      "author": "Miller Tech",
+      "files": [
+        ".agent-context.json",
+        ".uam.json",
+        "AGENT.md",
+        "CLAUDE.md",
+        "CLAUDE.pay2u.md",
+        "README.md",
+        "package-lock.json",
+        "package.json",
+        "scripts/install-desktop.sh",
+        "scripts/install-web.sh"
+      ]
+    }
+  },
+  {
+    "id": "git-hotspots",
+    "timestamp": "2026-01-13T11:46:09.279Z",
+    "type": "observation",
+    "content": "Frequently modified files (hot spots): package.json (22 changes), templates/CLAUDE.template.md (15 changes), package-lock.json (14 changes), src/generators/claude-md.ts (10 changes), README.md (8 changes), src/bin/cli.ts (6 changes), src/cli/init.ts (6 changes), CLAUDE.md (6 changes), src/cli/memory.ts (5 changes), scripts/install-desktop.sh (5 changes). These files may need extra attention during changes.",
+    "tags": [
+      "hot-spots",
+      "code-quality"
+    ],
+    "importance": 7,
+    "metadata": {
+      "source": "git-analysis",
+      "hotSpots": {
+        "package.json": 22,
+        "templates/CLAUDE.template.md": 15,
+        "package-lock.json": 14,
+        "src/generators/claude-md.ts": 10,
+        "README.md": 8,
+        "src/bin/cli.ts": 6,
+        "src/cli/init.ts": 6,
+        "CLAUDE.md": 6,
+        "src/cli/memory.ts": 5,
+        "scripts/install-desktop.sh": 5
+      }
+    }
+  },
+  {
+    "id": "skills-droids-available",
+    "timestamp": "2026-01-13T11:46:09.281Z",
+    "type": "observation",
+    "content": "Available AI agents/droids: code-quality-guardian (factory), documentation-expert (factory), performance-optimizer (factory), security-auditor (factory). These can be invoked for specialized tasks.",
+    "tags": [
+      "droids",
+      "agents",
+      "capabilities"
+    ],
+    "importance": 8,
+    "metadata": {
+      "source": "skills-discovery",
+      "droids": [
+        {
+          "name": "code-quality-guardian",
+          "platform": "factory",
+          "path": ".factory/droids/code-quality-guardian.md"
+        },
+        {
+          "name": "documentation-expert",
+          "platform": "factory",
+          "path": ".factory/droids/documentation-expert.md"
+        },
+        {
+          "name": "performance-optimizer",
+          "platform": "factory",
+          "path": ".factory/droids/performance-optimizer.md"
+        },
+        {
+          "name": "security-auditor",
+          "platform": "factory",
+          "path": ".factory/droids/security-auditor.md"
+        }
+      ]
+    }
+  },
+  {
+    "id": "skills-artifacts-available",
+    "timestamp": "2026-01-13T11:46:09.281Z",
+    "type": "observation",
+    "content": "Useful project artifacts: templates/CLAUDE.template.md, .github/workflows/npm-publish.yml, .github/workflows/pages.yml, scripts/install-desktop.sh, scripts/install-web.sh. These can be referenced or reused.",
+    "tags": [
+      "artifacts",
+      "templates",
+      "reusable"
+    ],
+    "importance": 5,
+    "metadata": {
+      "source": "skills-discovery",
+      "artifacts": [
+        "templates/CLAUDE.template.md",
+        ".github/workflows/npm-publish.yml",
+        ".github/workflows/pages.yml",
+        "scripts/install-desktop.sh",
+        "scripts/install-web.sh"
+      ]
+    }
+  }
+]
