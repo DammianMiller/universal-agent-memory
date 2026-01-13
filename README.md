@@ -3,72 +3,127 @@
 [![npm version](https://img.shields.io/npm/v/universal-agent-memory.svg)](https://www.npmjs.com/package/universal-agent-memory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Give your AI coding assistant persistent memory and autonomous workflows.**
+**Give your AI coding assistant persistent memory, intelligent task routing, and better code generation.**
 
-UAM transforms AI coding assistants (Claude Code, Factory.AI, etc.) into autonomous agents that remember context across sessions, coordinate with other agents, and follow consistent workflows.
+UAM transforms AI coding assistants (Claude Code, Factory.AI, etc.) into autonomous agents with:
 
-## How It Works
+- **Endless Context** - Memory persists with the project, not the conversation
+- **Intelligent Task Routing** - Tasks automatically route to specialized expert droids
+- **Better Code Generation** - Code Field prompts produce 100% assumption stating
+- **Safe Git Workflows** - Worktrees prevent direct commits to main
+- **Complete Close-Out** - Merge → Deploy → Monitor → Fix loop ensures 100% completion
 
-1. **Install UAM** in your project
-2. **Generate CLAUDE.md** - a context file your AI reads automatically
-3. **The AI handles everything** - memory, tasks, worktrees, coordination
-
-**You don't manage memory manually.** The AI agent reads CLAUDE.md and autonomously uses the memory system, creates worktrees, tracks tasks, and coordinates with other agents.
-
-## Quick Start
+## It Just Works
 
 ```bash
 # Install
 npm install -g universal-agent-memory
 
-# Initialize in your project
+# Initialize (auto-configures everything)
 cd your-project
-uam init --with-memory --with-worktrees
+uam init
 
-# Start memory services (optional, for persistent semantic memory)
-uam memory start
-
-# Generate the CLAUDE.md context file
-uam generate
+# That's it. Your AI now has superpowers.
 ```
 
-That's it! Your AI assistant now has:
-- **Persistent memory** across sessions
-- **Task tracking** with dependencies
-- **Git worktree workflows** (never commits to main)
-- **Multi-agent coordination** (prevents merge conflicts)
+No clicking through prompts. No manual configuration. It just works.
 
-## Example: Working With an AI Agent
+## Key Features
 
-After setup, just talk to your AI assistant normally:
+### 🧠 Endless Context Through Project Memory
+
+**Your AI's context is NOT limited to the conversation.**
+
+Memory persists with the project in SQLite databases that travel with the code:
 
 ```
-You: "Fix the authentication bug in the login handler"
-
-AI: *Automatically:*
-  1. Checks memory for past context on auth/login
-  2. Creates task: "Fix auth bug in login handler"
-  3. Creates worktree: feature/fix-auth-bug
-  4. Makes changes, runs tests
-  5. Creates PR
-  6. Stores learnings in memory for next time
+agents/data/memory/
+├── short_term.db      # Recent actions, fast lookup
+├── session_memories   # Current session decisions
+└── long_term.json     # Learnings for semantic search
 ```
 
-The AI follows the workflow defined in CLAUDE.md without you managing any of it.
+This means:
+- Recall decisions from weeks/months ago
+- Learn from past mistakes (gotchas never repeated)
+- Understand why code is the way it is
+- Seamless handoff between sessions
 
-## What Gets Generated
+**The AI queries memory before every task** - it never starts from zero.
 
-`uam generate` creates a `CLAUDE.md` file that includes:
+### 🎯 Intelligent Task Routing
 
-- **Project structure** auto-detected from your codebase
-- **Memory system** configuration (SQLite + Qdrant)
-- **Workflow rules** (worktrees, testing, PR creation)
-- **Agent coordination** protocols
-- **Troubleshooting** from git history
+Tasks automatically route to specialized expert droids:
 
-The AI reads this file and follows the instructions autonomously.
+| Task Type | Routed To | Result |
+|-----------|-----------|--------|
+| TypeScript/JS | `typescript-node-expert` | Proper typing, async patterns |
+| Security review | `security-auditor` | OWASP checks, secrets detection |
+| Performance | `performance-optimizer` | Algorithm analysis, caching |
+| Documentation | `documentation-expert` | Complete, accurate docs |
+| Code quality | `code-quality-guardian` | SOLID, complexity checks |
 
-## Installation Options
+**Missing an expert?** The AI generates one:
+```bash
+uam droids add rust-expert --capabilities "ownership,lifetimes,async" --triggers "*.rs"
+```
+
+### 🔒 Code Field - Better Code Generation
+
+Based on [context-field research](https://github.com/NeoVertex1/context-field), UAM includes a 4-line prompt that dramatically improves code quality:
+
+```
+Do not write code before stating assumptions.
+Do not claim correctness you haven't verified.
+Do not handle only the happy path.
+Under what conditions does this work?
+```
+
+**Results from 72 tests:**
+- 100% assumption stating (vs 0% baseline)
+- 89% bug detection in code review (vs 39% baseline)  
+- 100% refusal of impossible requests (vs 0% baseline)
+- 320% more hidden issues found in debugging
+
+Every code generation task applies Code Field automatically.
+
+### 🌳 Safe Git Workflows
+
+**The AI never commits directly to main.**
+
+All changes use worktrees:
+
+```bash
+# AI automatically does this for every change
+uam worktree create my-feature
+# → Creates .worktrees/001-my-feature/
+# → Creates branch feature/001-my-feature
+# → Works in isolation
+
+uam worktree pr 001
+# → Pushes, creates PR, triggers reviews
+
+uam worktree cleanup 001
+# → Removes worktree after merge
+```
+
+### ✅ Complete Close-Out Workflow
+
+Work isn't "done" until it's deployed and verified:
+
+```
+MERGE → DEPLOY → MONITOR → FIX (repeat until 100%)
+```
+
+The AI follows this loop automatically:
+1. Get PR approved, merge to main
+2. Verify CI/CD runs, check deployment
+3. Monitor logs, verify functionality
+4. If issues: create hotfix worktree, repeat
+
+**The AI stores learnings after every completed task** for future sessions.
+
+## Installation
 
 ### npm (Recommended)
 
@@ -79,40 +134,43 @@ npm install -g universal-agent-memory
 ### One-Line Installers
 
 ```bash
-# Desktop (includes Docker for Qdrant)
+# Desktop (includes Docker for semantic search)
 bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-desktop.sh)
 
 # Web browsers (claude.ai, factory.ai)
 bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/scripts/install-web.sh)
 ```
 
-### npx (No Install)
-
-```bash
-npx universal-agent-memory init --interactive
-```
-
 ## Commands
 
-### Essential Commands
+### Essential
 
 | Command | Description |
 |---------|-------------|
-| `uam init` | Initialize UAM in a project |
-| `uam generate` | Generate/update CLAUDE.md |
-| `uam memory start` | Start Qdrant (for semantic memory) |
-| `uam memory status` | Check if services are running |
+| `uam init` | Initialize/update UAM (auto-merges, never loses data) |
+| `uam generate` | Regenerate CLAUDE.md from project analysis |
+| `uam update` | Update templates while preserving customizations |
 
-### Task Commands (Used by AI)
+### Memory
 
 | Command | Description |
 |---------|-------------|
-| `uam task create` | Create a new task |
+| `uam memory status` | Check memory system status |
+| `uam memory query <search>` | Search memories |
+| `uam memory store <content>` | Store a learning |
+| `uam memory start` | Start Qdrant for semantic search |
+| `uam memory prepopulate` | Populate from docs and git history |
+
+### Tasks
+
+| Command | Description |
+|---------|-------------|
+| `uam task create` | Create tracked task |
 | `uam task list` | List all tasks |
-| `uam task ready` | Show tasks with no blockers |
-| `uam task claim <id>` | Claim a task for work |
+| `uam task claim <id>` | Claim task (announces to other agents) |
+| `uam task release <id>` | Complete task |
 
-### Worktree Commands (Used by AI)
+### Worktrees
 
 | Command | Description |
 |---------|-------------|
@@ -120,30 +178,58 @@ npx universal-agent-memory init --interactive
 | `uam worktree pr <id>` | Create PR from worktree |
 | `uam worktree cleanup <id>` | Remove worktree |
 
-### Agent Coordination (Used by AI)
+### Droids
 
 | Command | Description |
 |---------|-------------|
-| `uam agent overlaps` | Check for file conflicts |
-| `uam agent announce` | Announce work on files |
+| `uam droids list` | List available expert droids |
+| `uam droids add <name>` | Create new expert droid |
+
+### Coordination
+
+| Command | Description |
+|---------|-------------|
 | `uam agent status` | View active agents |
+| `uam agent overlaps` | Check for file conflicts |
+| `uam coord status` | Coordination overview |
+
+## How It Works
+
+1. **Install & Init**: `npm i -g universal-agent-memory && uam init`
+
+2. **CLAUDE.md Generated**: Auto-populated with project structure, commands, droids
+
+3. **AI Reads CLAUDE.md**: Follows the embedded workflows automatically
+
+4. **Every Task**:
+   - Query memory for context
+   - Check for agent overlaps
+   - Route to specialist droids if needed
+   - Create worktree for changes
+   - Apply Code Field for better code
+   - Run tests, create PR
+   - Store learnings in memory
+
+5. **Close-Out**: Merge → Deploy → Monitor → Fix loop until 100%
 
 ## Memory Architecture
 
-UAM uses a 4-layer memory system, all managed automatically by the AI:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  L1: WORKING      │ Recent actions       │ 50 max  │ SQLite    │
+│  L2: SESSION      │ Current session      │ Per run │ SQLite    │
+│  L3: SEMANTIC     │ Long-term learnings  │ Qdrant  │ Vectors   │
+│  L4: KNOWLEDGE    │ Entity relationships │ SQLite  │ Graph     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-| Layer | Purpose | Storage |
-|-------|---------|---------|
-| Working | Recent actions (last 50) | SQLite |
-| Session | Current session context | SQLite |
-| Semantic | Reusable learnings | Qdrant |
-| Knowledge Graph | Entity relationships | SQLite |
+**Data is never deleted.** Memory databases persist with the project.
 
-**You don't need to understand this** - the AI handles memory storage and retrieval automatically based on the CLAUDE.md instructions.
+Update with `uam init` or `uam generate` always merges - nothing is lost.
 
 ## Configuration
 
-After `uam init`, configuration is in `.uam.json`:
+Configuration in `.uam.json`:
 
 ```json
 {
@@ -152,12 +238,17 @@ After `uam init`, configuration is in `.uam.json`:
     "defaultBranch": "main"
   },
   "memory": {
-    "shortTerm": { "enabled": true },
+    "shortTerm": { "enabled": true, "path": "./agents/data/memory/short_term.db" },
     "longTerm": { "enabled": true, "provider": "qdrant" }
   },
   "worktrees": {
     "enabled": true,
     "directory": ".worktrees"
+  },
+  "template": {
+    "sections": {
+      "codeField": true
+    }
   }
 }
 ```
@@ -169,48 +260,43 @@ After `uam init`, configuration is in `.uam.json`:
 | Claude Code | `CLAUDE.md` | Desktop app |
 | Factory.AI | `CLAUDE.md` | Desktop/web |
 | claude.ai | `CLAUDE.md` | Web browser |
-| VSCode + Extensions | `CLAUDE.md` | Desktop |
+| VSCode | `CLAUDE.md` | Extensions |
 
-## Built-in Droids
+## Built-in Expert Droids
 
-Quality review agents that run automatically before PRs:
-
-| Droid | Purpose |
-|-------|---------|
-| `code-quality-guardian` | Code review, SOLID principles |
-| `security-auditor` | OWASP, secrets detection |
-| `performance-optimizer` | Algorithm efficiency |
-| `documentation-expert` | Docs completeness |
+| Droid | Specialization |
+|-------|----------------|
+| `code-quality-guardian` | SOLID, complexity, naming |
+| `security-auditor` | OWASP, secrets, injection |
+| `performance-optimizer` | Algorithms, memory, caching |
+| `documentation-expert` | JSDoc, README, accuracy |
 
 ## Requirements
 
 - Node.js 18+
-- Docker (optional, for persistent semantic memory)
 - Git
+- Docker (optional, for semantic search)
 
 ## FAQ
 
-**Q: Do I need to run memory commands manually?**  
-A: No. The AI reads CLAUDE.md and manages memory automatically.
+**Q: Do I need to manage memory manually?**
+A: No. The AI queries and stores memory automatically per CLAUDE.md instructions.
 
-**Q: What if I don't have Docker?**  
-A: UAM works without Docker. You lose semantic (long-term) memory, but short-term and session memory still work via SQLite.
+**Q: What if I don't have Docker?**
+A: UAM works without Docker. You lose semantic search but SQLite memory still works.
 
-**Q: Can multiple AI agents work on the same project?**  
+**Q: Can multiple AI agents work on the same project?**
 A: Yes. UAM includes coordination protocols to prevent merge conflicts.
 
-**Q: How do I update CLAUDE.md after project changes?**  
-A: Run `uam generate` again. It will intelligently merge with your existing file.
+**Q: How do I update without losing my customizations?**
+A: Run `uam init` or `uam generate`. Updates always merge - nothing is lost.
 
-## Development
+**Q: What's Code Field?**
+A: A prompt technique that makes AI state assumptions before coding. Based on [context-field research](https://github.com/NeoVertex1/context-field).
 
-```bash
-git clone https://github.com/DammianMiller/universal-agent-memory.git
-cd universal-agent-memory
-npm install
-npm run build
-npm test
-```
+## Attribution
+
+Code Field prompts based on research from [NeoVertex1/context-field](https://github.com/NeoVertex1/context-field).
 
 ## License
 
@@ -221,3 +307,4 @@ MIT
 - [GitHub](https://github.com/DammianMiller/universal-agent-memory)
 - [npm](https://www.npmjs.com/package/universal-agent-memory)
 - [Issues](https://github.com/DammianMiller/universal-agent-memory/issues)
+- [Context Field Research](https://github.com/NeoVertex1/context-field)

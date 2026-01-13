@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import inquirer from 'inquirer';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { analyzeProject } from '../analyzers/index.js';
@@ -31,23 +30,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   console.log(chalk.bold('\n🚀 Universal Agent Memory Initialization\n'));
 
-  // Check for existing config
-  if (existsSync(configPath) && !options.force) {
-    const { overwrite } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'overwrite',
-        message: 'Configuration already exists. Overwrite?',
-        default: false,
-      },
-    ]);
-    if (!overwrite) {
-      console.log(chalk.yellow('Initialization cancelled.'));
-      return;
-    }
+  // Check for existing config - if exists and not --force, just update
+  const configExists = existsSync(configPath);
+  if (configExists && !options.force) {
+    console.log(chalk.dim('Existing configuration found. Updating...\n'));
   }
 
-  // Determine platforms
+  // Determine platforms - default to all if not specified
   const platforms: Platform[] = options.platform.includes('all')
     ? ['claudeCode', 'factory', 'vscode', 'opencode']
     : options.platform.map((p) => PLATFORM_MAP[p] || p) as Platform[];
@@ -70,37 +59,31 @@ export async function initCommand(options: InitOptions): Promise<void> {
   console.log(chalk.dim(`  Frameworks: ${analysis.frameworks.join(', ') || 'none detected'}`));
   console.log(chalk.dim(`  Databases: ${analysis.databases.map((d) => d.type).join(', ') || 'none detected'}`));
 
-  // Prompt for additional options if not specified
-  const answers = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'withMemory',
-      message: 'Set up memory system (SQLite + Qdrant)?',
-      default: true,
-      when: () => options.withMemory === undefined,
-    },
-    {
-      type: 'confirm',
-      name: 'withWorktrees',
-      message: 'Set up git worktree workflow?',
-      default: true,
-      when: () => options.withWorktrees === undefined,
-    },
-  ]);
+  // Auto-enable memory and worktrees unless explicitly disabled
+  // No prompts - just works
+  const withMemory = options.withMemory !== false;
+  const withWorktrees = options.withWorktrees !== false;
 
-  const withMemory = options.withMemory ?? answers.withMemory ?? true;
-  const withWorktrees = options.withWorktrees ?? answers.withWorktrees ?? true;
+  // Load existing config if present to preserve user customizations
+  let existingConfig: Partial<AgentContextConfig> = {};
+  if (configExists) {
+    try {
+      existingConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+    } catch {
+      // Ignore parse errors, will create fresh config
+    }
+  }
 
-  // Build configuration
+  // Build configuration - merge with existing to preserve user customizations
   const config: AgentContextConfig = {
     $schema: 'https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/schema.json',
     version: '1.0.0',
     project: {
-      name: analysis.projectName,
-      description: analysis.description,
-      defaultBranch: analysis.defaultBranch,
+      name: existingConfig.project?.name || analysis.projectName,
+      description: existingConfig.project?.description || analysis.description,
+      defaultBranch: existingConfig.project?.defaultBranch || analysis.defaultBranch,
     },
-    platforms: {
+    platforms: existingConfig.platforms || {
       claudeCode: { enabled: platforms.includes('claudeCode') },
       factory: { enabled: platforms.includes('factory') },
       vscode: { enabled: platforms.includes('vscode') },
@@ -110,32 +93,32 @@ export async function initCommand(options: InitOptions): Promise<void> {
       ? {
           shortTerm: {
             enabled: true,
-            path: './agents/data/memory/short_term.db',
-            webDatabase: 'agent_context_memory',
-            maxEntries: 50,
-            forceDesktop: false,
+            path: existingConfig.memory?.shortTerm?.path || './agents/data/memory/short_term.db',
+            webDatabase: existingConfig.memory?.shortTerm?.webDatabase || 'agent_context_memory',
+            maxEntries: existingConfig.memory?.shortTerm?.maxEntries || 50,
+            forceDesktop: existingConfig.memory?.shortTerm?.forceDesktop || false,
           },
           longTerm: {
             enabled: true,
-            provider: 'qdrant',
-            endpoint: 'localhost:6333',
-            collection: 'agent_memory',
-            embeddingModel: 'all-MiniLM-L6-v2',
+            provider: existingConfig.memory?.longTerm?.provider || 'qdrant',
+            endpoint: existingConfig.memory?.longTerm?.endpoint || 'localhost:6333',
+            collection: existingConfig.memory?.longTerm?.collection || 'agent_memory',
+            embeddingModel: existingConfig.memory?.longTerm?.embeddingModel || 'all-MiniLM-L6-v2',
           },
         }
-      : undefined,
+      : existingConfig.memory,
     worktrees: withWorktrees
       ? {
           enabled: true,
-          directory: '.worktrees',
-          branchPrefix: 'feature/',
-          autoCleanup: true,
+          directory: existingConfig.worktrees?.directory || '.worktrees',
+          branchPrefix: existingConfig.worktrees?.branchPrefix || 'feature/',
+          autoCleanup: existingConfig.worktrees?.autoCleanup ?? true,
         }
-      : undefined,
-    droids: [],
-    commands: [],
+      : existingConfig.worktrees,
+    droids: existingConfig.droids || [],
+    commands: existingConfig.commands || [],
     template: {
-      extends: 'default',
+      extends: existingConfig.template?.extends || 'default',
       sections: {
         memorySystem: withMemory,
         browserUsage: true,
@@ -143,6 +126,8 @@ export async function initCommand(options: InitOptions): Promise<void> {
         worktreeWorkflow: withWorktrees,
         troubleshooting: true,
         augmentedCapabilities: true,
+        // codeField enabled by default in template v8.0
+        ...existingConfig.template?.sections,
       },
     },
   };
@@ -151,14 +136,14 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const configSpinner = ora('Writing configuration...').start();
   try {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
-    configSpinner.succeed('Created .uam.json');
+    configSpinner.succeed(configExists ? 'Updated .uam.json' : 'Created .uam.json');
   } catch (error) {
     configSpinner.fail('Failed to write configuration');
     console.error(chalk.red(error));
     return;
   }
 
-  // Create directory structure
+  // Create directory structure (never deletes existing)
   const dirsSpinner = ora('Creating directory structure...').start();
   try {
     const dirs = [
@@ -177,13 +162,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
         mkdirSync(fullPath, { recursive: true });
       }
     }
-    dirsSpinner.succeed('Created directory structure');
+    dirsSpinner.succeed('Directory structure ready');
   } catch (error) {
     dirsSpinner.fail('Failed to create directories');
     console.error(chalk.red(error));
   }
 
-  // Generate CLAUDE.md
+  // Generate/Update CLAUDE.md - always merge, never overwrite
   const claudeMdPath = join(cwd, 'CLAUDE.md');
   const agentMdPath = join(cwd, 'AGENT.md');
   const claudeMdExists = existsSync(claudeMdPath);
@@ -191,57 +176,32 @@ export async function initCommand(options: InitOptions): Promise<void> {
   
   let existingContent: string | undefined;
   let targetPath = claudeMdPath;
-  let shouldGenerateClaude = true;
   
-  if ((claudeMdExists || agentMdExists) && !options.force) {
-    // Read existing content
-    if (claudeMdExists) {
-      existingContent = readFileSync(claudeMdPath, 'utf-8');
-      targetPath = claudeMdPath;
-    } else if (agentMdExists) {
-      existingContent = readFileSync(agentMdPath, 'utf-8');
-      targetPath = agentMdPath;
-    }
-    
-    const { action } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'action',
-        message: `${claudeMdExists ? 'CLAUDE.md' : 'AGENT.md'} already exists. What would you like to do?`,
-        choices: [
-          { name: 'Merge with existing content (recommended)', value: 'merge' },
-          { name: 'Overwrite completely', value: 'overwrite' },
-          { name: 'Skip generation', value: 'skip' },
-        ],
-        default: 'merge',
-      },
-    ]);
-    
-    if (action === 'skip') {
-      shouldGenerateClaude = false;
-      console.log(chalk.dim('Skipping CLAUDE.md generation'));
-    } else if (action === 'overwrite') {
-      existingContent = undefined;
-    }
+  // Read existing content if present
+  if (claudeMdExists) {
+    existingContent = readFileSync(claudeMdPath, 'utf-8');
+    targetPath = claudeMdPath;
+  } else if (agentMdExists) {
+    existingContent = readFileSync(agentMdPath, 'utf-8');
+    targetPath = agentMdPath;
   }
   
-  if (shouldGenerateClaude) {
-    const claudeSpinner = ora(`${existingContent ? 'Merging' : 'Generating'} CLAUDE.md...`).start();
-    try {
-      const newClaudeMd = await generateClaudeMd(analysis, config);
-      const claudeMd = existingContent ? mergeClaudeMd(existingContent, newClaudeMd) : newClaudeMd;
-      writeFileSync(targetPath, claudeMd);
-      claudeSpinner.succeed(`${existingContent ? 'Merged and updated' : 'Generated'} ${targetPath.endsWith('CLAUDE.md') ? 'CLAUDE.md' : 'AGENT.md'}`);
-      if (existingContent) {
-        console.log(chalk.dim('  Preserved custom sections from existing file'));
-      }
-    } catch (error) {
-      claudeSpinner.fail(`Failed to ${existingContent ? 'merge' : 'generate'} CLAUDE.md`);
-      console.error(chalk.red(error));
+  const claudeSpinner = ora(`${existingContent ? 'Updating' : 'Generating'} CLAUDE.md...`).start();
+  try {
+    const newClaudeMd = await generateClaudeMd(analysis, config);
+    // Always merge to preserve user content - never lose information
+    const claudeMd = existingContent ? mergeClaudeMd(existingContent, newClaudeMd) : newClaudeMd;
+    writeFileSync(targetPath, claudeMd);
+    claudeSpinner.succeed(`${existingContent ? 'Updated' : 'Generated'} ${targetPath.endsWith('CLAUDE.md') ? 'CLAUDE.md' : 'AGENT.md'}`);
+    if (existingContent) {
+      console.log(chalk.dim('  Merged with existing content - no information lost'));
     }
+  } catch (error) {
+    claudeSpinner.fail(`Failed to ${existingContent ? 'update' : 'generate'} CLAUDE.md`);
+    console.error(chalk.red(error));
   }
 
-  // Platform-specific setup
+  // Platform-specific setup (create directories only, never delete)
   for (const platform of platforms) {
     const platformSpinner = ora(`Setting up ${platform}...`).start();
     try {
@@ -253,17 +213,30 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   }
 
-  // Final summary
+  // Final summary - no next steps needed, it just works
   console.log(chalk.green('\n✅ Initialization complete!\n'));
-  console.log(chalk.bold('Next steps:'));
-  console.log('  1. Review and customize CLAUDE.md');
-  console.log('  2. Review .uam.json configuration');
+  
+  console.log(chalk.bold('What happens now:\n'));
+  console.log('  Your AI assistant automatically reads CLAUDE.md and:');
+  console.log('  • Queries memory before starting work (endless context)');
+  console.log('  • Routes tasks to specialized droids (optimal quality)');
+  console.log('  • Uses worktrees for all changes (safe git workflow)');
+  console.log('  • Applies Code Field for better code (100% assumption stating)');
+  console.log('  • Stores learnings for future sessions (knowledge accumulation)');
+  console.log('');
+  
   if (withMemory) {
-    console.log('  3. Start memory services: uam memory start');
+    // Check if memory DB exists
+    const dbPath = config.memory?.shortTerm?.path || './agents/data/memory/short_term.db';
+    const fullDbPath = join(cwd, dbPath);
+    if (existsSync(fullDbPath)) {
+      console.log(chalk.dim('Memory database found - existing data preserved'));
+    } else {
+      console.log(chalk.dim('Memory database will be created on first use'));
+    }
+    console.log(chalk.dim('Optional: Run `uam memory start` for semantic search (requires Docker)'));
   }
-  if (withWorktrees) {
-    console.log('  4. Create your first worktree: uam worktree create <slug>');
-  }
+  
   console.log('');
 }
 

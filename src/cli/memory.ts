@@ -1,12 +1,16 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { prepopulateMemory } from '../memory/prepopulate.js';
 import { SQLiteShortTermMemory } from '../memory/short-term/sqlite.js';
 import { AgentContextConfigSchema } from '../types/index.js';
 import type { AgentContextConfig } from '../types/index.js';
+
+// CRITICAL: Memory databases are NEVER deleted or overwritten.
+// They persist with the project for its entire lifecycle.
+// Users can manually delete if absolutely necessary.
 
 type MemoryAction = 'status' | 'start' | 'stop' | 'query' | 'store' | 'prepopulate';
 
@@ -53,11 +57,31 @@ async function showStatus(cwd: string): Promise<void> {
   // Check short-term memory
   const shortTermPath = join(cwd, 'agents/data/memory/short_term.db');
   if (existsSync(shortTermPath)) {
+    const stats = statSync(shortTermPath);
+    const sizeKB = Math.round(stats.size / 1024);
+    const modified = stats.mtime.toLocaleDateString();
+    
     console.log(chalk.green('✓ Short-term memory: Active'));
     console.log(chalk.dim(`  Path: ${shortTermPath}`));
-    // TODO: Query for entry count
+    console.log(chalk.dim(`  Size: ${sizeKB} KB | Last modified: ${modified}`));
+    console.log(chalk.dim('  ⚠️  This database is protected and will not be deleted'));
+    
+    // Count entries
+    try {
+      const db = new SQLiteShortTermMemory({
+        dbPath: shortTermPath,
+        projectId: 'status-check',
+        maxEntries: 9999, // Don't prune during status check
+      });
+      const count = await db.count();
+      await db.close();
+      console.log(chalk.dim(`  Entries: ${count}`));
+    } catch {
+      // Ignore errors during count
+    }
   } else {
     console.log(chalk.yellow('○ Short-term memory: Not initialized'));
+    console.log(chalk.dim('  Will be created on first use (uam memory store or agent action)'));
   }
 
   // Check Qdrant

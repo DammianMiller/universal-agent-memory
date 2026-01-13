@@ -1,11 +1,24 @@
 <!--
-  CLAUDE.md Universal Template - v7.0
+  CLAUDE.md Universal Template - v8.0
   
   CHANGES IN THIS VERSION:
-  - All project-specific content uses Handlebars placeholders
-  - No hardcoded project data (Pay2U removed)
-  - Simplified memory references (agent-managed, not user-managed)
-  - Template variables documented inline
+  - Context Field integration (code field + inhibition-style directives)
+  - Inhibition > Instruction: "Do not X" creates blockers, "Do X" creates preferences
+  - 4-line code field for 100% assumption stating, 89% bug detection
+  - Simplified setup (auto-works, no clicking required)
+  - Database protection (never delete existing data)
+  
+  CODE FIELD ATTRIBUTION:
+  The Code Field prompt technique is based on research from:
+  https://github.com/NeoVertex1/context-field
+  
+  Context Field is experimental research on context field prompts and cognitive
+  regime shifts in large language models. The code_field.md prompt produces:
+  - 100% assumption stating (vs 0% baseline)
+  - 89% bug detection in code review (vs 39% baseline)
+  - 100% refusal of impossible requests (vs 0% baseline)
+  
+  License: Research shared for exploration and reuse with attribution.
   
   Core Variables:
     {{PROJECT_NAME}}, {{PROJECT_PATH}}, {{DEFAULT_BRANCH}}, {{STRUCTURE_DATE}}
@@ -50,6 +63,39 @@
 
 ---
 
+## 🔒 CODE FIELD - MANDATORY FOR ALL CODE
+
+**Before writing ANY code, apply these constraints:**
+
+```
+Do not write code before stating assumptions.
+Do not claim correctness you haven't verified.
+Do not handle only the happy path.
+Under what conditions does this work?
+```
+
+### Code Generation Protocol
+
+**BEFORE CODE** (required):
+- State assumptions about input, environment, dependencies
+- Enumerate edge cases and failure modes
+- Define explicit scope ("This handles X, not Y")
+- Ask: "What would break this? What would a malicious caller do?"
+
+**IN CODE**:
+- Comments explain *why*, not *what*
+- Edge cases handled OR explicitly rejected with clear errors
+- Error paths as considered as happy paths
+- Smaller than your first instinct
+
+**AFTER CODE** (required):
+- "What this handles" section
+- "What this does NOT handle" section
+- Known limitations documented
+- Conditions for correctness stated
+
+---
+
 ## ⚡ SESSION START PROTOCOL
 
 **EXECUTE IMMEDIATELY before any response:**
@@ -61,6 +107,22 @@ uam agent status                                  # Check other active agents
 ```
 
 **On work request**: `uam task create --title "..." --type task|bug|feature`
+
+---
+
+## 🛑 CRITICAL INHIBITIONS
+
+**These are BLOCKERS, not suggestions. Do not proceed without satisfying them.**
+
+| Inhibition | Rationale |
+|------------|-----------|
+| Do not begin work without querying memory | Context prevents duplicate work |
+| Do not commit to {{DEFAULT_BRANCH}} | All changes require worktree + PR |
+| Do not claim work without overlap check | Prevents merge conflicts |
+| Do not create PR with failing tests | Broken code must not merge |
+| Do not complete task without storing learnings | Memory enables endless context |
+| Do not write code without stating assumptions | Prevents hidden bugs |
+| Do not handle only the happy path | Edge cases are where bugs live |
 
 ---
 
@@ -98,20 +160,9 @@ uam agent announce \
 | `high` | Wait or split work | Same file, different sections |
 | `critical` | STOP - request handoff | Same file, same sections |
 
-### Parallel Work Patterns
-
-```bash
-# CORRECT: Independent droids can run in parallel
-Task(subagent_type: "code-quality-guardian", ...) 
-Task(subagent_type: "security-auditor", ...)      # Runs concurrently
-Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
-
-# CORRECT: Coordinate merge order for overlapping changes
-# Agent A finishes first → merges first
-# Agent B rebases → merges second
-```
-
 ### Agent Capability Routing
+
+Route tasks to specialized droids for optimal results:
 
 | Task Type | Route To | Capabilities |
 |-----------|----------|--------------|
@@ -122,6 +173,8 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 | Documentation | `documentation-expert` | jsdoc, readme, api-docs |
 | Code quality | `code-quality-guardian` | complexity, naming, solid |
 
+**Missing expert?** Generate one: `uam droids add <name> --capabilities "..." --triggers "..."`
+
 ---
 
 ## 📋 MANDATORY DECISION LOOP
@@ -131,41 +184,50 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 │                    EXECUTE FOR EVERY TASK                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. MEMORY   │ uam memory query "<keywords>"                     │
+│  1. MEMORY   │ Do not begin without: uam memory query "<keywords>"│
 │              │ Check for relevant past context                   │
 │                                                                  │
-│  2. AGENTS   │ uam agent overlaps --resource "<files>"           │
+│  2. AGENTS   │ Do not claim without: uam agent overlaps          │
 │              │ If overlap: coordinate or wait                    │
 │                                                                  │
 │  3. SKILLS   │ Check {{SKILLS_PATH}} for applicable skill        │
+│              │ Missing skill? Generate: uam droids add           │
 │              │ Invoke BEFORE implementing                        │
 │                                                                  │
-│  4. WORKTREE │ {{WORKTREE_CREATE_CMD}} <slug>                    │
+│  4. WORKTREE │ Do not commit to {{DEFAULT_BRANCH}}               │
+│              │ {{WORKTREE_CREATE_CMD}} <slug>                    │
 │              │ cd {{WORKTREE_DIR}}/NNN-<slug>/                   │
-│              │ NEVER commit to {{DEFAULT_BRANCH}}                │
 │                                                                  │
-│  5. WORK     │ Implement → Test → {{WORKTREE_PR_CMD}}            │
+│  5. CODE     │ Apply CODE FIELD constraints (above)              │
+│              │ State assumptions → Implement → Test              │
 │                                                                  │
-│  6. MEMORY   │ Store important learnings for future sessions     │
+│  6. PR       │ Do not merge with failing tests                   │
+│              │ {{WORKTREE_PR_CMD}} → parallel reviews            │
+│                                                                  │
+│  7. MEMORY   │ Do not complete without storing learnings         │
 │              │ uam memory store "lesson" --importance 7+         │
-│                                                                  │
-│  7. VERIFY   │ ☐ Memory ☐ Worktree ☐ PR ☐ Skills ☐ Agents        │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🧠 MEMORY SYSTEM
+## 🧠 ENDLESS CONTEXT - PROJECT MEMORY SYSTEM
 
-**Memory is managed automatically.** Query for context, store important learnings.
+**Your context is NOT limited to this conversation.**
+
+Memory persists with the project, enabling:
+- Recall of decisions from weeks/months ago
+- Learning from past mistakes (gotchas)
+- Understanding of why code is the way it is
+- Handoff between sessions without information loss
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  L1: WORKING      │ Recent actions       │ {{SHORT_TERM_LIMIT}} max │ Auto-managed  │
-│  L2: SESSION      │ Current session      │ Per session              │ Auto-managed  │
-│  L3: SEMANTIC     │ Long-term learnings  │ {{LONG_TERM_BACKEND}}    │ Store lessons │
-│  L4: KNOWLEDGE    │ Entity relationships │ SQLite                   │ Auto-managed  │
+│  L1: WORKING      │ Recent actions       │ {{SHORT_TERM_LIMIT}} max │ SQLite       │
+│  L2: SESSION      │ Current session      │ Per session              │ SQLite       │
+│  L3: SEMANTIC     │ Long-term learnings  │ {{LONG_TERM_BACKEND}}    │ Vector search│
+│  L4: KNOWLEDGE    │ Entity relationships │ SQLite                   │ Graph        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -176,21 +238,21 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 | Learned something reusable | `uam memory store "lesson" --importance 8` |
 | Fixed a tricky bug | `uam memory store "bug fix" --tags bug-fix --importance 7` |
 | Discovered a gotcha | `uam memory store "gotcha" --tags gotcha --importance 9` |
-| Completed a task | Memory auto-updates |
+| Made architectural decision | `uam memory store "decision: X because Y" --importance 8` |
 
 ### When to Query Memories
 
 | Situation | Action |
 |-----------|--------|
-| Starting new work | `uam memory query "relevant keywords"` |
-| Debugging | `uam memory query "similar error"` |
-| Understanding patterns | `uam memory query "how we did X"` |
+| Starting ANY new work | `uam memory query "relevant keywords"` |
+| Debugging unfamiliar code | `uam memory query "similar error"` |
+| Understanding past decisions | `uam memory query "why we did X"` |
 
 ---
 
 ## 🌳 WORKTREE WORKFLOW
 
-**ALL code changes use worktrees. NO EXCEPTIONS.**
+**Do not commit to {{DEFAULT_BRANCH}}. NO EXCEPTIONS.**
 
 ```bash
 # Create
@@ -247,7 +309,7 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 | feature request | `uam task create --type feature` |
 | code file for editing | check overlaps → skills → worktree |
 | review/check/look | query memory first |
-| ANY code change | tests required |
+| ANY code change | apply CODE FIELD, tests required |
 
 ---
 
@@ -362,12 +424,13 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 ## 🧪 Testing Requirements
 
 1. Create worktree
-2. Update/create tests
-3. Run `{{TEST_COMMAND}}`
+2. Apply CODE FIELD (state assumptions first)
+3. Update/create tests
+4. Run `{{TEST_COMMAND}}`
 {{#if LINT_COMMAND}}
-4. Run `{{LINT_COMMAND}}`
+5. Run `{{LINT_COMMAND}}`
 {{/if}}
-5. Create PR
+6. Create PR (do not merge with failing tests)
 
 ---
 
@@ -392,12 +455,13 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 ## ✅ Completion Checklist
 
 ```
+☐ Memory queried before starting
+☐ CODE FIELD applied (assumptions stated)
 ☐ Tests pass
 ☐ Lint/typecheck pass  
 ☐ Worktree used (not {{DEFAULT_BRANCH}})
-☐ Memory updated (if learned something)
-☐ PR created
-☐ Parallel reviews passed
+☐ Learnings stored in memory
+☐ PR created with parallel reviews
 {{#if HAS_INFRA}}
 ☐ Infrastructure plan verified
 {{/if}}
@@ -434,23 +498,24 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 │                                                                  │
 │  4. FIX (if issues found)                                        │
 │     ├─ Create new worktree for fix                              │
-│     ├─ Fix the issue                                            │
+│     ├─ Apply CODE FIELD for fix                                 │
 │     ├─ GOTO step 1 (Merge)                                      │
 │     └─ Repeat until 100% working                                │
 │                                                                  │
 │  5. COMPLETE                                                     │
-│     ├─ Store learnings: uam memory store "what I learned"       │
+│     ├─ Do not skip: uam memory store "what I learned"           │
 │     ├─ Close related tasks/issues                               │
 │     └─ Announce completion                                      │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**⚠️ NEVER say "done" or "complete" until:**
+**⚠️ Do not say "done" or "complete" until:**
 - PR is merged (not just created)
 - Deployment succeeded (not just triggered)
 - Functionality verified working (not just "should work")
 - All errors/issues fixed (iterate as needed)
+- Learnings stored in memory
 
 **Commands for completion:**
 ```bash
@@ -465,7 +530,7 @@ gh run view <run-id>
 
 # If issues found, fix immediately
 {{WORKTREE_CREATE_CMD}} hotfix-<issue>
-# ... fix, test, PR, merge, repeat
+# ... apply CODE FIELD, fix, test, PR, merge, repeat
 ```
 
 ---

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -433,9 +432,11 @@ program
 
 program
   .command('update')
-  .description('Update package and templates')
-  .action(() => {
-    console.log(chalk.yellow('Update functionality coming soon...'));
+  .description('Update templates while preserving all customizations')
+  .option('--dry-run', 'Show what would be updated without making changes')
+  .action(async (options) => {
+    const { updateCommand } = await import('../cli/update.js');
+    await updateCommand(options);
   });
 
 program.parse();
