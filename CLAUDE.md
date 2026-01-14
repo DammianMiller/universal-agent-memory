@@ -11,7 +11,7 @@
   - Modular conditional sections (P3)
   
   Core Variables:
-    universal-agent-memory, , feature/template-optimization, January 2026
+    universal-agent-memory, , main, January 2026
   
   Memory System:
     ./agents/data/memory/short_term.db, uam memory query, uam memory store, uam memory start,
@@ -125,6 +125,54 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 
 ---
 
+## 🧩 MULTI-AGENT EXECUTION (DEPENDENCY-AWARE)
+
+**Goal**: Finish faster by parallelizing independent work while preserving correctness and avoiding conflicts.
+
+**Aggressive parallelization mandate**: Default to multi-agent execution whenever tasks can be safely decomposed; only stay single-threaded when dependencies or overlap risk make parallel work unsafe.
+
+**Process**:
+1. **Decompose** the request into discrete work items with clear inputs/outputs.
+2. **Map dependencies** (A blocks B). Only run B after A is complete.
+3. **Parallelize** dependency-free items with separate agents and explicit file boundaries.
+4. **Gate edits** with `uam agent overlaps --resource "<files>"` before touching any file.
+5. **Merge in dependency order** (upstream first). Rebase or re-run dependent steps if needed.
+
+**When to expand the agent pool**:
+- Multiple files/modules with low coupling
+- Parallel research or analysis tasks
+- Independent test or verification tasks
+
+**Example**:
+```bash
+# Parallel research tasks (dependency-free)
+Task(subagent_type: "security-auditor", prompt: "Threat model: auth flow in src/auth/*")
+Task(subagent_type: "performance-optimizer", prompt: "Find hotspots in src/cache/*")
+
+# Dependent work (sequential)
+# 1) Agent A updates schema → 2) Agent B updates queries → 3) Agent C updates tests
+```
+
+**Conflict avoidance**:
+- One agent per file at a time
+- Declare file ownership in prompts
+- If overlap risk is high, wait or split by section
+
+---
+
+## 🛠️ SKILLFORGE MODE (OPTIONAL)
+
+**Use when**: The request is to create, improve, or compose skills (not regular feature work).
+
+**Phases**:
+0. **Triage** → USE_EXISTING / IMPROVE_EXISTING / CREATE_NEW / COMPOSE
+1. **Deep Analysis** (multi‑lens, edge cases, constraints)
+2. **Specification** (structured skill spec)
+3. **Generation** (implement skill)
+4. **Multi‑Agent Synthesis** (quality + security + evolution approval)
+
+**Fallback**: If SkillForge scripts/requirements are unavailable, use the existing skill routing matrix and create skills manually in `.factory/skills/`.
+
 ## 📋 MANDATORY DECISION LOOP
 
 ```
@@ -144,7 +192,7 @@ Task(subagent_type: "performance-optimizer", ...) # Runs concurrently
 │                                                                  │
 │  4. WORKTREE │ uam worktree create <slug>                   │
 │              │ cd .worktrees/NNN-<slug>/                  │
-│              │ NEVER commit to feature/template-optimization               │
+│              │ NEVER commit directly to main               │
 │                                                                  │
 │  5. WORK     │ Implement → Test → uam worktree pr           │
 │                                                                  │
@@ -420,7 +468,7 @@ npm run build
 │                                                                  │
 │  1. MERGE                                                        │
 │     ├─ Get PR approved (or self-approve if authorized)          │
-│     ├─ Merge to feature/template-optimization                              │
+│     ├─ Merge to main                              │
 │     └─ Delete feature branch                                    │
 │                                                                  │
 │  2. DEPLOY                                                       │
@@ -457,7 +505,7 @@ npm run build
 **Commands for completion:**
 ```bash
 # After PR merged, verify deployment
-git checkout feature/template-optimization && git pull
+git checkout main && git pull
 npm run build
 npm test
 
