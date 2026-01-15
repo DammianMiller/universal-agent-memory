@@ -18,7 +18,7 @@
  * - Memory of project structure
  */
 
-import { BenchmarkTask, AgentExecution } from '../benchmark';
+import { BenchmarkTask, AgentExecution } from '../benchmark.js';
 
 export class NaiveAgent {
   private executionCount = 0;
@@ -74,7 +74,7 @@ export class NaiveAgent {
     // Simulate different success rates based on difficulty
     // Without memory, the agent has to guess or try random approaches
     
-    const baseSuccessRate = {
+    const baseSuccessRate: Record<BenchmarkTask['difficulty'], number> = {
       easy: 0.4,    // 40% success without memory
       medium: 0.2,  // 20% success without memory  
       hard: 0.05,   // 5% success without memory
@@ -103,7 +103,7 @@ export class NaiveAgent {
    */
   private async simulateThinking(task: BenchmarkTask): Promise<void> {
     // Naive agent takes longer because it has to rediscover everything
-    const baseTime = {
+    const baseTime: Record<BenchmarkTask['difficulty'], number> = {
       easy: 2000,
       medium: 5000,
       hard: 10000,
@@ -133,7 +133,7 @@ export class NaiveAgent {
   /**
    * Simulate failed execution
    */
-  private async simulateFailure(task: BenchmarkTask): Promise<void> {
+  private async simulateFailure(_task: BenchmarkTask): Promise<void> {
     // Simulate making a mistake
     await new Promise(resolve => setTimeout(resolve, 500));
   }

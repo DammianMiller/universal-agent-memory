@@ -4,7 +4,7 @@
  * Exports everything needed for benchmarking
  */
 
-export * from './benchmark';
-export * from './agents/naive-agent';
-export * from './agents/uam-agent';
-export * from './tasks';
+export * from './benchmark.js';
+export * from './agents/naive-agent.js';
+export * from './agents/uam-agent.js';
+export * from './tasks.js';

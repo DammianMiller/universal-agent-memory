@@ -11,7 +11,7 @@
  * 4. Coordination of multi-step workflows
  */
 
-import { BenchmarkTask } from './benchmark';
+import { BenchmarkTask } from './benchmark.js';
 
 // ============================================================================
 // MOCK SIMULATED ENVIRONMENT (for demonstration)
@@ -70,6 +70,7 @@ class TestRunnerSimulator {
 // Global simulators (shared across all tasks)
 const fileSystem = new FileSystemSimulator();
 const testRunner = new TestRunnerSimulator();
+void testRunner;
 
 // Initialize with some test data
 fileSystem.writeFile('src/index.ts', 'export const VERSION = "1.0.0";');
@@ -218,13 +219,16 @@ Make sure to complete steps in the correct order!`,
           const config = JSON.parse(tsconfig);
           step2Complete = config.compilerOptions?.declaration === true;
         }
-      } catch {}
+      } catch {
+        // ignore parse errors for benchmark verification
+      }
       
       step2Complete = step2Complete || !!tsconfig;
       
       const buildRan = fileSystem.exists('dist');
+      void buildRan;
       
-      const allComplete = step1Complete && step2Complete;
+      const allComplete = Boolean(step1Complete) && step2Complete;
       
       return { 
         success: allComplete, 
@@ -382,7 +386,7 @@ Set up the config accordingly.`,
       const hasQuotes = 
         file.includes('single') ||
         file.includes('"single"') ||
-        file.includes("'") !== -1;
+        file.includes("'");
       
       const rememberedAll = hasTypeScript && hasSourceDir && hasQuotes;
       

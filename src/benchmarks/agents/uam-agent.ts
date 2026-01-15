@@ -19,7 +19,7 @@
  * - Multi-agent coordination (future enhancement)
  */
 
-import { BenchmarkTask, AgentExecution } from '../benchmark';
+import { BenchmarkTask, AgentExecution } from '../benchmark.js';
 
 // ============================================================================
 // UAM Memory Simulation
@@ -275,12 +275,12 @@ export class UAMAgent {
     const lessons = this.memory.getLessons();
     
     // Filter by category and difficulty
-    return lessons.filter(lesson => {
+    return lessons.filter((lesson) => {
       const content = lesson.content.toLowerCase();
       const taskKeywords = task.instruction.toLowerCase();
       
       return content.includes(task.category) || 
-             taskKeywords.split(' ').some(k => content.includes(k));
+             taskKeywords.split(' ').some((keyword) => content.includes(keyword));
     });
   }
   
@@ -292,10 +292,10 @@ export class UAMAgent {
     const errors = this.memory.query(['gotcha', 'mistake', 'error', 'failed']);
     
     // Filter for relevant mistakes
-    return errors.filter(error => {
+    return errors.filter((error) => {
       const taskKeywords = task.instruction.toLowerCase();
       const content = error.content.toLowerCase();
-      return taskKeywords.split(' ').some(k => content.includes(k));
+      return taskKeywords.split(' ').some((keyword) => content.includes(keyword));
     });
   }
   
@@ -312,7 +312,7 @@ export class UAMAgent {
     // Success rates are HIGHER with memory
     // Memory provides: context, lessons to avoid mistakes
     
-    const baseSuccessRate = {
+    const baseSuccessRate: Record<BenchmarkTask['difficulty'], number> = {
       easy: 0.85,   // 85% success with memory (up from 40%)
       medium: 0.70, // 70% success with memory (up from 20%)
       hard: 0.55,   // 55% success with memory (up from 5%)
@@ -361,7 +361,7 @@ export class UAMAgent {
    */
   private async simulateThinking(task: BenchmarkTask): Promise<void> {
     // UAM agent takes less time because it has context
-    const baseTime = {
+    const baseTime: Record<BenchmarkTask['difficulty'], number> = {
       easy: 1000,    // 50% faster than naive (2000ms)
       medium: 2500,  // 50% faster than naive (5000ms)
       hard: 5000,   // 50% faster than naive (10000ms)
@@ -389,7 +389,7 @@ export class UAMAgent {
   /**
    * Simulate failed execution
    */
-  private async simulateFailure(task: BenchmarkTask): Promise<void> {
+  private async simulateFailure(_task: BenchmarkTask): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   
