@@ -30,6 +30,7 @@ describe('QdrantCloudBackend', () => {
       url: 'https://test.cloud.qdrant.io:6333',
       apiKey: 'test-api-key',
       collection: 'agent_memory',
+      projectId: 'test-project', // Explicit project ID for isolation
     });
 
     mockClient = (backend as any).client;
@@ -110,11 +111,15 @@ describe('QdrantCloudBackend', () => {
     expect(results).toHaveLength(2);
     expect(results[0].id).toBe('1');
     expect(results[0].content).toBe('Test memory');
-    expect(mockClient.search).toHaveBeenCalledWith('agent_memory', {
-      vector: expect.any(Array),
-      limit: 10,
-      score_threshold: 0.5,
-    });
+    // Collection name includes project ID hash for isolation
+    expect(mockClient.search).toHaveBeenCalledWith(
+      expect.stringMatching(/^agent_memory_test-project_/),
+      {
+        vector: expect.any(Array),
+        limit: 10,
+        score_threshold: 0.5,
+      }
+    );
   });
 
   it('should get recent memories', async () => {
@@ -137,11 +142,15 @@ describe('QdrantCloudBackend', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].content).toBe('Test memory');
-    expect(mockClient.scroll).toHaveBeenCalledWith('agent_memory', {
-      limit: 50,
-      with_payload: true,
-      with_vector: false,
-    });
+    // Collection name includes project ID hash for isolation
+    expect(mockClient.scroll).toHaveBeenCalledWith(
+      expect.stringMatching(/^agent_memory_test-project_/),
+      {
+        limit: 50,
+        with_payload: true,
+        with_vector: false,
+      }
+    );
   });
 
   it('should prune old memories', async () => {
@@ -155,8 +164,12 @@ describe('QdrantCloudBackend', () => {
     const deleted = await backend.prune(new Date());
 
     expect(deleted).toBe(2);
-    expect(mockClient.delete).toHaveBeenCalledWith('agent_memory', {
-      points: ['old-1', 'old-2'],
-    });
+    // Collection name includes project ID hash for isolation
+    expect(mockClient.delete).toHaveBeenCalledWith(
+      expect.stringMatching(/^agent_memory_test-project_/),
+      {
+        points: ['old-1', 'old-2'],
+      }
+    );
   });
 });

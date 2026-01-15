@@ -44,6 +44,7 @@ export async function createMemoryBackend(config: AgentContextConfig): Promise<M
           url,
           apiKey,
           collection: longTerm.qdrantCloud.collection || 'agent_memory',
+          projectId: config.project?.name || process.cwd(),
         });
         
         if (await backend.isConfigured()) {

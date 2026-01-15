@@ -1,17 +1,39 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import type { MemoryBackend, MemoryEntry } from './base.js';
 import { getEmbeddingService } from '../embeddings.js';
+import { createHash } from 'crypto';
 
 interface QdrantCloudBackendConfig {
   url: string;
   apiKey?: string;
   collection: string;
+  projectId?: string; // Project identifier for data isolation
   vectorSize?: number; // Allow dynamic vector size based on embedding provider
+}
+
+/**
+ * Generate a safe collection name from project ID
+ * Qdrant collection names must be alphanumeric with underscores
+ */
+function sanitizeCollectionName(base: string, projectId?: string): string {
+  if (!projectId) return base;
+  
+  // Create a short hash of the project ID for uniqueness
+  const hash = createHash('sha256').update(projectId).digest('hex').slice(0, 8);
+  
+  // Sanitize project name (take last path component, remove special chars)
+  const projectName = projectId
+    .split(/[/\\]/).pop() || projectId
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 32);
+  
+  return `${base}_${projectName}_${hash}`;
 }
 
 export class QdrantCloudBackend implements MemoryBackend {
   private client: QdrantClient;
   private collection: string;
+  private projectId: string;
   private vectorSize: number;
   private collectionVerified: boolean = false;
 
@@ -24,7 +46,8 @@ export class QdrantCloudBackend implements MemoryBackend {
     }
 
     this.client = new QdrantClient({ url, apiKey });
-    this.collection = config.collection;
+    this.projectId = config.projectId || process.cwd();
+    this.collection = sanitizeCollectionName(config.collection, this.projectId);
     this.vectorSize = config.vectorSize || 768; // Default to Ollama's nomic-embed-text size
   }
 

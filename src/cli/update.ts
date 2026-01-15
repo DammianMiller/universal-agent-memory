@@ -225,10 +225,24 @@ async function updateMemorySystem(
 }
 
 /**
+ * Generate a safe collection name from project ID (matches qdrant-cloud.ts)
+ */
+function getProjectCollectionName(base: string, projectPath: string): string {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256').update(projectPath).digest('hex').slice(0, 8);
+  const projectName = projectPath
+    .split(/[/\\]/).pop() || projectPath
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 32);
+  return `${base}_${projectName}_${hash}`;
+}
+
+/**
  * Update Qdrant collection - handle dimension migration if needed
+ * Collections are project-scoped for data isolation
  */
 async function updateQdrantCollection(
-  _cwd: string,
+  cwd: string,
   config: AgentContextConfig,
   options: UpdateOptions
 ): Promise<void> {
@@ -249,7 +263,15 @@ async function updateQdrantCollection(
     }
     
     const data = await response.json() as { result: { collections: Array<{ name: string }> } };
-    const collection = config.memory?.longTerm?.collection || 'agent_memory';
+    const baseCollection = config.memory?.longTerm?.collection || 'agent_memory';
+    const projectId = config.project?.name || cwd;
+    
+    // Generate project-scoped collection name
+    const collection = getProjectCollectionName(baseCollection, projectId);
+    
+    if (options.verbose) {
+      console.log(chalk.dim(`  Project-scoped collection: ${collection}`));
+    }
     
     // Check collection dimensions
     const collectionExists = data.result.collections.some(c => c.name === collection);
