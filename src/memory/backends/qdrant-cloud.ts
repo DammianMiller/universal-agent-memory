@@ -1,5 +1,6 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import type { MemoryBackend, MemoryEntry } from './base.js';
+import { getEmbeddingService } from '../embeddings.js';
 
 interface QdrantCloudBackendConfig {
   url: string;
@@ -56,14 +57,15 @@ export class QdrantCloudBackend implements MemoryBackend {
     });
   }
 
-  async query(_queryText: string, limit = 10): Promise<MemoryEntry[]> {
-    // TODO: Generate embedding for query string
-    // For now, use dummy embedding - needs embedding service integration
-    const queryEmbedding = new Array(384).fill(0);
+  async query(queryText: string, limit = 10): Promise<MemoryEntry[]> {
+    // Generate real embedding for semantic search
+    const embeddingService = getEmbeddingService();
+    const queryEmbedding = await embeddingService.embed(queryText);
     
     const results = await this.client.search(this.collection, {
       vector: queryEmbedding,
       limit,
+      score_threshold: 0.5, // Only return relevant results
     });
 
     return results.map((r) => ({

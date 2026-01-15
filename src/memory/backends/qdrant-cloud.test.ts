@@ -109,6 +109,7 @@ describe('QdrantCloudBackend', () => {
     expect(mockClient.search).toHaveBeenCalledWith('agent_memory', {
       vector: expect.any(Array),
       limit: 10,
+      score_threshold: 0.5,
     });
   });
 
