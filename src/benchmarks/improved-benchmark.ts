@@ -349,7 +349,11 @@ async function executeSingleShot(prompt: string, model: string, apiKey: string):
     execSync(`rm "${promptFile}"`, { encoding: 'utf-8' });
     return result.trim();
   } catch (error) {
-    try { execSync(`rm "${promptFile}"`, { encoding: 'utf-8' }); } catch { }
+    try {
+      execSync(`rm "${promptFile}"`, { encoding: 'utf-8' });
+    } catch {
+      // Ignore cleanup errors
+    }
     throw error;
   }
 }

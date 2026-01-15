@@ -40,6 +40,9 @@ export class AppError extends Error {
  */
 const jsonSchema = z.unknown();
 
+/** Maximum number of characters of the original input to include in error context. */
+const MAX_ERROR_CONTEXT_CHARS = 100;
+
 /**
  * Validates that a string is valid JSON and parses it.
  *
@@ -49,8 +52,7 @@ const jsonSchema = z.unknown();
  *
  * @param input - The string to validate and parse as JSON
  * @returns The parsed JSON value (object, array, string, number, boolean, or null)
- * @throws AppError with code 'INVALID_INPUT' if input is not a string
- * @throws AppError with code 'JSON_PARSE_ERROR' if the string is not valid JSON
+ * @throws AppError with code 'INVALID_JSON' if the string is not valid JSON
  *
  * @example
  * ```typescript
@@ -67,58 +69,44 @@ const jsonSchema = z.unknown();
  *   validateAndParseJSON('{invalid}');
  * } catch (error) {
  *   if (error instanceof AppError) {
- *     console.log(error.code); // 'JSON_PARSE_ERROR'
+ *     console.log(error.code); // 'INVALID_JSON'
  *   }
  * }
  * ```
  */
-export async function validateAndParseJSON(input: string): Promise<unknown> {
-  // Validate input is a string using zod
-  const stringSchema = z.string({
-    required_error: 'Input is required',
-    invalid_type_error: 'Input must be a string',
-  });
-
-  const validationResult = stringSchema.safeParse(input);
-
-  if (!validationResult.success) {
-    throw new AppError(
-      'Input must be a valid string',
-      'INVALID_INPUT',
-      {
-        errors: validationResult.error.errors,
-        receivedType: typeof input,
+export function validateAndParseJSON(input: string): unknown {
+  const jsonStringSchema = z
+    .string({
+      required_error: 'Input is required',
+      invalid_type_error: 'Input must be a string',
+    })
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            error instanceof Error
+              ? `Invalid JSON: ${error.message}`
+              : 'Invalid JSON',
+        });
+        return z.NEVER;
       }
-    );
+    })
+    .pipe(jsonSchema);
+
+  const result = jsonStringSchema.safeParse(input);
+
+  if (!result.success) {
+    throw new AppError('Input must be valid JSON', 'INVALID_JSON', {
+      errors: result.error.errors,
+      input:
+        input.length > MAX_ERROR_CONTEXT_CHARS
+          ? `${input.substring(0, MAX_ERROR_CONTEXT_CHARS)}...`
+          : input,
+    });
   }
 
-  // Attempt to parse the JSON string
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(validationResult.data);
-  } catch (error) {
-    throw new AppError(
-      `Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      'JSON_PARSE_ERROR',
-      {
-        input: input.length > 100 ? `${input.substring(0, 100)}...` : input,
-        originalError: error instanceof Error ? error.message : String(error),
-      }
-    );
-  }
-
-  // Validate the parsed result with zod (accepts any valid JSON value)
-  const parseResult = jsonSchema.safeParse(parsed);
-
-  if (!parseResult.success) {
-    throw new AppError(
-      'Parsed value failed schema validation',
-      'SCHEMA_VALIDATION_ERROR',
-      {
-        errors: parseResult.error.errors,
-      }
-    );
-  }
-
-  return parseResult.data;
+  return result.data;
 }

@@ -282,12 +282,20 @@ async function executeDroidPrompt(
     );
     
     // Clean up
-    try { execSync(`rm "${promptFile}"`, { encoding: 'utf-8' }); } catch { }
+    try {
+      execSync(`rm "${promptFile}"`, { encoding: 'utf-8' });
+    } catch {
+      // Ignore cleanup errors
+    }
     
     return result.trim();
   } catch (error) {
     // Clean up on error
-    try { execSync(`rm "${promptFile}"`, { encoding: 'utf-8' }); } catch { }
+    try {
+      execSync(`rm "${promptFile}"`, { encoding: 'utf-8' });
+    } catch {
+      // Ignore cleanup errors
+    }
     throw error;
   }
 }
