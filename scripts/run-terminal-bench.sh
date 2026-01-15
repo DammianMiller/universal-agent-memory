@@ -1,0 +1,274 @@
+#!/bin/bash
+#
+# Run Terminal-Bench 2.0 with UAM-integrated agents
+# Compares Droid with and without UAM memory across multiple models
+#
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+RESULTS_DIR="$PROJECT_ROOT/benchmark-results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Models to test
+MODELS=(
+    "claude-opus-4-5-20251101"
+    "gpt-5.2-codex"
+    "glm-4.7"
+)
+
+# Configuration
+N_CONCURRENT=${N_CONCURRENT:-4}
+TIMEOUT_MULT=${TIMEOUT_MULT:-1.0}
+DATASET="terminal-bench@2.0"
+
+# Check for API keys
+check_api_keys() {
+    if [ -z "$FACTORY_API_KEY" ] && [ -z "$DROID_API_KEY" ]; then
+        echo "Error: FACTORY_API_KEY or DROID_API_KEY must be set"
+        exit 1
+    fi
+    
+    if [ -z "$ANTHROPIC_API_KEY" ]; then
+        echo "Warning: ANTHROPIC_API_KEY not set, Claude models may fail"
+    fi
+    
+    if [ -z "$OPENAI_API_KEY" ]; then
+        echo "Warning: OPENAI_API_KEY not set, GPT models may fail"
+    fi
+}
+
+# Create results directory
+mkdir -p "$RESULTS_DIR"
+
+# Run benchmark for a specific model with UAM
+run_with_uam() {
+    local model=$1
+    local model_safe=$(echo "$model" | tr '.-' '_')
+    local job_name="uam_${model_safe}_${TIMESTAMP}"
+    
+    echo "=================================================="
+    echo "Running: $model WITH UAM memory"
+    echo "=================================================="
+    
+    harbor run \
+        -d "$DATASET" \
+        -a claude-code \
+        -m "$model" \
+        -n "$N_CONCURRENT" \
+        --timeout-multiplier "$TIMEOUT_MULT" \
+        --job-name "$job_name" \
+        --jobs-dir "$RESULTS_DIR" \
+        --ak "use_uam=true" \
+        --ak "project_root=$PROJECT_ROOT" \
+        2>&1 | tee "$RESULTS_DIR/${job_name}.log"
+    
+    echo "Results saved to: $RESULTS_DIR/$job_name"
+}
+
+# Run benchmark for a specific model without UAM (baseline)
+run_without_uam() {
+    local model=$1
+    local model_safe=$(echo "$model" | tr '.-' '_')
+    local job_name="baseline_${model_safe}_${TIMESTAMP}"
+    
+    echo "=================================================="
+    echo "Running: $model WITHOUT UAM (baseline)"
+    echo "=================================================="
+    
+    harbor run \
+        -d "$DATASET" \
+        -a claude-code \
+        -m "$model" \
+        -n "$N_CONCURRENT" \
+        --timeout-multiplier "$TIMEOUT_MULT" \
+        --job-name "$job_name" \
+        --jobs-dir "$RESULTS_DIR" \
+        2>&1 | tee "$RESULTS_DIR/${job_name}.log"
+    
+    echo "Results saved to: $RESULTS_DIR/$job_name"
+}
+
+# Run with custom UAM agent
+run_custom_agent() {
+    local model=$1
+    local with_memory=$2
+    local model_safe=$(echo "$model" | tr '.-' '_')
+    local memory_label=$([ "$with_memory" = "true" ] && echo "uam" || echo "baseline")
+    local job_name="${memory_label}_custom_${model_safe}_${TIMESTAMP}"
+    
+    echo "=================================================="
+    echo "Running: $model with custom UAM agent (memory=$with_memory)"
+    echo "=================================================="
+    
+    harbor run \
+        -d "$DATASET" \
+        --agent-import-path "$PROJECT_ROOT/src/harbor/uam_agent:UAMAgent" \
+        -m "$model" \
+        -n "$N_CONCURRENT" \
+        --timeout-multiplier "$TIMEOUT_MULT" \
+        --job-name "$job_name" \
+        --jobs-dir "$RESULTS_DIR" \
+        --ak "use_memory=$with_memory" \
+        --ak "project_root=$PROJECT_ROOT" \
+        2>&1 | tee "$RESULTS_DIR/${job_name}.log"
+    
+    echo "Results saved to: $RESULTS_DIR/$job_name"
+}
+
+# Generate comparison report
+generate_report() {
+    echo "=================================================="
+    echo "Generating comparison report..."
+    echo "=================================================="
+    
+    local report_file="$RESULTS_DIR/TERMINAL_BENCH_COMPARISON_${TIMESTAMP}.md"
+    
+    cat > "$report_file" << EOF
+# Terminal-Bench 2.0 UAM Comparison Report
+
+**Generated:** $(date -Iseconds)
+**Dataset:** $DATASET (89 tasks)
+
+## Configuration
+- Concurrent trials: $N_CONCURRENT
+- Timeout multiplier: $TIMEOUT_MULT
+- Models tested: ${MODELS[*]}
+
+## Results Summary
+
+| Model | Without UAM | With UAM | Improvement |
+|-------|-------------|----------|-------------|
+EOF
+
+    # Parse results from each run
+    for model in "${MODELS[@]}"; do
+        local model_safe=$(echo "$model" | tr '.-' '_')
+        local baseline_dir="$RESULTS_DIR/baseline_${model_safe}_${TIMESTAMP}"
+        local uam_dir="$RESULTS_DIR/uam_${model_safe}_${TIMESTAMP}"
+        
+        local baseline_acc="N/A"
+        local uam_acc="N/A"
+        local improvement="N/A"
+        
+        # Try to read results
+        if [ -f "$baseline_dir/summary.json" ]; then
+            baseline_acc=$(jq -r '.accuracy // "N/A"' "$baseline_dir/summary.json" 2>/dev/null || echo "N/A")
+        fi
+        
+        if [ -f "$uam_dir/summary.json" ]; then
+            uam_acc=$(jq -r '.accuracy // "N/A"' "$uam_dir/summary.json" 2>/dev/null || echo "N/A")
+        fi
+        
+        if [[ "$baseline_acc" != "N/A" && "$uam_acc" != "N/A" ]]; then
+            improvement=$(echo "$uam_acc - $baseline_acc" | bc 2>/dev/null || echo "N/A")
+            improvement="${improvement}%"
+        fi
+        
+        echo "| $model | $baseline_acc | $uam_acc | $improvement |" >> "$report_file"
+    done
+    
+    cat >> "$report_file" << EOF
+
+## Detailed Results
+
+See individual job directories for full task-level results.
+
+### Key Findings
+
+Based on our improved UAM implementation:
+- Dynamic memory retrieval based on task classification
+- Hierarchical prompting with recency bias
+- Multi-turn execution with error feedback
+
+### Files
+EOF
+
+    ls -la "$RESULTS_DIR"/*_${TIMESTAMP}* 2>/dev/null >> "$report_file" || echo "No result directories found" >> "$report_file"
+    
+    echo ""
+    echo "Report saved to: $report_file"
+}
+
+# Main execution
+main() {
+    echo "=================================================="
+    echo "Terminal-Bench 2.0 UAM Comparison Benchmark"
+    echo "=================================================="
+    echo "Timestamp: $TIMESTAMP"
+    echo "Results directory: $RESULTS_DIR"
+    echo ""
+    
+    check_api_keys
+    
+    # Parse arguments
+    local run_baseline=true
+    local run_uam=true
+    local use_custom=false
+    local selected_models=("${MODELS[@]}")
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --baseline-only)
+                run_uam=false
+                shift
+                ;;
+            --uam-only)
+                run_baseline=false
+                shift
+                ;;
+            --custom-agent)
+                use_custom=true
+                shift
+                ;;
+            --model)
+                selected_models=("$2")
+                shift 2
+                ;;
+            --help)
+                echo "Usage: $0 [options]"
+                echo "Options:"
+                echo "  --baseline-only   Run only baseline (no UAM)"
+                echo "  --uam-only        Run only with UAM"
+                echo "  --custom-agent    Use custom UAM agent instead of claude-code"
+                echo "  --model MODEL     Test only this model"
+                echo "  --help            Show this help"
+                exit 0
+                ;;
+            *)
+                echo "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Run benchmarks
+    for model in "${selected_models[@]}"; do
+        if [ "$run_baseline" = true ]; then
+            if [ "$use_custom" = true ]; then
+                run_custom_agent "$model" "false"
+            else
+                run_without_uam "$model"
+            fi
+        fi
+        
+        if [ "$run_uam" = true ]; then
+            if [ "$use_custom" = true ]; then
+                run_custom_agent "$model" "true"
+            else
+                run_with_uam "$model"
+            fi
+        fi
+    done
+    
+    # Generate report
+    generate_report
+    
+    echo ""
+    echo "=================================================="
+    echo "Benchmark complete!"
+    echo "=================================================="
+}
+
+main "$@"

@@ -38,6 +38,50 @@ export interface TaskVerificationConfig {
 const SANDBOX_DIR = '/tmp/uam-sandbox';
 
 /**
+ * Extract code from markdown code blocks
+ * Models often wrap code in ```typescript ... ``` or ```ts ... ```
+ */
+function extractCodeFromMarkdown(response: string): string {
+  // Try to extract code from markdown code blocks
+  const codeBlockPatterns = [
+    /```(?:typescript|ts)\n([\s\S]*?)```/gi,
+    /```(?:javascript|js)\n([\s\S]*?)```/gi,
+    /```(?:python|py)\n([\s\S]*?)```/gi,
+    /```(?:bash|sh|shell)\n([\s\S]*?)```/gi,
+    /```\n([\s\S]*?)```/gi,  // Generic code block
+  ];
+  
+  for (const pattern of codeBlockPatterns) {
+    const matches = [...response.matchAll(pattern)];
+    if (matches.length > 0) {
+      // Return all code blocks concatenated (some responses have multiple blocks)
+      return matches.map(m => m[1].trim()).join('\n\n');
+    }
+  }
+  
+  // No code blocks found - check if response looks like raw code
+  const trimmed = response.trim();
+  
+  // If it starts with typical code patterns, use as-is
+  const codeIndicators = [
+    /^(import|export|function|class|interface|type|const|let|var|async|def )/,
+    /^#!\//,    // Shebang
+    /^\/\*\*/,  // JSDoc
+    /^\/\//,    // Comment
+    /^#[^!]/,   // Python/shell comment (not shebang)
+  ];
+  
+  for (const indicator of codeIndicators) {
+    if (indicator.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  
+  // Last resort: return as-is, let the compiler/interpreter fail with a clear error
+  return trimmed;
+}
+
+/**
  * Create an isolated sandbox for code execution
  */
 function createSandbox(): string {
@@ -81,9 +125,12 @@ export async function verifyCodeExecution(
     executionTimeMs: 0,
   };
 
+  // Extract code from markdown if wrapped
+  const cleanCode = extractCodeFromMarkdown(code);
+
   // If execution not required, just do pattern matching
   if (!config.requiresExecution) {
-    return verifyPatterns(code, config.expectedPatterns || []);
+    return verifyPatterns(cleanCode, config.expectedPatterns || []);
   }
 
   const sandboxPath = createSandbox();
@@ -92,7 +139,7 @@ export async function verifyCodeExecution(
     // Write code to file
     const filename = getFilename(config.language);
     const filePath = join(sandboxPath, filename);
-    writeFileSync(filePath, code, 'utf-8');
+    writeFileSync(filePath, cleanCode, 'utf-8');
     
     // Run setup commands if any
     if (config.setupCommands) {
@@ -154,7 +201,7 @@ export async function verifyCodeExecution(
     
     // Verify patterns if specified
     if (config.expectedPatterns && config.expectedPatterns.length > 0) {
-      const patternResult = verifyPatterns(code, config.expectedPatterns);
+      const patternResult = verifyPatterns(cleanCode, config.expectedPatterns);
       if (!patternResult.success) {
         result.errors.push(...patternResult.errors);
       }
