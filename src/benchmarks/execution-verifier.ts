@@ -322,13 +322,14 @@ function getFilename(language: TaskVerificationConfig['language']): string {
 export const TASK_VERIFICATION_CONFIGS: Record<string, TaskVerificationConfig> = {
   'task-001-code-generation': {
     language: 'typescript',
-    requiresExecution: true,
-    testCases: [
-      { input: '', expectedOutput: '0', description: 'empty array returns 0' },
-    ],
-    expectedPatterns: ['function calculateAverage', 'number[]', ': number'],
-    setupCommands: [
-      'echo "const calculateAverage = (nums: number[]): number => nums.length === 0 ? 0 : nums.reduce((a,b) => a+b, 0) / nums.length; console.log(calculateAverage([]));" > solution.ts',
+    requiresExecution: false,  // Pattern matching only - model output won't have test harness
+    testCases: [],
+    expectedPatterns: [
+      'function calculateAverage',
+      'number[]',
+      ': number',
+      'length',
+      'return',
     ],
   },
   
