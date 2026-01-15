@@ -3,6 +3,15 @@
 # Run Terminal-Bench 2.0 with UAM-integrated agents
 # Compares Droid with and without UAM memory across multiple models
 #
+# This benchmark uses the FACTORY_API_KEY which provides access to all models:
+# - Claude Opus 4.5 (Anthropic)
+# - GPT 5.2 Codex (OpenAI)  
+# - GLM 4.7 (Zhipu)
+#
+# Usage:
+#   export FACTORY_API_KEY="your-factory-api-key"
+#   ./scripts/run-terminal-bench.sh
+#
 
 set -e
 
@@ -11,8 +20,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 RESULTS_DIR="$PROJECT_ROOT/benchmark-results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# Models to test
-MODELS=(
+# Models to test - Harbor/LiteLLM format (provider/model)
+# These are mapped through Factory API when using droid
+HARBOR_MODELS=(
+    "anthropic/claude-opus-4-5"
+    "openai/gpt-5.2-codex"
+    "zhipu/glm-4.7"
+)
+
+# Factory/Droid model names (used by improved-benchmark.ts)
+FACTORY_MODELS=(
     "claude-opus-4-5-20251101"
     "gpt-5.2-codex"
     "glm-4.7"
@@ -25,17 +42,28 @@ DATASET="terminal-bench@2.0"
 
 # Check for API keys
 check_api_keys() {
+    # Factory API key provides access to all models
     if [ -z "$FACTORY_API_KEY" ] && [ -z "$DROID_API_KEY" ]; then
         echo "Error: FACTORY_API_KEY or DROID_API_KEY must be set"
+        echo ""
+        echo "The Factory API key provides unified access to:"
+        echo "  - Claude Opus 4.5 (Anthropic)"
+        echo "  - GPT 5.2 Codex (OpenAI)"
+        echo "  - GLM 4.7 (Zhipu)"
+        echo ""
+        echo "Get your key at: https://app.factory.ai/settings/api-keys"
         exit 1
     fi
     
+    echo "Using Factory API for model access"
+    
+    # For Harbor's direct provider access, these may also be needed
     if [ -z "$ANTHROPIC_API_KEY" ]; then
-        echo "Warning: ANTHROPIC_API_KEY not set, Claude models may fail"
+        echo "Note: ANTHROPIC_API_KEY not set - Harbor will use Factory routing"
     fi
     
     if [ -z "$OPENAI_API_KEY" ]; then
-        echo "Warning: OPENAI_API_KEY not set, GPT models may fail"
+        echo "Note: OPENAI_API_KEY not set - Harbor will use Factory routing"
     fi
 }
 
@@ -206,7 +234,7 @@ main() {
     local run_baseline=true
     local run_uam=true
     local use_custom=false
-    local selected_models=("${MODELS[@]}")
+    local selected_models=("${HARBOR_MODELS[@]}")
     
     while [[ $# -gt 0 ]]; do
         case $1 in
