@@ -1,14 +1,19 @@
 <!--
-  CLAUDE.md Universal Template - v10.4
+  CLAUDE.md Universal Template - v10.5
   
   CHANGES IN THIS VERSION:
+  - STRENGTHENED Pattern Router: Now requires explicit analysis block output
+  - STRENGTHENED Constraint Extraction: Mandatory checklist with verification
+  - STRENGTHENED Adversarial Thinking: Explicit attack vector enumeration
+  - All pattern activations now require printed confirmation blocks
+  - Pattern Router, Constraint Checklist, and Adversarial Analysis are MANDATORY outputs
+  
+  PREVIOUS (v10.4):
   - Added MANDATORY COMPLETION GATES section (3 gates must pass before "done")
   - Gate 1: Output Existence Check (enforces P12)
   - Gate 2: Constraint Compliance Check (enforces P17)
   - Gate 3: Test Verification (enforces P13)
   - Added PATTERN ROUTER as Critical Reminder #0 (auto-selects patterns)
-  - Fixes 75% of failures caused by pattern non-compliance
-  - HARD STOP RULE: Cannot complete with failing gates
   
   PREVIOUS (v10.3):
   - Added 5 new generic patterns (16-20) from deep failure analysis
@@ -1074,15 +1079,24 @@ pytest /tests/ -v 2>&1 | tail -30
 
 **These reminders exploit recency bias - place at END for maximum compliance.**
 
-0. **PATTERN ROUTER (EXECUTE FIRST)**: Before ANY work, classify and select patterns:
-   | Task Contains... | Select Patterns |
-   |------------------|-----------------|
-   | "create file", "output to" | P12, P16 (Output) |
-   | "exactly", "only", "single" | P17, P14 (Constraints) |
-   | "bypass", "break", "exploit" | P20 (Adversarial) |
-   | known algorithm (crypto, chess) | P11 (Pre-computed) |
-   | image/audio → text | P9, P18 (Pipeline) |
-   Print: "SELECTED PATTERNS: P12, P17, P14" before starting.
+0. **PATTERN ROUTER (MANDATORY FIRST STEP)**: 
+   BEFORE ANY work, you MUST print this analysis block:
+   ```
+   === PATTERN ROUTER ===
+   Task: [one-line task summary]
+   Classification: [file-creation | constraint-validation | adversarial | pipeline | impossible]
+   
+   SELECTED PATTERNS:
+   - P12 (OEV): [YES/NO] - Does task require creating files?
+   - P17 (CE): [YES/NO] - Does task have "exactly/only/single/must be" constraints?
+   - P20 (AT): [YES/NO] - Does task involve "bypass/break/exploit/filter"?
+   - P11 (Pre-computed): [YES/NO] - Is this a known algorithm (crypto/chess/ML)?
+   - P18 (MTP): [YES/NO] - Does task need multiple tools chained?
+   
+   ACTIVE PATTERNS: [list only YES patterns]
+   === END ROUTER ===
+   ```
+   DO NOT proceed without printing this block first.
 
 1. **BACKUP FIRST**: Before modifying ANY config, database, or critical file:
    ```bash
@@ -1129,8 +1143,20 @@ pytest /tests/ -v 2>&1 | tail -30
 12. **TASK-FIRST**: Create required output files BEFORE analyzing.
     Touch placeholders immediately, then refine with real content.
 
-13. **EXTRACT CONSTRAINTS**: Before implementing, list ALL constraints from task:
-    Keywords: "exactly", "only", "single", "must be", formats, limits.
+13. **EXTRACT CONSTRAINTS (MANDATORY)**: If P17 is active, you MUST print:
+    ```
+    === CONSTRAINT CHECKLIST ===
+    Extracted from task description:
+    ☐ [constraint 1, e.g., "single file only"]
+    ☐ [constraint 2, e.g., "exactly one line output"]
+    ☐ [constraint 3, e.g., "format: valid JSON"]
+    
+    BEFORE completing, verify EACH constraint:
+    ☑ constraint 1: [PASS/FAIL]
+    ☑ constraint 2: [PASS/FAIL]
+    === END CONSTRAINTS ===
+    ```
+    If ANY constraint FAILS, FIX before completing.
 
 14. **MULTI-TOOL PIPELINE**: For complex tasks, identify ALL tools needed.
     Don't implement from scratch if existing tools exist.
@@ -1138,5 +1164,22 @@ pytest /tests/ -v 2>&1 | tail -30
 15. **REFUSE IMPOSSIBLE**: If task violates information theory (compress 500MB to 5KB),
     REFUSE immediately. Create IMPOSSIBLE.md explaining why. Don't attempt.
 
-16. **ADVERSARIAL MINDSET**: For bypass/exploit tasks, think like an attacker.
-    Enumerate attack vectors (encoding, null bytes, case variation). Test each.
+16. **ADVERSARIAL MINDSET (MANDATORY)**: If P20 is active, you MUST:
+    ```
+    === ADVERSARIAL ANALYSIS ===
+    Target: [what are we trying to bypass/break?]
+    Defense mechanism: [how does the filter/protection work?]
+    
+    ATTACK VECTORS TO TRY:
+    1. Case variation: <ScRiPt>, <SCRIPT>
+    2. Encoding: &#x3C;script&#x3E;, %3Cscript%3E
+    3. Null bytes: <scr\x00ipt>
+    4. Double encoding: %253Cscript%253E
+    5. Context breaking: </style><script>
+    6. Event handlers: <img onerror=alert(1)>
+    7. [add task-specific vectors]
+    
+    TEST EACH vector until one works.
+    === END ADVERSARIAL ===
+    ```
+    DO NOT use the filter "correctly" - your goal is to BREAK it.
