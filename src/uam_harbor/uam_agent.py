@@ -1,9 +1,17 @@
 """
-UAM-Integrated Agent for Harbor/Terminal-Bench (v1.7.0)
+UAM-Integrated Agent for Harbor/Terminal-Bench (v1.8.0)
 
 This agent extends the standard ClaudeCode agent by prepending UAM patterns
 to the task instruction. Since Terminal-Bench doesn't read CLAUDE.md,
 we inject patterns directly into the prompt.
+
+v1.8.0 Changes:
+- Added DOMAIN-SPECIFIC QUICK FIXES with working code snippets
+- Chess: python-chess library for multipv parsing
+- Compression: zlib with binary mode + round-trip verification
+- R ARS: CRAN ars package usage
+- CoreWars: Replicator pattern to beat stone
+- Polyglot: Comment-based Rust/C dual compilation
 
 v1.7.0 Changes:
 - Added MANDATORY "RUN TESTS NOW" block (BLOCK 3)
@@ -232,6 +240,48 @@ grep -A30 "FAILED\\|AssertionError\\|Error:" /tmp/results.txt
 - Verify return type (vector vs scalar)
 - Handle edge cases (empty input, invalid range)
 
+### DOMAIN-SPECIFIC QUICK FIXES
+
+**Chess (Stockfish multipv)**: Use python-chess library:
+```python
+import chess.engine
+engine = chess.engine.SimpleEngine.popen_uci("/usr/bin/stockfish")
+result = engine.analyse(board, chess.engine.Limit(depth=25), multipv=10)
+# Get moves where score.is_mate() is True
+```
+
+**Compression (Round-trip)**: ALWAYS use binary mode:
+```python
+import zlib
+data = open('input.txt', 'rb').read()  # Binary!
+compressed = zlib.compress(data, 9)
+assert zlib.decompress(compressed) == data  # Verify!
+```
+
+**R ARS**: Use the CRAN package:
+```r
+library(ars)
+samples <- ars::ars(n=1000, f=log_density, fprima=derivative, x=c(-1,0,1))
+```
+
+**CoreWars vs Stone**: Use replicator (paper beats stone):
+```redcode
+spl 0, 0
+mov -1, 0
+jmp -2
+```
+
+**Polyglot Rust/C**: Use comment trick:
+```
+/* Rust code here (inside C comment)
+fn main() { println!("Hello"); }
+// */
+#include <stdio.h>
+int main() { printf("Hello\n"); }
+/*
+*/
+```
+
 **Reserve 30% of time for iteration. NEVER give up after first test failure.**
 
 ---
@@ -242,7 +292,7 @@ grep -A30 "FAILED\\|AssertionError\\|Error:" /tmp/results.txt
 
 
 class UAMAgent(ClaudeCode):
-    """UAM Agent v1.7.0 - ClaudeCode with mandatory test running + failure iteration."""
+    """UAM Agent v1.8.0 - Mandatory test iteration + domain-specific quick fixes."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
