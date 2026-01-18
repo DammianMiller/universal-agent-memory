@@ -1,9 +1,16 @@
 """
-UAM-Integrated Agent for Harbor/Terminal-Bench (v1.4.0)
+UAM-Integrated Agent for Harbor/Terminal-Bench (v1.5.0)
 
 This agent extends the standard ClaudeCode agent by prepending UAM patterns
 to the task instruction. Since Terminal-Bench doesn't read CLAUDE.md,
 we inject patterns directly into the prompt.
+
+v1.5.0 Changes:
+- STRONGER ENFORCEMENT: Mandatory printed checklists at each step
+- HARD STOPS: Cannot proceed without printing verification blocks
+- EXPLICIT CHECKBOXES: Force agent to confirm each action taken
+- PRE-COMPLETION CHECKLIST: 10-item verification before "done"
+- Focus on preventing regressions while building on wins
 
 v1.4.0 Changes:
 - Added P27-P31 from failure analysis
@@ -35,164 +42,139 @@ from harbor.models.trial.paths import EnvironmentPaths
 
 
 # =============================================================================
-# UAM v10.7 PATTERNS - Injected into task instructions
+# UAM v10.8 PATTERNS - Injected into task instructions
+# STRONGER ENFORCEMENT with mandatory checklists
 # =============================================================================
 
-UAM_PREAMBLE = """## UAM AGENT PROTOCOL v10.7 (EXECUTE THESE STEPS)
+UAM_PREAMBLE = """## UAM AGENT PROTOCOL v10.8 - STRICT ENFORCEMENT
 
-### STEP 1: PATTERN ROUTER (MANDATORY FIRST)
-Before ANY work, print this analysis:
+⚠️ CRITICAL: You MUST print ALL required blocks marked with 🔴. Skipping = FAILURE.
+
+---
+
+### 🔴 BLOCK 1: PATTERN ROUTER (PRINT THIS FIRST)
 ```
-=== PATTERN ROUTER ===
-Task: [one-line summary]
-DOMAIN PATTERNS:
-- Chess (P21): [YES/NO] - Keywords: chess, best move, FEN, checkmate
-- Git Recovery (P22): [YES/NO] - Keywords: recover, corrupted, fix git, reflog
-- Compression (P23): [YES/NO] - Keywords: compress, codegolf, under X bytes
-- Polyglot (P24): [YES/NO] - Keywords: polyglot, works in both languages
-- Service Config (P25): [YES/NO] - Keywords: configure, server, webserver, pypi
-
-VERIFICATION PATTERNS:
-- Output Cleanup (P27): [YES/NO] - Task says "single file" or "only X"
-- Service Smoke Test (P28): [YES/NO] - Task involves running server/daemon
-- Multi-Solution (P29): [YES/NO] - Task says "all moves", "both", "every"
-- Performance Threshold (P30): [YES/NO] - Task has % thresholds to meet
-- Round-Trip (P31): [YES/NO] - Task involves compress/decompress or encode/decode
-
-CORE PATTERNS:
-- Output Verification (P12): [YES/NO] - Does task require creating files?
-- Constraint Check (P17): [YES/NO] - Does task have "exactly/only/single/must be"?
-- Adversarial Mode (P20): [YES/NO] - Does task involve "bypass/break/exploit/filter"?
-
-ACTIVE: [list only YES items]
-=== END ROUTER ===
+╔══════════════════════════════════════════════════════════════╗
+║                    PATTERN ROUTER v10.8                       ║
+╠══════════════════════════════════════════════════════════════╣
+║ Task: [ONE LINE SUMMARY]                                      ║
+╠══════════════════════════════════════════════════════════════╣
+║ ACTIVE PATTERNS (mark [X] for yes, [ ] for no):              ║
+║                                                               ║
+║ DOMAIN:                                                       ║
+║ [ ] P21-Chess: use Stockfish, find ALL moves                 ║
+║ [ ] P22-Git: backup .git FIRST, then forensic recovery       ║
+║ [ ] P23-Compress: check impossible, verify round-trip        ║
+║ [ ] P24-Polyglot: clean output dir, keep ONLY source         ║
+║ [ ] P25-Service: smoke test BEFORE completing                ║
+║                                                               ║
+║ VERIFICATION:                                                 ║
+║ [ ] P27-Cleanup: remove non-required files from output       ║
+║ [ ] P28-Smoke: test every service before done                ║
+║ [ ] P29-Multi: find ALL solutions, not just first            ║
+║ [ ] P30-Threshold: iterate until % targets met               ║
+║ [ ] P31-RoundTrip: verify compress→decompress works          ║
+║                                                               ║
+║ CORE (check ALL that apply):                                  ║
+║ [ ] P12-Output: verify files exist before done               ║
+║ [ ] P17-Constraint: check "exactly/only/single" rules        ║
+║ [ ] P26-Iterate: if >50% pass, iterate on failures           ║
+╚══════════════════════════════════════════════════════════════╝
 ```
 
-### STEP 2: Domain-Specific Actions
-
-**If Chess (P21)**: Use Stockfish with multipv for ALL solutions
+### 🔴 BLOCK 2: TASK-FIRST FILE CREATION
+IMMEDIATELY create placeholder files for ALL expected outputs:
 ```bash
-which stockfish || apt-get install -y stockfish
-# Find ALL winning moves, not just one:
-echo -e "position fen $FEN\\ngo depth 20 multipv 5" | stockfish
-# Extract ALL checkmate moves
+# List expected outputs from task, then:
+touch /app/output1.txt /app/output2.json  # Create ALL placeholders NOW
+ls -la /app/  # Confirm files exist
 ```
 
-**If Git Recovery (P22)**: Backup FIRST, then forensic approach
+### STEP 3: IMPLEMENT (Apply Active Patterns)
+
+**P21-Chess**: Install Stockfish, use multipv for ALL winning moves:
 ```bash
-cp -r .git .git.bak
-git fsck --full 2>&1 | tee /tmp/git-fsck.log
+apt-get install -y stockfish
+echo -e "position fen [FEN]\\ngo depth 20 multipv 10" | timeout 30 stockfish
+# Write ALL checkmate moves to output, not just first
+```
+
+**P22-Git**: ALWAYS backup before ANY git operation:
+```bash
+cp -r .git .git.bak  # MANDATORY FIRST
+git fsck --full 2>&1
 git reflog --all
 ```
 
-**If Compression (P23)**: Check impossibility AND verify round-trip
+**P23-Compress**: ALWAYS test round-trip:
 ```bash
-# If impossible: write IMPOSSIBLE.md and STOP
-# If possible: ALWAYS verify round-trip:
-python compress.py input output
-python decompress.py output recovered
-diff input recovered || echo "FAIL: round-trip broken"
+python compress.py input.txt output.comp
+python decompress.py output.comp recovered.txt
+diff input.txt recovered.txt && echo "ROUND-TRIP OK" || echo "ROUND-TRIP FAILED - FIX NOW"
 ```
 
-**If Polyglot (P24)**: Clean output directory after compilation
+**P24-Polyglot**: CLEAN output directory after testing:
 ```bash
-# Compile and test
-rustc main.rs -o main_rust
-gcc main.rs -o main_c  
-# THEN REMOVE compiled files, keep ONLY source:
-rm -f main_rust main_c *.o
-ls /app/polyglot  # Should show ONLY main.rs
+# After compiling and testing, remove ALL binaries:
+rm -f /app/polyglot/*.o /app/polyglot/main /app/polyglot/cmain /app/polyglot/*.out
+ls /app/polyglot/  # MUST show ONLY main.rs
 ```
 
-**If Service Config (P25)**: SMOKE TEST before completing
+**P25-Service**: SMOKE TEST every service:
 ```bash
-# After configuring, immediately test:
-curl -v http://localhost:PORT/ 2>&1 | grep -q "200" || echo "FAIL: not serving"
-# For PyPI: pip install --index-url http://localhost:8080/simple/ package
-# For git: git ls-remote git@localhost:/repo.git
+# After starting service, IMMEDIATELY test:
+sleep 2  # Wait for startup
+curl -v http://localhost:8080/ 2>&1 | head -20
+# If no response: debug and fix BEFORE continuing
 ```
 
-### STEP 3: Task-First Execution
-Create output files FIRST, then implement:
-```bash
-touch /app/expected_output.txt  # Create placeholder
-# ... implement ...
-# Overwrite with real content
+### 🔴 BLOCK 3: PRE-COMPLETION CHECKLIST (PRINT BEFORE "DONE")
+```
+╔══════════════════════════════════════════════════════════════╗
+║              PRE-COMPLETION CHECKLIST v10.8                   ║
+╠══════════════════════════════════════════════════════════════╣
+║ You MUST verify ALL items. Mark [X] when confirmed:          ║
+║                                                               ║
+║ OUTPUT VERIFICATION:                                          ║
+║ [ ] 1. ALL expected output files exist (ls -la /app/)        ║
+║ [ ] 2. Output files contain valid content (not empty)        ║
+║ [ ] 3. Output directory contains ONLY required files (P27)   ║
+║                                                               ║
+║ TEST VERIFICATION:                                            ║
+║ [ ] 4. Ran pytest -v and checked results                     ║
+║ [ ] 5. If any tests failed: iterated to fix them             ║
+║ [ ] 6. Final test run shows 100% pass (or documented why)    ║
+║                                                               ║
+║ PATTERN-SPECIFIC:                                             ║
+║ [ ] 7. If P25/P28: service responds to smoke test            ║
+║ [ ] 8. If P31: round-trip verification passed                ║
+║ [ ] 9. If P29: found ALL solutions, not just first           ║
+║ [ ] 10. If P30: performance thresholds met                   ║
+║                                                               ║
+║ ⚠️  DO NOT say "done" until ALL applicable items are [X]     ║
+╚══════════════════════════════════════════════════════════════╝
 ```
 
-### STEP 4: Verification Patterns
-
-**P27 - Output Cleanup**: Before completing, remove non-required files
+### ITERATION PROTOCOL (P26)
+If tests show partial success (some passing, some failing):
 ```bash
-ls /app/output/  # Check what's there
-rm -f *.o *.out compiled_binary  # Remove artifacts
-ls /app/output/  # Verify ONLY required files remain
-```
-
-**P28 - Service Smoke Test**: Test every service BEFORE completing
-```bash
-# Start service, then IMMEDIATELY test it
-systemctl start nginx && curl -s http://localhost/ | grep -q "expected" || echo "FAIL"
-```
-
-**P29 - Multi-Solution**: Find ALL valid answers
-```bash
-# Don't stop at first solution
-# For chess: use multipv to find ALL winning moves
-# For puzzles: enumerate ALL valid solutions
-```
-
-**P30 - Performance Threshold**: Iterate until thresholds met
-```bash
-while ! pytest -v | grep -q "passed"; do
-  # Analyze failing threshold
-  # Tune parameters
-  # Re-run
-done
-```
-
-**P31 - Round-Trip**: Always verify forward+reverse operations
-```bash
-compress input output && decompress output recovered && diff input recovered
-```
-
-### STEP 5: Near-Miss Iteration Loop (CRITICAL)
-If tests show partial success (>50% passing):
-```bash
-# Run tests
+# 1. Run tests
 pytest -v 2>&1 | tee /tmp/results.txt
 
-# If partial success, iterate:
-while grep -q "FAILED" /tmp/results.txt; do
-  # 1. Read failing test to understand requirement
-  # 2. Fix ONLY that specific issue
-  # 3. Re-run tests
-  # 4. Repeat until 100% or timeout
-done
-```
-**Reserve 30% of time budget for iteration.**
+# 2. Count results
+PASSED=$(grep -c "PASSED" /tmp/results.txt || echo 0)
+FAILED=$(grep -c "FAILED" /tmp/results.txt || echo 0)
+echo "Status: $PASSED passed, $FAILED failed"
 
-### STEP 6: Completion Gates (MANDATORY BEFORE "DONE")
-```bash
-# Gate 1: Verify ALL outputs exist
-ls -la /app/*.* 2>&1
-# If ANY missing: CREATE IT NOW
-
-# Gate 2: Run tests
-pytest /tests/ -v 2>&1 | tail -20
-# If <100%: ITERATE (Step 5)
-
-# Gate 3: Constraint validation
-# Re-check all "exactly/only/single" constraints
-
-# Gate 4: Output cleanup (P27)
-# Remove any non-required files from output directories
-
-# Gate 5: Service verification (P28)
-# If services involved: verify they respond correctly
+# 3. If >50% passing, iterate:
+# - Read the failing test code
+# - Understand exact requirement
+# - Fix ONLY that issue
+# - Re-run tests
+# - Repeat until 100%
 ```
 
-**NEVER say "done" with failing gates.**
+**Reserve 30% of time for iteration. Don't give up after first attempt.**
 
 ---
 
@@ -202,7 +184,7 @@ pytest /tests/ -v 2>&1 | tail -20
 
 
 class UAMAgent(ClaudeCode):
-    """UAM Agent v1.4.0 - ClaudeCode with UAM v10.7 patterns prepended to instructions."""
+    """UAM Agent v1.5.0 - ClaudeCode with UAM v10.8 strict enforcement patterns."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

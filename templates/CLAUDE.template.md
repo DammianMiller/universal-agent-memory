@@ -1,7 +1,15 @@
 <!--
-  CLAUDE.md Universal Template - v10.7
+  CLAUDE.md Universal Template - v10.8
   
   CHANGES IN THIS VERSION:
+  - STRONGER ENFORCEMENT: Mandatory printed checklists at each step
+  - HARD STOPS: Cannot proceed without printing verification blocks
+  - EXPLICIT CHECKBOXES: Force agent to confirm each action taken
+  - PRE-COMPLETION CHECKLIST: 10-item verification before "done"
+  - Visual blocks with ╔══╗ formatting for better visibility
+  - Three required blocks marked with 🔴 (must print or fail)
+  
+  PREVIOUS (v10.7):
   - Added Verification Patterns (P27-P31) from Terminal-Bench failure analysis
   - Pattern 27: Output Directory Cleanup (ODC) - remove non-required files
   - Pattern 28: Service Smoke Test (SST) - test services before completing
