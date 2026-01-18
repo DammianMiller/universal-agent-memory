@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uam-harbor"
+version = "1.0.0"
+description = "UAM SUPERGENIUS Agent for Harbor/Terminal-Bench"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools]
+packages = ["uam_harbor"]
+package-dir = {"uam_harbor" = "."}
