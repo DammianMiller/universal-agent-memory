@@ -1,7 +1,14 @@
 <!--
-  CLAUDE.md Universal Template - v10.9
+  CLAUDE.md Universal Template - v10.10
   
   CHANGES IN THIS VERSION:
+  - PROJECT.md SEPARATION: Project-specific content can now be in .factory/PROJECT.md
+  - Seamless template upgrades without merge conflicts
+  - Generator auto-detects PROJECT.md and imports as Handlebars partial
+  - Legacy inline mode still works if no PROJECT.md exists
+  - Added HAS_PROJECT_MD context variable
+  
+  PREVIOUS (v10.9):
   - Added Execution Patterns (P32-P36) from deep Terminal-Bench failure analysis
   - Pattern 32: CLI Execution Verification (CEV) - test exactly as verifier runs
   - Pattern 33: Numerical Stability Testing (NST) - multiple seeds, edge cases
@@ -1099,130 +1106,47 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 
 ---
 
-## 📁 REPOSITORY STRUCTURE
+# UAM Project Configuration
+
+## Repository Structure
 
 ```
 universal-agent-memory/
 ├── src/                           # Source code
-│   ├── analyzers/                 
-│   ├── benchmarks/                
-│   ├── bin/                       
-│   ├── cli/                       
-│   ├── coordination/              
-│   ├── generators/                
-│   ├── memory/                    
-│   └── tasks/                     
-│
-├── tools/                         # Development tools
-│   └── agents/                    
-│
-├── scripts/                       # Automation scripts
-│
-├── test/                          # Test suites
-│   └── benchmarks/                
-│
-├── docs/                          # Documentation
-│   └── research/                  
-│
+│   ├── generators/                # CLAUDE.md generator
+│   ├── memory/                    # Memory system
+│   └── cli/                       # CLI commands
+├── templates/                     # Template files
 ├── .factory/                      # Factory AI configuration
-│   ├── commands/                  # CLI commands
 │   ├── droids/                    # Custom AI agents
-│   ├── scripts/                   # Automation scripts
-│   ├── skills/                    # Reusable skills
-│   └── templates/                 
-│
-├── .github/                       # GitHub configuration
-│   └── workflows/                 # CI/CD pipelines
+│   └── skills/                    # Reusable skills
+└── docs/                          # Documentation
 ```
 
----
-
----
-
-## 📋 Quick Reference
-
-### URLs
-- **URL**: https://img.shields.io/npm/v/universal-agent-memory.svg
-- **URL**: https://www.npmjs.com/package/universal-agent-memory
-- **URL**: https://img.shields.io/badge/License-MIT-yellow.svg
-- **URL**: https://opensource.org/licenses/MIT
-
-### Workflows
-```
-├── npm-publish.yml                # Workflow
-├── pages.yml                      # Workflow
-```
+## Quick Reference
 
 ### Commands
 ```bash
-# Linting
-npm run lint
-
-# Build
-npm run build
+npm run build    # Build TypeScript
+npm test         # Run tests
+npm run lint     # Lint code
+uam generate     # Regenerate CLAUDE.md
 ```
 
----
-
-### Language Droids
-| Droid | Purpose |
-|-------|---------|
-| `javascript-pro` | ES6+, async patterns, Node.js, promises, event loops |
-
----
-
-## 🧪 Testing Requirements
-1. Create worktree
-2. Update/create tests
-3. Run `npm test`
-4. Run linting
-5. Create PR
-
----
-
-## 🔧 Troubleshooting
-| Symptom | Solution |
-|---------|----------|
-| **Every lesson learned. Every bug fixed. Every architectural... | See memory for details |
-| Every time you start a new conversation with your AI assista... | See memory for details |
-| $ uam task create --title "Fix auth vulnerability" --type bu... | See memory for details |
-| $ uam agent overlaps --resource src/auth/*
-⚠ Agent A (fix-au... | See memory for details |
-| Work isn't "done" until it's deployed and verified:
-
-[code b... | See memory for details |
-| **Close-Out**: Merge → Deploy → Monitor → Fix loop until 100... | See memory for details |
-| - Task-specific context reduces overhead
-- Reasoning tasks g... | See memory for details |
-| Implement Option 2 to immediately fix the regression:
-
-```py... | See memory for details |
-| | Task | Pattern | Why It Worked |
-|------|---------|-------... | See memory for details |
-| **FINAL SCORE: 11 / 54 tasks passed (20.4%)**
-
-#### Tasks Th... | See memory for details |
-| [code block]
-
-**Root Cause**: Harbor runs via pipx which cre... | See memory for details |
-| The SUPERGENIUS agent v1.0 implementation is complete and re... | See memory for details |
-| **Memory System Architecture** (~lines 700-800)
-   - Four-la... | See memory for details |
-| - Git recovery → backup .git/objects BEFORE any git command
-... | See memory for details |
-| **Trigger**: Security filtering (XSS, SQL injection, command... | See memory for details |
-
-## ⚙️ Config Files
+### Key Files
 | File | Purpose |
 |------|---------|
-| `README.md` | Project documentation |
-| `.uam.json` | UAM agent memory configuration |
-| `package.json` | Node.js project configuration |
-| `tsconfig.json` | TypeScript configuration |
-| `.gitignore` | Git ignore patterns |
-| `.prettierrc` | Prettier configuration |
-| `vitest.config.ts` | Vitest test configuration |
+| `.uam.json` | UAM configuration |
+| `templates/CLAUDE.template.md` | Main template |
+| `.factory/PROJECT.md` | Project-specific content |
 
+## Architecture
+
+UAM provides:
+1. **Memory System** - Short-term (SQLite) + Long-term (Qdrant)
+2. **Template Generator** - Generates CLAUDE.md from templates
+3. **Worktree Management** - Git worktree workflow automation
+4. **Multi-Agent Coordination** - Agent overlap detection
 ---
 
 ## ✅ Completion Checklist
@@ -1355,13 +1279,16 @@ uam worktree create hotfix-<issue>
 - **general, "our**: > *"UAM's deploy batcher changed everything. Instead of 15 CI runs from rapid co...
 
 ### Gotchas
+- ⚠️ **How Stone Works:**
+- Drops DAT bombs at regular intervals
+- Moves through memory at fixed step siz
 - ⚠️ **Application**:
 - Identify tasks requiring: compression below information-theoretic limits, pre-tra
 - ⚠️ | Operation | Tokens Used | Value Delivered | ROI |
 |-----------|-------------|-----------------|---
 
 ### Hot Spots
-Frequently modified files (hot spots): package.json (43 changes), package-lock.json (34 changes), templates/CLAUDE.template.md (25 changes), .beads/issues.jsonl (25 changes), CLAUDE.md (13 changes), src/generators/claude-md.ts (11 changes), README.md (9 changes), src/bin/cli.ts (8 changes), src/cli/init.ts (8 changes), src/uam_harbor/uam_agent.py (7 changes). These files may need extra attention during changes.
+Frequently modified files (hot spots): package.json (44 changes), package-lock.json (35 changes), templates/CLAUDE.template.md (26 changes), .beads/issues.jsonl (25 changes), CLAUDE.md (14 changes), src/generators/claude-md.ts (11 changes), README.md (9 changes), src/bin/cli.ts (8 changes), src/cli/init.ts (8 changes), src/uam_harbor/uam_agent.py (7 changes). These files may need extra attention during changes.
 
 </coding_guidelines>
 

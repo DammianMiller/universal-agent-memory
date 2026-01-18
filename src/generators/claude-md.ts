@@ -19,11 +19,52 @@ export async function generateClaudeMd(
   
   // Use appropriate template
   const template = isWebPlatform ? getWebTemplate() : getDesktopTemplate();
+  
+  // Register PROJECT partial if PROJECT.md exists
+  const projectContent = getProjectTemplate();
+  if (projectContent) {
+    Handlebars.registerPartial('PROJECT', projectContent);
+  }
+  
   const compiled = Handlebars.compile(template);
 
   // Build comprehensive context from analysis + auto-population
   const context = await buildContext(analysis, config);
   return compiled(context);
+}
+
+/**
+ * Get project-specific template content.
+ * 
+ * PROJECT.md contains all project-specific configuration, making template
+ * upgrades seamless - no merge conflicts between universal patterns and
+ * project-specific content.
+ * 
+ * Search order:
+ * 1. .factory/PROJECT.md (preferred location)
+ * 2. templates/PROJECT.md (fallback)
+ * 3. PROJECT.md (root fallback)
+ */
+function getProjectTemplate(): string | null {
+  const cwd = process.cwd();
+  const locations = [
+    join(cwd, '.factory/PROJECT.md'),           // Preferred: Factory config dir
+    join(cwd, 'templates/PROJECT.md'),          // Fallback: templates dir
+    join(cwd, 'templates/PROJECT.template.md'), // Template version
+    join(cwd, 'PROJECT.md'),                    // Root fallback
+  ];
+  
+  for (const path of locations) {
+    if (existsSync(path)) {
+      try {
+        return readFileSync(path, 'utf-8');
+      } catch (e) {
+        console.warn(`Warning: Found PROJECT.md at ${path} but couldn't read it: ${e}`);
+      }
+    }
+  }
+  
+  return null;
 }
 
 async function buildContext(
@@ -232,6 +273,11 @@ async function buildContext(
     // Platform detection
     IS_WEB_PLATFORM: isWebPlatform,
     IS_DESKTOP_PLATFORM: !isWebPlatform,
+    
+    // PROJECT.md separation support
+    HAS_PROJECT_MD: existsSync(join(cwd, '.factory/PROJECT.md')) || 
+                    existsSync(join(cwd, 'templates/PROJECT.md')) ||
+                    existsSync(join(cwd, 'PROJECT.md')),
   };
 }
 

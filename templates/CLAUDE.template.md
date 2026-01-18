@@ -1,7 +1,14 @@
 <!--
-  CLAUDE.md Universal Template - v10.9
+  CLAUDE.md Universal Template - v10.10
   
   CHANGES IN THIS VERSION:
+  - PROJECT.md SEPARATION: Project-specific content can now be in .factory/PROJECT.md
+  - Seamless template upgrades without merge conflicts
+  - Generator auto-detects PROJECT.md and imports as Handlebars partial
+  - Legacy inline mode still works if no PROJECT.md exists
+  - Added HAS_PROJECT_MD context variable
+  
+  PREVIOUS (v10.9):
   - Added Execution Patterns (P32-P36) from deep Terminal-Bench failure analysis
   - Pattern 32: CLI Execution Verification (CEV) - test exactly as verifier runs
   - Pattern 33: Numerical Stability Testing (NST) - multiple seeds, edge cases
@@ -1151,6 +1158,22 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 
 ---
 
+{{!-- 
+  PROJECT-SPECIFIC CONTENT
+  
+  If .factory/PROJECT.md exists, it will be imported here via the PROJECT partial.
+  This separation enables seamless template upgrades without merge conflicts.
+  
+  To migrate: 
+  1. Create .factory/PROJECT.md with project-specific content
+  2. Remove project content from CLAUDE.md
+  3. Template upgrades no longer require merging
+--}}
+{{#if HAS_PROJECT_MD}}
+{{!-- Import project-specific content from PROJECT.md --}}
+{{> PROJECT}}
+{{else}}
+{{!-- Inline project content (legacy mode) --}}
 ## 📁 REPOSITORY STRUCTURE
 
 ```
@@ -1327,6 +1350,7 @@ kubectl create secret ...
 |----------|---------|
 | `docs/adr/ADR-0006-pipeline-only-infrastructure-changes.md` | Pipeline-only policy |
 
+{{/if}}
 {{/if}}
 ---
 
