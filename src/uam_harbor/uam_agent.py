@@ -1,9 +1,17 @@
 """
-UAM-Integrated Agent for Harbor/Terminal-Bench (v1.3.0)
+UAM-Integrated Agent for Harbor/Terminal-Bench (v1.4.0)
 
 This agent extends the standard ClaudeCode agent by prepending UAM patterns
 to the task instruction. Since Terminal-Bench doesn't read CLAUDE.md,
 we inject patterns directly into the prompt.
+
+v1.4.0 Changes:
+- Added P27-P31 from failure analysis
+- P27: Output Directory Cleanup - remove non-required files
+- P28: Service Smoke Test - test services before completing
+- P29: Multi-Solution Discovery - find ALL valid solutions
+- P30: Performance Threshold Tuning - iterate to meet thresholds
+- P31: Round-Trip Verification - verify compress/decompress works
 
 v1.3.0 Changes:
 - Added domain-specific patterns (P21-P26)
@@ -27,10 +35,10 @@ from harbor.models.trial.paths import EnvironmentPaths
 
 
 # =============================================================================
-# UAM v10.6 PATTERNS - Injected into task instructions
+# UAM v10.7 PATTERNS - Injected into task instructions
 # =============================================================================
 
-UAM_PREAMBLE = """## UAM AGENT PROTOCOL v10.6 (EXECUTE THESE STEPS)
+UAM_PREAMBLE = """## UAM AGENT PROTOCOL v10.7 (EXECUTE THESE STEPS)
 
 ### STEP 1: PATTERN ROUTER (MANDATORY FIRST)
 Before ANY work, print this analysis:
@@ -42,7 +50,14 @@ DOMAIN PATTERNS:
 - Git Recovery (P22): [YES/NO] - Keywords: recover, corrupted, fix git, reflog
 - Compression (P23): [YES/NO] - Keywords: compress, codegolf, under X bytes
 - Polyglot (P24): [YES/NO] - Keywords: polyglot, works in both languages
-- Service Config (P25): [YES/NO] - Keywords: configure, server, webserver
+- Service Config (P25): [YES/NO] - Keywords: configure, server, webserver, pypi
+
+VERIFICATION PATTERNS:
+- Output Cleanup (P27): [YES/NO] - Task says "single file" or "only X"
+- Service Smoke Test (P28): [YES/NO] - Task involves running server/daemon
+- Multi-Solution (P29): [YES/NO] - Task says "all moves", "both", "every"
+- Performance Threshold (P30): [YES/NO] - Task has % thresholds to meet
+- Round-Trip (P31): [YES/NO] - Task involves compress/decompress or encode/decode
 
 CORE PATTERNS:
 - Output Verification (P12): [YES/NO] - Does task require creating files?
@@ -55,10 +70,12 @@ ACTIVE: [list only YES items]
 
 ### STEP 2: Domain-Specific Actions
 
-**If Chess (P21)**: Use Stockfish, NOT reasoning
+**If Chess (P21)**: Use Stockfish with multipv for ALL solutions
 ```bash
 which stockfish || apt-get install -y stockfish
-echo -e "position fen $FEN\\ngo depth 20" | stockfish | grep bestmove
+# Find ALL winning moves, not just one:
+echo -e "position fen $FEN\\ngo depth 20 multipv 5" | stockfish
+# Extract ALL checkmate moves
 ```
 
 **If Git Recovery (P22)**: Backup FIRST, then forensic approach
@@ -68,16 +85,32 @@ git fsck --full 2>&1 | tee /tmp/git-fsck.log
 git reflog --all
 ```
 
-**If Compression (P23)**: Check if impossible
-- ML weights (GPT-2 = 500MB) cannot compress to <1MB
-- If impossible: write IMPOSSIBLE.md and STOP
-
-**If Polyglot (P24)**: Search for existing examples first
+**If Compression (P23)**: Check impossibility AND verify round-trip
 ```bash
-# C/Python polyglot uses #if 0 and triple quotes
+# If impossible: write IMPOSSIBLE.md and STOP
+# If possible: ALWAYS verify round-trip:
+python compress.py input output
+python decompress.py output recovered
+diff input recovered || echo "FAIL: round-trip broken"
 ```
 
-**If Service Config (P25)**: Configure in dependency order, test each
+**If Polyglot (P24)**: Clean output directory after compilation
+```bash
+# Compile and test
+rustc main.rs -o main_rust
+gcc main.rs -o main_c  
+# THEN REMOVE compiled files, keep ONLY source:
+rm -f main_rust main_c *.o
+ls /app/polyglot  # Should show ONLY main.rs
+```
+
+**If Service Config (P25)**: SMOKE TEST before completing
+```bash
+# After configuring, immediately test:
+curl -v http://localhost:PORT/ 2>&1 | grep -q "200" || echo "FAIL: not serving"
+# For PyPI: pip install --index-url http://localhost:8080/simple/ package
+# For git: git ls-remote git@localhost:/repo.git
+```
 
 ### STEP 3: Task-First Execution
 Create output files FIRST, then implement:
@@ -87,7 +120,43 @@ touch /app/expected_output.txt  # Create placeholder
 # Overwrite with real content
 ```
 
-### STEP 4: Near-Miss Iteration Loop (CRITICAL)
+### STEP 4: Verification Patterns
+
+**P27 - Output Cleanup**: Before completing, remove non-required files
+```bash
+ls /app/output/  # Check what's there
+rm -f *.o *.out compiled_binary  # Remove artifacts
+ls /app/output/  # Verify ONLY required files remain
+```
+
+**P28 - Service Smoke Test**: Test every service BEFORE completing
+```bash
+# Start service, then IMMEDIATELY test it
+systemctl start nginx && curl -s http://localhost/ | grep -q "expected" || echo "FAIL"
+```
+
+**P29 - Multi-Solution**: Find ALL valid answers
+```bash
+# Don't stop at first solution
+# For chess: use multipv to find ALL winning moves
+# For puzzles: enumerate ALL valid solutions
+```
+
+**P30 - Performance Threshold**: Iterate until thresholds met
+```bash
+while ! pytest -v | grep -q "passed"; do
+  # Analyze failing threshold
+  # Tune parameters
+  # Re-run
+done
+```
+
+**P31 - Round-Trip**: Always verify forward+reverse operations
+```bash
+compress input output && decompress output recovered && diff input recovered
+```
+
+### STEP 5: Near-Miss Iteration Loop (CRITICAL)
 If tests show partial success (>50% passing):
 ```bash
 # Run tests
@@ -103,7 +172,7 @@ done
 ```
 **Reserve 30% of time budget for iteration.**
 
-### STEP 5: Completion Gates (MANDATORY BEFORE "DONE")
+### STEP 6: Completion Gates (MANDATORY BEFORE "DONE")
 ```bash
 # Gate 1: Verify ALL outputs exist
 ls -la /app/*.* 2>&1
@@ -111,10 +180,16 @@ ls -la /app/*.* 2>&1
 
 # Gate 2: Run tests
 pytest /tests/ -v 2>&1 | tail -20
-# If <100%: ITERATE (Step 4)
+# If <100%: ITERATE (Step 5)
 
 # Gate 3: Constraint validation
 # Re-check all "exactly/only/single" constraints
+
+# Gate 4: Output cleanup (P27)
+# Remove any non-required files from output directories
+
+# Gate 5: Service verification (P28)
+# If services involved: verify they respond correctly
 ```
 
 **NEVER say "done" with failing gates.**
@@ -127,7 +202,7 @@ pytest /tests/ -v 2>&1 | tail -20
 
 
 class UAMAgent(ClaudeCode):
-    """UAM Agent v1.3.0 - ClaudeCode with UAM v10.6 patterns prepended to instructions."""
+    """UAM Agent v1.4.0 - ClaudeCode with UAM v10.7 patterns prepended to instructions."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

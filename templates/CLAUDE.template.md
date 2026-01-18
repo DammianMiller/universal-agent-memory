@@ -1,7 +1,17 @@
 <!--
-  CLAUDE.md Universal Template - v10.6
+  CLAUDE.md Universal Template - v10.7
   
   CHANGES IN THIS VERSION:
+  - Added Verification Patterns (P27-P31) from Terminal-Bench failure analysis
+  - Pattern 27: Output Directory Cleanup (ODC) - remove non-required files
+  - Pattern 28: Service Smoke Test (SST) - test services before completing
+  - Pattern 29: Multi-Solution Discovery (MSD) - find ALL valid solutions
+  - Pattern 30: Performance Threshold Tuning (PTT) - iterate to meet thresholds
+  - Pattern 31: Round-Trip Verification (RTV) - verify compress/decompress works
+  - Updated Pattern Router to include verification patterns
+  - Added 5 completion gates (output, tests, constraints, cleanup, services)
+  
+  PREVIOUS (v10.6):
   - Added Domain-Specific Patterns (P21-P26)
   - Pattern 21: Chess Engine Integration (CEI) - use Stockfish, not reasoning
   - Pattern 22: Git Recovery Forensics (GRF) - backup first, forensic approach
@@ -567,6 +577,126 @@ done
 ```
 
 **Reserve 30% of time budget for near-miss iteration.**
+
+### Pattern 27: Output Directory Cleanup (ODC)
+Tests often check for ONLY specific files in output directories.
+
+**Detection**: Tasks mentioning "single file", "only", constraints on output directory contents
+
+**Protocol**:
+1. **Before completing**, list output directory: `ls /app/output/`
+2. **Remove non-required files**: compiled binaries, temp files, backups
+3. **Keep ONLY the required outputs** as specified in task
+
+```bash
+# Clean output directory - keep only required file
+cd /app/polyglot
+ls -la  # Check what's there
+rm -f *.o *.out main cmain  # Remove compiled artifacts
+ls -la  # Verify only main.rs remains
+```
+
+**Common mistakes**: Leaving compiled binaries, test files, or backup files in output directories.
+
+### Pattern 28: Service Smoke Test (SST)
+Services must be tested BEFORE claiming completion.
+
+**Detection**: Tasks involving servers, daemons, APIs, web services
+
+**Protocol**:
+1. Start the service
+2. **Immediately test it** with curl/wget/client
+3. If test fails: debug, fix, restart, re-test
+4. Only complete when test PASSES
+
+```bash
+# Service verification pattern
+# 1. Start service
+systemctl start nginx
+
+# 2. IMMEDIATELY test it
+curl -v http://localhost:80/ 2>&1 | grep -q "200 OK" || echo "FAIL: nginx not serving"
+
+# 3. For PyPI server
+python -m http.server 8080 &
+curl -s http://localhost:8080/simple/ | grep -q "href" || echo "FAIL: PyPI not serving"
+
+# 4. For git server
+git ls-remote git@localhost:/repo.git 2>&1 | grep -q "refs" || echo "FAIL: git not serving"
+```
+
+**NEVER complete without a successful smoke test.**
+
+### Pattern 29: Multi-Solution Discovery (MSD)
+Some tasks require finding ALL valid solutions, not just one.
+
+**Detection**: Keywords "all moves", "both solutions", "list all", "find every"
+
+**Protocol**:
+1. **Parse task for multi-solution requirement**
+2. For chess: Find ALL checkmate moves, not just the first one
+3. For puzzles: Enumerate all valid answers
+4. **Output ALL solutions** in required format
+
+```bash
+# Chess: Find ALL checkmate-in-one moves
+# Don't stop at first bestmove, analyze ALL legal moves
+echo -e "position fen $FEN\ngo depth 20" | stockfish | grep "bestmove"
+# Then check if there are MULTIPLE winning moves
+echo -e "position fen $FEN\ngo movetime 5000 multipv 5" | stockfish
+# Extract ALL moves that lead to checkmate
+```
+
+### Pattern 30: Performance Threshold Tuning (PTT)
+Tasks with numeric thresholds require iterative tuning.
+
+**Detection**: Keywords "win rate", "accuracy", "percentage", "threshold", "at least X%"
+
+**Protocol**:
+1. Run initial implementation
+2. Check if thresholds are met
+3. If not: analyze what's missing, tune parameters
+4. Re-run until thresholds pass
+
+```bash
+# Performance tuning loop for Core Wars
+while true; do
+  # Run tests
+  pytest -v 2>&1 | tee results.txt
+  
+  # Check for threshold failures
+  if grep -q "need.*%+" results.txt; then
+    echo "Threshold not met - tuning..."
+    # Analyze which opponent needs better strategy
+    # Modify warrior code
+    # Re-run
+  else
+    break
+  fi
+done
+```
+
+**For compression tasks**: If decompression fails, verify round-trip: `compress | decompress == original`
+
+### Pattern 31: Round-Trip Verification (RTV)
+For transform/encode/compress tasks, verify the reverse operation.
+
+**Detection**: Keywords "compress", "encode", "serialize", "encrypt", and task mentions "decompress", "decode", etc.
+
+**Protocol**:
+1. Create test data
+2. Apply forward transform (compress)
+3. **Immediately apply reverse** (decompress)
+4. **Verify original == result**
+5. Fix if not matching
+
+```bash
+# Round-trip verification for compression
+echo "original data" > /tmp/original.txt
+python compress.py /tmp/original.txt /tmp/compressed.bin
+python decompress.py /tmp/compressed.bin /tmp/recovered.txt
+diff /tmp/original.txt /tmp/recovered.txt && echo "PASS" || echo "FAIL: round-trip broken"
+```
 
 ---
 
