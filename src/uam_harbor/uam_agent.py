@@ -1,9 +1,27 @@
 """
-UAM-Integrated Agent for Harbor/Terminal-Bench (v1.9.0)
+UAM-Integrated Agent for Harbor/Terminal-Bench (v1.11.0)
 
 This agent extends the standard ClaudeCode agent by prepending UAM patterns
 to the task instruction. Since Terminal-Bench doesn't read CLAUDE.md,
 we inject patterns directly into the prompt.
+
+v1.11.0 Changes:
+- INTEGRATED PRE-EXECUTION HOOKS: Tasks now get domain-specific setup
+- chess-best-move: Install board_to_fen, stockfish, tesseract
+- write-compressor: Analyze decoder format, create round-trip test
+- winning-avg-corewars: Analyze opponents, provide strategy guide
+- Hooks run in Docker before agent starts, context injected into prompt
+
+v1.10.1 Changes:
+- Added ERROR → FIX MATCHING table in iteration protocol
+- Explicit error-to-fix mapping for common failures
+- Stronger "DO NOT STOP WITH FAILING TESTS" enforcement
+
+v1.10.0 Changes:
+- Enhanced COMMON FAILURE FIXES for near-miss tasks
+- Segmentation fault: buffer overflow fixes, dynamic allocation
+- Infinite boundary: use finite bounds for ARS algorithm
+- Win rate: counter-strategy guidance for competitive tasks
 
 v1.9.0 Changes:
 - Reframed as GENERALIZED PATTERNS WITH EXAMPLES (P32-P36)
@@ -61,6 +79,12 @@ from typing import Any
 from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.base import ExecInput
 from harbor.models.trial.paths import EnvironmentPaths
+
+from .pre_execution_hooks import (
+    detect_task_from_instruction,
+    get_pre_execution_commands,
+    get_post_execution_context,
+)
 
 
 # =============================================================================
@@ -209,10 +233,23 @@ echo "Status: $PASSED passed, $FAILED failed"
 # 3. If ANY tests failing, READ THE ACTUAL ERROR:
 grep -A30 "FAILED\\|AssertionError\\|Error:" /tmp/results.txt
 
-# 4. FIX the specific issue shown in the error
+# 4. MATCH error to fix pattern below, then apply fix
 # 5. Re-run tests
-# 6. Repeat until 100%
+# 6. Repeat until 100% - DO NOT STOP WITH FAILING TESTS
 ```
+
+### ERROR → FIX MATCHING (Use when tests fail)
+Read the error message and apply the matching fix:
+
+| Error Contains | Root Cause | Fix |
+|----------------|------------|-----|
+| "Segmentation fault" | Buffer overflow | Use larger buffers or malloc() |
+| "stack smashing" | Array overflow | Increase array size 10x |
+| "infinite boundary" | Bad ARS bounds | Use finite bounds: c(-5, 5) |
+| "need X% win rate" | Wrong strategy | Use counter-strategy (paper beats stone) |
+| "round-trip" / "decompress" | Encode/decode mismatch | Test: compress→decompress→diff |
+| "file not found" | Missing output | Create the file before completing |
+| "permission denied" | Wrong permissions | chmod 755 or run as correct user |
 
 ### COMMON FAILURE FIXES (Apply When Errors Match)
 
@@ -231,15 +268,22 @@ grep -A30 "FAILED\\|AssertionError\\|Error:" /tmp/results.txt
 - Check your logic/calculation
 - Verify input file is being read correctly
 
-**"Decompression failed" / Round-Trip Broken**:
-- Your compress/decompress doesn't match
-- Test locally: `./compress < input | ./decompress | diff - input`
-- Fix encoding/decoding logic
+**"Decompression failed" / "Segmentation fault" in C**:
+- Buffer overflow in your C code - use larger buffers
+- Test round-trip: `./compress < input | ./decompress | diff - input`
+- Use dynamic allocation: `malloc()` instead of fixed arrays
+- Add bounds checking before array access
 
-**R/Python Statistical Errors**:
-- Check function signature matches what tests expect
-- Verify return type (vector vs scalar)
-- Handle edge cases (empty input, invalid range)
+**R/Python "infinite boundary" / Statistical Errors**:
+- Use FINITE bounds: `c(-10, 10)` not `c(-Inf, Inf)`
+- Initialize with points where derivative changes sign
+- Check function signature matches test expectations
+- For normal distribution: derivative is `-x`, use bounds like `c(-5, 5)`
+
+**Game/Competition "need X% win rate"**:
+- Identify opponent's strategy type (bomber, replicator, scanner)
+- Use counter-strategy: paper beats stone, scissors beats paper
+- Test locally before submitting: `pmars -r 100 yours.red opponent.red`
 
 ### GENERALIZED PATTERNS WITH EXAMPLES
 
@@ -299,7 +343,7 @@ int main() { printf("Hello\n"); }  /* Lang2 code */
 
 
 class UAMAgent(ClaudeCode):
-    """UAM Agent v1.9.0 - Generalized patterns P32-P36 with concrete examples."""
+    """UAM Agent v1.11.0 - Integrated pre-execution hooks for domain tasks."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -313,9 +357,17 @@ class UAMAgent(ClaudeCode):
         return None
     
     def create_run_agent_commands(self, instruction: str) -> list[ExecInput]:
-        """Override to prepend UAM patterns to the instruction."""
-        # Prepend UAM patterns
-        enhanced_instruction = UAM_PREAMBLE + instruction
+        """Override to prepend UAM patterns and run pre-execution hooks."""
+        # Detect task type and get pre-execution hooks
+        task_name = detect_task_from_instruction(instruction)
+        pre_hook_commands = get_pre_execution_commands(task_name) if task_name else []
+        post_context = get_post_execution_context(task_name) if task_name else ""
+        
+        # Prepend UAM patterns + task-specific context
+        enhanced_instruction = UAM_PREAMBLE
+        if post_context:
+            enhanced_instruction += f"\n{post_context}\n\n"
+        enhanced_instruction += instruction
         
         # Call parent's create_run_agent_commands with enhanced instruction
         escaped_instruction = shlex.quote(enhanced_instruction)
@@ -356,7 +408,7 @@ class UAMAgent(ClaudeCode):
 
         env["CLAUDE_CONFIG_DIR"] = (EnvironmentPaths.agent_dir / "sessions").as_posix()
 
-        return [
+        commands = [
             ExecInput(
                 command=(
                     "mkdir -p $CLAUDE_CONFIG_DIR/debug $CLAUDE_CONFIG_DIR/projects/-app "
@@ -368,6 +420,19 @@ class UAMAgent(ClaudeCode):
                 ),
                 env=env,
             ),
+        ]
+        
+        # Add pre-execution hooks if detected
+        if pre_hook_commands:
+            hook_script = " && ".join(pre_hook_commands)
+            commands.append(
+                ExecInput(
+                    command=f"cd /app && {hook_script}",
+                    env=env,
+                )
+            )
+        
+        commands.append(
             ExecInput(
                 command=(
                     f"claude --verbose --output-format stream-json "
@@ -377,7 +442,9 @@ class UAMAgent(ClaudeCode):
                 ),
                 env=env,
             ),
-        ]
+        )
+        
+        return commands
 
 
 class UAMAgentWithoutMemory(ClaudeCode):
