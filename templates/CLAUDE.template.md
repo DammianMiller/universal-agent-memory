@@ -1,7 +1,14 @@
 <!--
-  CLAUDE.md Universal Template - v10.10
+  CLAUDE.md Universal Template - v10.11
   
   CHANGES IN THIS VERSION:
+  - INFRASTRUCTURE POLICY UPDATE: Local testing now ALLOWED for proving solutions
+  - IaC parity MANDATORY before completion (test locally, then codify in IaC)
+  - Two-phase workflow: Phase 1 (local proof) → Phase 2 (IaC parity verification)
+  - Parity verification checklist with state diff confirmation
+  - Updated completion checklist for infrastructure tasks
+  
+  PREVIOUS (v10.10):
   - PROJECT.md SEPARATION: Project-specific content can now be in .factory/PROJECT.md
   - Seamless template upgrades without merge conflicts
   - Generator auto-detects PROJECT.md and imports as Handlebars partial
@@ -181,10 +188,10 @@ Under what conditions does this work?
 - Solve problems you weren't asked to solve
 - Produce code you wouldn't want to debug at 3am
 {{#if HAS_PIPELINE_POLICY}}
-- Run kubectl commands directly (use `ops-approved-operations.yml`)
-- Run terraform locally (use `iac-terraform-cicd.yml`)
-- Document manual infrastructure commands (link to pipelines instead)
-- Create secrets outside of Sealed Secrets or pipelines
+- Leave manual infrastructure changes without IaC parity
+- Skip pipeline deployment after local testing
+- Create production secrets via kubectl (use Sealed Secrets)
+- Mark infrastructure work complete without verifying IaC matches live state
 {{/if}}
 
 ### Expected Output Format
@@ -198,20 +205,66 @@ Under what conditions does this work?
 ---
 
 {{#if HAS_INFRA}}
-## 🚫 PIPELINE-ONLY POLICY - ABSOLUTE RULE
+## 🚫 INFRASTRUCTURE AS CODE POLICY - IaC PARITY REQUIRED
 
-**ALL infrastructure changes MUST go through CI/CD pipelines. NO EXCEPTIONS.**
+**Local testing is ALLOWED for proving solutions. IaC parity is MANDATORY before completion.**
 
-### Core Inhibitions
+### Two-Phase Infrastructure Workflow
 
 ```
-Do not run kubectl commands directly against clusters.
-Do not run terraform apply from local machines.
-Do not make changes via cloud console that should be in IaC.
-Do not document manual commands in runbooks - link to pipelines instead.
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 1: LOCAL PROOF (ALLOWED)                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  ✓ kubectl apply/delete/patch to TEST solution                  │
+│  ✓ terraform plan/apply in dev/ephemeral environments           │
+│  ✓ Direct cloud console changes for rapid prototyping           │
+│  ✓ Manual commands to verify behavior                           │
+│                                                                  │
+│  PURPOSE: Prove the solution works before codifying             │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 2: IaC PARITY (MANDATORY)                                │
+│  ─────────────────────────────────────────────────────────────  │
+│  ☐ Translate ALL manual changes to Terraform/Kubernetes YAML    │
+│  ☐ Commit IaC changes to feature branch                         │
+│  ☐ Run `terraform plan` to verify parity                        │
+│  ☐ Deploy via pipeline to confirm 100% match                    │
+│  ☐ Delete any manual/ephemeral resources                        │
+│                                                                  │
+│  RULE: Work is NOT complete until IaC matches live state        │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Approved Pipelines
+### Core Principle
+
+```
+Local testing proves the solution. IaC ensures reproducibility.
+Manual changes are TEMPORARY. IaC changes are PERMANENT.
+If it's not in IaC, it doesn't exist (will be destroyed/lost).
+```
+
+### Parity Verification Checklist
+
+Before marking infrastructure work complete:
+
+```bash
+# 1. Capture current state (after manual testing)
+kubectl get all -n <namespace> -o yaml > /tmp/current-state.yaml
+terraform state pull > /tmp/current-tf-state.json
+
+# 2. Destroy manual changes
+kubectl delete -f /tmp/manual-test.yaml
+# OR for terraform: terraform destroy -target=<resource>
+
+# 3. Apply ONLY from IaC
+terraform apply  # via pipeline
+kubectl apply -k ./manifests/  # via ArgoCD/pipeline
+
+# 4. Verify parity - must produce IDENTICAL state
+kubectl get all -n <namespace> -o yaml > /tmp/iac-state.yaml
+diff /tmp/current-state.yaml /tmp/iac-state.yaml  # Should be empty
+```
+
+### Approved Pipelines (for final deployment)
 
 | Task | Pipeline | Trigger |
 |------|----------|---------|
@@ -220,23 +273,25 @@ Do not document manual commands in runbooks - link to pipelines instead.
 | Terraform changes | `iac-terraform-cicd.yml` | PR to main |
 | Ephemeral Terraform | `ops-ephemeral-terraform.yml` | Manual dispatch |
 
-### One-Time Operations
-
-For operations that need to run once (migrations, data fixes, cleanups):
-
-1. Use `ops-create-ephemeral.yml` to create a pipeline
-2. Define the operation in the pipeline configuration
-3. Run via GitHub Actions workflow dispatch
-4. Pipeline self-destructs after completion
-
 ### What This Means for Agents
 
-- **NEVER**: Run `kubectl apply`, `kubectl delete`, `kubectl patch` directly
-- **NEVER**: Run `terraform apply`, `terraform destroy` locally
-- **NEVER**: Create Kubernetes secrets via `kubectl create secret`
-- **ALWAYS**: Make infrastructure changes via PR → pipeline
-- **ALWAYS**: Use `ops-approved-operations.yml` for operational tasks
-- **ALWAYS**: Reference pipeline workflows instead of manual commands
+**PHASE 1 - Local Testing (ALLOWED):**
+- ✓ Run `kubectl apply/delete/patch` to test solutions
+- ✓ Run `terraform apply` in dev/ephemeral environments
+- ✓ Make cloud console changes to prototype
+- ✓ Use any tools needed to prove the solution works
+
+**PHASE 2 - IaC Parity (MANDATORY before completion):**
+- ☐ ALL manual changes MUST be translated to IaC (Terraform/K8s YAML)
+- ☐ IaC MUST be committed to version control
+- ☐ Deployment MUST go through CI/CD pipeline
+- ☐ Final state MUST match IaC exactly (verify with diff)
+- ☐ Manual/ephemeral resources MUST be cleaned up
+
+**NEVER (even in Phase 1):**
+- Create production secrets via `kubectl create secret` (use Sealed Secrets)
+- Make changes to production without IaC parity plan
+- Leave manual changes undocumented in IaC
 
 📖 See: `docs/adr/ADR-0006-pipeline-only-infrastructure-changes.md`
 
@@ -1367,9 +1422,10 @@ kubectl create secret ...
 ☐ Terraform plan verified
 {{/if}}
 {{#if HAS_PIPELINE_POLICY}}
-☐ No manual kubectl commands (use pipelines)
-☐ No local terraform apply (use pipelines)
-☐ Infrastructure changes via iac-terraform-cicd.yml
+☐ IaC parity verified (manual changes translated to Terraform/K8s YAML)
+☐ Final deployment via pipeline (iac-terraform-cicd.yml)
+☐ State diff confirmed empty (IaC matches live)
+☐ Manual/ephemeral resources cleaned up
 {{/if}}
 ☐ No secrets in code
 ```
