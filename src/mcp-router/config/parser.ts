@@ -114,6 +114,21 @@ function extractMcpServers(config: unknown): Record<string, McpServerConfig> {
   return {};
 }
 
+function isRouterSelf(name: string, serverConfig: McpServerConfig): boolean {
+  // Check if this is the router itself to prevent circular reference
+  if (name === 'router') return true;
+  
+  // Check if args contain mcp-router start
+  if (serverConfig.args) {
+    const argsStr = serverConfig.args.join(' ');
+    if (argsStr.includes('mcp-router') && argsStr.includes('start')) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export function loadConfigFromPaths(): McpConfig {
   const platform = process.platform as 'darwin' | 'win32' | 'linux';
   const servers: Record<string, McpServerConfig> = {};
@@ -127,6 +142,12 @@ export function loadConfigFromPaths(): McpConfig {
     const sourceServers = extractMcpServers(config);
     
     for (const [name, serverConfig] of Object.entries(sourceServers)) {
+      // Skip disabled servers
+      if (serverConfig.disabled) continue;
+      
+      // Skip router itself to prevent circular reference
+      if (isRouterSelf(name, serverConfig)) continue;
+      
       if (!servers[name]) {
         servers[name] = expandConfigEnvVars(serverConfig);
       }
@@ -138,6 +159,12 @@ export function loadConfigFromPaths(): McpConfig {
   const localServers = extractMcpServers(localConfig);
   
   for (const [name, serverConfig] of Object.entries(localServers)) {
+    // Skip disabled servers
+    if (serverConfig.disabled) continue;
+    
+    // Skip router itself to prevent circular reference
+    if (isRouterSelf(name, serverConfig)) continue;
+    
     servers[name] = expandConfigEnvVars(serverConfig);
   }
   
@@ -150,6 +177,12 @@ export function loadConfigFromFile(filePath: string): McpConfig {
   
   const expanded: Record<string, McpServerConfig> = {};
   for (const [name, serverConfig] of Object.entries(servers)) {
+    // Skip disabled servers
+    if (serverConfig.disabled) continue;
+    
+    // Skip router itself to prevent circular reference
+    if (isRouterSelf(name, serverConfig)) continue;
+    
     expanded[name] = expandConfigEnvVars(serverConfig);
   }
   

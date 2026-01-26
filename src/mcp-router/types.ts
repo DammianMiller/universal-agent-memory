@@ -9,6 +9,7 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   url?: string;
   transport?: 'stdio' | 'http' | 'sse';
+  disabled?: boolean;
 }
 
 export interface McpConfig {
