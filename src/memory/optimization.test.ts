@@ -82,7 +82,8 @@ describe('Context Budget', () => {
   });
 
   it('should truncate when over budget', () => {
-    const longContent = 'x'.repeat(5000);
+    // Use realistic multi-word content that exceeds the token budget
+    const longContent = Array(800).fill('This is realistic content that generates tokens').join(' ');
     const result = budget.allocate('section1', longContent);
     
     expect(result.truncated).toBe(true);

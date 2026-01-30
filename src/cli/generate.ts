@@ -311,37 +311,150 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 }
 
 async function generatePlatformFiles(
-  _cwd: string,
+  cwd: string,
   platform: Platform,
-  _analysis: Awaited<ReturnType<typeof analyzeProject>>,
-  _config: AgentContextConfig,
+  analysis: Awaited<ReturnType<typeof analyzeProject>>,
+  config: AgentContextConfig,
   dryRun?: boolean
 ): Promise<void> {
-  // Platform-specific generation logic
+  const { mkdirSync, writeFileSync, existsSync: pathExists } = await import('fs');
+  
   switch (platform) {
-    case 'claudeCode':
-      // Generate .claude/ structure
+    case 'claudeCode': {
+      // Generate .claude/ structure for Claude Code Desktop
+      const claudeDir = join(cwd, '.claude');
       if (!dryRun) {
-        // TODO: Generate Claude Code specific files
+        if (!pathExists(claudeDir)) {
+          mkdirSync(claudeDir, { recursive: true });
+        }
+        
+        // .claude/settings.json - workspace-specific settings
+        const settings = {
+          autoApprove: ['read', 'write', 'shell'],
+          defaultModel: 'claude-sonnet-4',
+          contextWindow: 200000,
+          memoryPath: config.memory?.shortTerm?.path || 'agents/data/memory/short_term.db',
+          worktreeDirectory: config.worktrees?.directory || '.worktrees',
+        };
+        writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings, null, 2));
+        
+        // .claude/commands.json - custom slash commands
+        const commands = {
+          memory: 'uam memory query "$1"',
+          store: 'uam memory store "$1" --importance 7',
+          worktree: 'uam worktree create "$1"',
+          status: 'uam memory status',
+        };
+        writeFileSync(join(claudeDir, 'commands.json'), JSON.stringify(commands, null, 2));
       }
       break;
-    case 'factory':
-      // Generate .factory/ structure
+    }
+    
+    case 'factory': {
+      // Generate .factory/ structure for Factory.AI
+      const factoryDir = join(cwd, '.factory');
       if (!dryRun) {
-        // TODO: Generate Factory specific files
+        if (!pathExists(factoryDir)) {
+          mkdirSync(factoryDir, { recursive: true });
+        }
+        
+        // .factory/config.json
+        const factoryConfig = {
+          name: analysis.projectName || config.project.name,
+          version: config.version,
+          defaultBranch: config.project.defaultBranch || 'main',
+          memory: {
+            enabled: config.memory?.shortTerm?.enabled ?? true,
+            path: config.memory?.shortTerm?.path || 'agents/data/memory/short_term.db',
+          },
+          worktrees: {
+            enabled: true,
+            directory: config.worktrees?.directory || '.worktrees',
+          },
+        };
+        writeFileSync(join(factoryDir, 'config.json'), JSON.stringify(factoryConfig, null, 2));
+        
+        // Ensure droids and skills directories exist
+        const droidsDir = join(factoryDir, 'droids');
+        const skillsDir = join(factoryDir, 'skills');
+        if (!pathExists(droidsDir)) mkdirSync(droidsDir, { recursive: true });
+        if (!pathExists(skillsDir)) mkdirSync(skillsDir, { recursive: true });
       }
       break;
-    case 'vscode':
-      // Generate .vscode/ settings
+    }
+    
+    case 'vscode': {
+      // Generate .vscode/ settings for VSCode + extensions
+      const vscodeDir = join(cwd, '.vscode');
       if (!dryRun) {
-        // TODO: Generate VSCode specific files
+        if (!pathExists(vscodeDir)) {
+          mkdirSync(vscodeDir, { recursive: true });
+        }
+        
+        // .vscode/settings.json
+        const settingsPath = join(vscodeDir, 'settings.json');
+        let existingSettings: Record<string, unknown> = {};
+        if (pathExists(settingsPath)) {
+          try {
+            existingSettings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+          } catch {
+            // Ignore parse errors
+          }
+        }
+        
+        const vscodeSettings = {
+          ...existingSettings,
+          'files.associations': {
+            ...((existingSettings['files.associations'] as Record<string, string>) || {}),
+            'CLAUDE.md': 'markdown',
+            'AGENT.md': 'markdown',
+            '*.uam.json': 'json',
+          },
+          'editor.formatOnSave': existingSettings['editor.formatOnSave'] ?? true,
+          '[markdown]': {
+            'editor.wordWrap': 'on',
+            ...((existingSettings['[markdown]'] as Record<string, unknown>) || {}),
+          },
+        };
+        writeFileSync(settingsPath, JSON.stringify(vscodeSettings, null, 2));
+        
+        // .vscode/extensions.json - recommended extensions
+        const extensions = {
+          recommendations: [
+            'dbaeumer.vscode-eslint',
+            'esbenp.prettier-vscode',
+            'yzhang.markdown-all-in-one',
+          ],
+        };
+        writeFileSync(join(vscodeDir, 'extensions.json'), JSON.stringify(extensions, null, 2));
       }
       break;
-    case 'opencode':
-      // Generate opencode.json
+    }
+    
+    case 'opencode': {
+      // Generate opencode.json for OpenCode CLI
       if (!dryRun) {
-        // TODO: Generate OpenCode specific files
+        const opencodeConfig = {
+          $schema: 'https://opencode.ai/schema/config.json',
+          name: analysis.projectName || config.project.name,
+          agent: {
+            contextFile: 'CLAUDE.md',
+            memoryEnabled: config.memory?.shortTerm?.enabled ?? true,
+            memoryPath: config.memory?.shortTerm?.path || 'agents/data/memory/short_term.db',
+          },
+          git: {
+            defaultBranch: config.project.defaultBranch || 'main',
+            worktreeDirectory: config.worktrees?.directory || '.worktrees',
+          },
+          commands: {
+            test: analysis.commands.test || 'npm test',
+            lint: analysis.commands.lint || 'npm run lint',
+            build: analysis.commands.build || 'npm run build',
+          },
+        };
+        writeFileSync(join(cwd, 'opencode.json'), JSON.stringify(opencodeConfig, null, 2));
       }
       break;
+    }
   }
 }

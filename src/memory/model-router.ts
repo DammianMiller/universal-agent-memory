@@ -264,12 +264,54 @@ export function updateModelFingerprint(
   }
 }
 
+/**
+ * Record task outcome to update model fingerprints (feedback loop)
+ * Call this after each task completes to improve future routing decisions
+ */
+export function recordTaskOutcome(
+  modelId: ModelId,
+  success: boolean,
+  latencyMs: number,
+  _taskCategory?: string
+): void {
+  const fp = MODEL_FINGERPRINTS[modelId];
+  if (!fp) return;
+  
+  // Update success rate using exponential moving average
+  const newSuccessRate = success ? 1.0 : 0.0;
+  fp.successRate = fp.successRate * 0.9 + newSuccessRate * 0.1;
+  
+  // Update latency using exponential moving average
+  fp.avgLatencyMs = fp.avgLatencyMs * 0.8 + latencyMs * 0.2;
+}
+
+/**
+ * Get routing recommendation with explanation
+ */
+export function explainRouting(instruction: string, difficulty: 'easy' | 'medium' | 'hard' = 'medium'): string {
+  const decision = routeTask(instruction, difficulty);
+  const fingerprint = MODEL_FINGERPRINTS[decision.primary];
+  
+  const lines = [
+    `Primary Model: ${decision.primary}`,
+    `Reason: ${decision.reason}`,
+    `Expected Latency: ${(decision.estimatedLatencyMs / 1000).toFixed(1)}s`,
+    `Expected Success: ${(decision.estimatedSuccessRate * 100).toFixed(0)}%`,
+    `Strengths: ${fingerprint?.strengths.slice(0, 3).join(', ') || 'N/A'}`,
+    `Fallbacks: ${decision.fallback.join(' -> ') || 'None'}`,
+  ];
+  
+  return lines.join('\n');
+}
+
 export const ModelRouter = {
   routeTask,
   getFailureHandler,
   getModelFingerprint,
   getAllModelFingerprints,
   updateModelFingerprint,
+  recordTaskOutcome,
+  explainRouting,
 };
 
 export default ModelRouter;

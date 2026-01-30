@@ -5,6 +5,8 @@
  * Based on Acon (Agent Context Optimization) and AgentCompress research.
  */
 
+import { jaccardSimilarity } from '../utils/string-similarity.js';
+
 export interface CompressionResult {
   original: string;
   compressed: string;
@@ -27,10 +29,32 @@ const DEFAULT_CONFIG: CompressorConfig = {
 };
 
 /**
- * Estimate token count (rough approximation: ~4 chars per token)
+ * Estimate token count using improved heuristics for mixed code/prose
+ * More accurate than simple length/4: accounts for whitespace splits,
+ * special characters, camelCase, and numeric tokens.
  */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  if (!text || text.length === 0) return 0;
+  
+  // Split by whitespace for base word count
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  
+  // Special characters that typically become separate tokens
+  const specialChars = (text.match(/[{}()\[\]<>:;,."'`@#$%^&*+=|\\/?!~-]/g) || []).length;
+  
+  // Code tokens: camelCase/snake_case boundaries add sub-word tokens
+  const codeTokens = (text.match(/[a-z][A-Z]|_[a-z]/g) || []).length;
+  
+  // Numeric sequences often tokenize separately
+  const numbers = (text.match(/\d+/g) || []).length;
+  
+  // Average English word is ~1.3 tokens, code identifiers ~1.5
+  const baseTokens = words.length * 1.3;
+  const specialTokens = specialChars * 0.5;
+  const extraCodeTokens = codeTokens * 0.3;
+  const numberTokens = numbers * 0.5;
+  
+  return Math.ceil(baseTokens + specialTokens + extraCodeTokens + numberTokens);
 }
 
 /**
@@ -234,18 +258,7 @@ function deduplicateContent(contents: string[], threshold: number = 0.8): string
   return unique;
 }
 
-/**
- * Calculate Jaccard similarity between two strings
- */
-function jaccardSimilarity(a: string, b: string): number {
-  const setA = new Set(a.split(/\s+/));
-  const setB = new Set(b.split(/\s+/));
-  
-  const intersection = new Set([...setA].filter(x => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  
-  return intersection.size / union.size;
-}
+// jaccardSimilarity imported from ../utils/string-similarity.js
 
 /**
  * Get date range string

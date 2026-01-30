@@ -9,6 +9,8 @@
  * - password-recovery: hashcat/john guidance led to successful recovery
  */
 
+import { fuzzyKeywordMatch } from '../utils/string-similarity.js';
+
 export interface DomainKnowledge {
   category: string;
   type: 'pattern' | 'tool' | 'format' | 'gotcha';
@@ -170,23 +172,28 @@ export const TERMINAL_BENCH_KNOWLEDGE: DomainKnowledge[] = [
 
 /**
  * Get domain knowledge relevant to a task
+ * Uses fuzzy/stemming matching for better recall
  */
 export function getRelevantKnowledge(
   taskInstruction: string,
   category?: string,
 ): DomainKnowledge[] {
-  const lower = taskInstruction.toLowerCase();
   const relevant: Array<DomainKnowledge & { score: number }> = [];
 
   for (const knowledge of TERMINAL_BENCH_KNOWLEDGE) {
     // Category filter
     if (category && knowledge.category !== category) continue;
 
-    // Score by keyword matches
+    // Score by keyword matches using fuzzy matching
     let score = 0;
     for (const keyword of knowledge.keywords) {
-      if (lower.includes(keyword.toLowerCase())) {
+      // Exact match gets full point
+      if (taskInstruction.toLowerCase().includes(keyword.toLowerCase())) {
         score += 1;
+      }
+      // Fuzzy/stemmed match gets partial point
+      else if (fuzzyKeywordMatch(taskInstruction, keyword)) {
+        score += 0.5;
       }
     }
 

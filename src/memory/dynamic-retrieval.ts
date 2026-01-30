@@ -12,12 +12,13 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { execSync } from 'child_process';
+import Database from 'better-sqlite3';
 import { classifyTask, extractTaskEntities, getSuggestedMemoryQueries, type TaskClassification } from './task-classifier.js';
 import { ContextBudget } from './context-compressor.js';
 import { compressToSemanticUnits } from './semantic-compression.js';
 import { decideContextLevel, type ContextDecision, type TaskMetadata } from './adaptive-context.js';
 import { getRelevantKnowledge } from './terminal-bench-knowledge.js';
+import { contentHash } from '../utils/string-similarity.js';
 
 /**
  * Query complexity levels for adaptive retrieval
@@ -325,7 +326,7 @@ async function queryAllMemorySources(
 }
 
 /**
- * Query short-term SQLite memory
+ * Query short-term SQLite memory using parameterized queries (secure)
  */
 async function queryShortTermMemory(
   classification: TaskClassification,
@@ -339,59 +340,57 @@ async function queryShortTermMemory(
   const memories: RetrievedMemory[] = [];
   const perKeywordLimit = Math.max(1, Math.ceil(limit / 3));
   
+  let db: Database.Database | null = null;
   try {
-    // Query by category keywords
+    db = new Database(dbPath, { readonly: true });
+    
+    // Query by category keywords using parameterized queries (secure)
+    const keywordStmt = db.prepare(`
+      SELECT type, content FROM memories 
+      WHERE content LIKE ? 
+      ORDER BY id DESC 
+      LIMIT ?
+    `);
+    
     for (const keyword of classification.keywords.slice(0, 3)) {
-      const result = execSync(
-        `sqlite3 "${dbPath}" "SELECT type, content FROM memories WHERE content LIKE '%${keyword}%' ORDER BY id DESC LIMIT ${perKeywordLimit};"`,
-        { encoding: 'utf-8', timeout: 5000 }
-      ).trim();
-      
-      if (result) {
-        for (const line of result.split('\n')) {
-          const [type, content] = line.split('|');
-          if (content) {
-            memories.push({
-              content: content.slice(0, 500),
-              type: type === 'lesson' ? 'lesson' : 'context',
-              relevance: 0.7,
-              source: 'short-term-memory',
-            });
-          }
+      const rows = keywordStmt.all(`%${keyword}%`, perKeywordLimit) as Array<{ type: string; content: string }>;
+      for (const row of rows) {
+        if (row.content) {
+          memories.push({
+            content: row.content.slice(0, 500),
+            type: row.type === 'lesson' ? 'lesson' : 'context',
+            relevance: 0.7,
+            source: 'short-term-memory',
+          });
         }
       }
     }
     
-    // Query by technology mentions
+    // Query by technology mentions using parameterized queries (secure)
     for (const tech of entities.technologies.slice(0, 2)) {
-      const result = execSync(
-        `sqlite3 "${dbPath}" "SELECT type, content FROM memories WHERE content LIKE '%${tech}%' ORDER BY id DESC LIMIT 2;"`,
-        { encoding: 'utf-8', timeout: 5000 }
-      ).trim();
-      
-      if (result) {
-        for (const line of result.split('\n')) {
-          const [type, content] = line.split('|');
-          if (content) {
-            memories.push({
-              content: content.slice(0, 500),
-              type: type === 'gotcha' ? 'gotcha' : 'context',
-              relevance: 0.6,
-              source: 'short-term-memory',
-            });
-          }
+      const rows = keywordStmt.all(`%${tech}%`, 2) as Array<{ type: string; content: string }>;
+      for (const row of rows) {
+        if (row.content) {
+          memories.push({
+            content: row.content.slice(0, 500),
+            type: row.type === 'gotcha' ? 'gotcha' : 'context',
+            relevance: 0.6,
+            source: 'short-term-memory',
+          });
         }
       }
     }
   } catch {
     // Ignore query errors
+  } finally {
+    db?.close();
   }
   
   return memories;
 }
 
 /**
- * Query session memories for recent decisions
+ * Query session memories for recent decisions using parameterized queries (secure)
  */
 async function querySessionMemory(
   _taskInstruction: string,
@@ -403,28 +402,32 @@ async function querySessionMemory(
   
   const memories: RetrievedMemory[] = [];
   
+  let db: Database.Database | null = null;
   try {
-    // Get recent high-importance session memories
-    const result = execSync(
-      `sqlite3 "${dbPath}" "SELECT type, content FROM session_memories WHERE importance >= 7 ORDER BY id DESC LIMIT ${limit};"`,
-      { encoding: 'utf-8', timeout: 5000 }
-    ).trim();
+    db = new Database(dbPath, { readonly: true });
     
-    if (result) {
-      for (const line of result.split('\n')) {
-        const [type, content] = line.split('|');
-        if (content) {
-          memories.push({
-            content: content.slice(0, 500),
-            type: type === 'lesson' ? 'lesson' : type === 'decision' ? 'context' : 'pattern',
-            relevance: 0.8,
-            source: 'session-memory',
-          });
-        }
+    const stmt = db.prepare(`
+      SELECT type, content FROM session_memories 
+      WHERE importance >= 7 
+      ORDER BY id DESC 
+      LIMIT ?
+    `);
+    
+    const rows = stmt.all(limit) as Array<{ type: string; content: string }>;
+    for (const row of rows) {
+      if (row.content) {
+        memories.push({
+          content: row.content.slice(0, 500),
+          type: row.type === 'lesson' ? 'lesson' : row.type === 'decision' ? 'context' : 'pattern',
+          relevance: 0.8,
+          source: 'session-memory',
+        });
       }
     }
   } catch {
     // Ignore query errors
+  } finally {
+    db?.close();
   }
   
   return memories;
@@ -697,14 +700,16 @@ function formatContextWithRecencyBias(
 }
 
 /**
- * Deduplicate memories by content similarity
+ * Deduplicate memories by content hash (full content, not just prefix)
+ * Uses SHA-256 based content hash for reliable deduplication
  */
 function deduplicateMemories(memories: RetrievedMemory[]): RetrievedMemory[] {
   const seen = new Set<string>();
   const unique: RetrievedMemory[] = [];
   
   for (const mem of memories) {
-    const key = mem.content.slice(0, 100).toLowerCase().replace(/\s+/g, ' ');
+    // Use full content hash instead of just first 100 chars
+    const key = contentHash(mem.content);
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(mem);

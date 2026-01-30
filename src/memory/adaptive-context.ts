@@ -12,6 +12,8 @@
  */
 
 import { classifyTask as classifyTaskType } from './task-classifier.js';
+import { recordTaskOutcome as updateModelRouterFingerprint } from './model-router.js';
+import type { ModelId } from './model-router.js';
 
 export type ContextLevel = 'none' | 'minimal' | 'full';
 export type TimePressure = 'critical' | 'high' | 'medium' | 'low';
@@ -43,24 +45,19 @@ export interface HistoricalData {
 }
 
 // Task categories that typically don't benefit from UAM context
+// Only skip when purely in these categories with no domain overlap
 const LOW_BENEFIT_CATEGORIES = new Set([
   'reasoning',
-  'scheduling',
-  'constraint-satisfaction',
   'games',
   'pure-logic',
   'mathematical',
 ]);
 
 // Keywords that suggest a task won't benefit from domain knowledge
+// Removed overly broad terms: 'schedule', 'constraint', 'optimize' - these appear in DevOps/coding tasks
 const SKIP_UAM_KEYWORDS = [
-  'schedule',
-  'scheduling',
-  'calendar',
-  'meeting',
-  'constraint',
-  'satisfy',
-  'optimize',
+  'calendar meeting',
+  'meeting room',
   'chess move',
   'best move',
   'game theory',
@@ -68,6 +65,8 @@ const SKIP_UAM_KEYWORDS = [
   'prove that',
   'logic puzzle',
   'sudoku',
+  'tic tac toe',
+  'crossword',
 ];
 
 // Keywords that strongly suggest UAM will help
@@ -171,46 +170,56 @@ const historicalDataStore = new Map<string, HistoricalData>();
 
 /**
  * Classify task type from instruction text
+ * Requires stronger signals before classifying as low-benefit to avoid skipping useful context
  */
 export function classifyTask(instruction: string): string {
   const lower = instruction.toLowerCase();
 
-  // Check skip keywords first (pure reasoning tasks)
-  for (const kw of SKIP_UAM_KEYWORDS) {
+  // Check high-benefit keywords FIRST - these always get context
+  let highBenefitMatches = 0;
+  for (const kw of HIGH_BENEFIT_KEYWORDS) {
     if (lower.includes(kw)) {
-      if (lower.includes('schedule') || lower.includes('calendar') || lower.includes('meeting')) {
-        return 'scheduling';
-      }
-      if (lower.includes('chess') || lower.includes('game') || lower.includes('move')) {
-        return 'games';
-      }
-      if (lower.includes('constraint') || lower.includes('satisfy')) {
-        return 'constraint-satisfaction';
-      }
-      if (lower.includes('prove') || lower.includes('proof') || lower.includes('logic')) {
-        return 'pure-logic';
-      }
-      if (lower.includes('sudoku') || lower.includes('puzzle')) {
-        return 'reasoning';
-      }
+      highBenefitMatches++;
     }
   }
 
-  // Check high-benefit keywords
-  for (const kw of HIGH_BENEFIT_KEYWORDS) {
+  // If any high-benefit keyword matches, classify by domain
+  if (highBenefitMatches > 0) {
+    if (lower.includes('password') || lower.includes('hash') || lower.includes('crack')) {
+      return 'security';
+    }
+    if (lower.includes('xss') || lower.includes('injection') || lower.includes('sanitize')) {
+      return 'security';
+    }
+    if (lower.includes('elf') || lower.includes('sqlite') || lower.includes('binary')) {
+      return 'file-ops';
+    }
+    if (lower.includes('cobol') || lower.includes('legacy') || lower.includes('modernize')) {
+      return 'legacy';
+    }
+  }
+
+  // Check skip keywords - require multi-word phrase match (not single words)
+  let skipMatches = 0;
+  for (const kw of SKIP_UAM_KEYWORDS) {
     if (lower.includes(kw)) {
-      if (lower.includes('password') || lower.includes('hash') || lower.includes('crack')) {
-        return 'security';
-      }
-      if (lower.includes('xss') || lower.includes('injection') || lower.includes('sanitize')) {
-        return 'security';
-      }
-      if (lower.includes('elf') || lower.includes('sqlite') || lower.includes('binary')) {
-        return 'file-ops';
-      }
-      if (lower.includes('cobol') || lower.includes('legacy') || lower.includes('modernize')) {
-        return 'legacy';
-      }
+      skipMatches++;
+    }
+  }
+  
+  // Only skip if we have skip signal AND no high-benefit signal
+  if (skipMatches > 0 && highBenefitMatches === 0) {
+    if (lower.includes('chess move') || lower.includes('best move') || lower.includes('game theory')) {
+      return 'games';
+    }
+    if (lower.includes('mathematical proof') || lower.includes('prove that') || lower.includes('logic puzzle')) {
+      return 'pure-logic';
+    }
+    if (lower.includes('sudoku') || lower.includes('crossword') || lower.includes('tic tac toe')) {
+      return 'reasoning';
+    }
+    if (lower.includes('calendar meeting') || lower.includes('meeting room')) {
+      return 'scheduling';
     }
   }
 
@@ -285,12 +294,14 @@ export function getHistoricalBenefit(taskType: string): number {
 
 /**
  * Record task outcome for historical tracking
+ * Also updates model router fingerprints to improve future routing
  */
 export function recordOutcome(
   taskType: string,
   usedUam: boolean,
   success: boolean,
-  durationMs: number
+  durationMs: number,
+  modelId?: string
 ): void {
   let data = historicalDataStore.get(taskType);
   if (!data) {
@@ -315,6 +326,14 @@ export function recordOutcome(
       data.noUamSuccesses++;
       data.avgTimeWithoutUam =
         (data.avgTimeWithoutUam * (data.noUamSuccesses - 1) + durationMs) / data.noUamSuccesses;
+    }
+  }
+  
+  // Update model router fingerprints for feedback loop
+  if (modelId) {
+    const validModelIds: ModelId[] = ['glm-4.7', 'gpt-5.2', 'claude-opus-4.5', 'gpt-5.2-codex'];
+    if (validModelIds.includes(modelId as ModelId)) {
+      updateModelRouterFingerprint(modelId as ModelId, success, durationMs, taskType);
     }
   }
 }

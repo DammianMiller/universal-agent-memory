@@ -5,8 +5,12 @@
  * Based on MemGPT and R³Mem research for efficient memory management.
  */
 
+import Database from 'better-sqlite3';
+import { existsSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 import { getEmbeddingService } from './embeddings.js';
 import { compressMemoryEntry, summarizeMemories, estimateTokens } from './context-compressor.js';
+import { jaccardSimilarity } from '../utils/string-similarity.js';
 
 export interface MemoryEntry {
   id: string;
@@ -324,16 +328,10 @@ export class HierarchicalMemoryManager {
   }
 
   /**
-   * Simple text similarity (Jaccard on words)
+   * Simple text similarity (delegates to shared utility)
    */
   private textSimilarity(a: string, b: string): number {
-    const wordsA = new Set(a.toLowerCase().split(/\W+/).filter(w => w.length > 2));
-    const wordsB = new Set(b.toLowerCase().split(/\W+/).filter(w => w.length > 2));
-    
-    const intersection = new Set([...wordsA].filter(x => wordsB.has(x)));
-    const union = new Set([...wordsA, ...wordsB]);
-    
-    return intersection.size / (union.size || 1);
+    return jaccardSimilarity(a, b);
   }
 
   /**
@@ -375,14 +373,167 @@ export class HierarchicalMemoryManager {
   }
 }
 
-// Singleton instance
+/**
+ * Persist hierarchical memory to SQLite for cross-session continuity
+ */
+export function persistToSQLite(manager: HierarchicalMemoryManager, dbPath: string): void {
+  const dir = dirname(dbPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  
+  const db = new Database(dbPath);
+  
+  // Create hierarchical memory table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hierarchical_memory (
+      id TEXT PRIMARY KEY,
+      tier TEXT NOT NULL CHECK(tier IN ('hot', 'warm', 'cold')),
+      content TEXT NOT NULL,
+      compressed TEXT,
+      type TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      importance REAL NOT NULL,
+      access_count INTEGER NOT NULL DEFAULT 1,
+      last_accessed TEXT NOT NULL,
+      embedding BLOB
+    );
+    CREATE INDEX IF NOT EXISTS idx_hierarchical_tier ON hierarchical_memory(tier);
+    CREATE INDEX IF NOT EXISTS idx_hierarchical_importance ON hierarchical_memory(importance DESC);
+  `);
+  
+  const memory = manager.export();
+  
+  // Clear and reinsert (simple approach for small datasets)
+  db.exec('DELETE FROM hierarchical_memory');
+  
+  const stmt = db.prepare(`
+    INSERT INTO hierarchical_memory 
+    (id, tier, content, compressed, type, timestamp, importance, access_count, last_accessed, embedding)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  const insertAll = db.transaction((entries: Array<{ tier: string; entry: MemoryEntry }>) => {
+    for (const { tier, entry } of entries) {
+      stmt.run(
+        entry.id,
+        tier,
+        entry.content,
+        entry.compressed || null,
+        entry.type,
+        entry.timestamp,
+        entry.importance,
+        entry.accessCount,
+        entry.lastAccessed,
+        entry.embedding ? Buffer.from(new Float32Array(entry.embedding).buffer) : null
+      );
+    }
+  });
+  
+  const allEntries: Array<{ tier: string; entry: MemoryEntry }> = [
+    ...memory.hot.map(e => ({ tier: 'hot', entry: e })),
+    ...memory.warm.map(e => ({ tier: 'warm', entry: e })),
+    ...memory.cold.map(e => ({ tier: 'cold', entry: e })),
+  ];
+  
+  insertAll(allEntries);
+  db.close();
+}
+
+/**
+ * Load hierarchical memory from SQLite
+ */
+export function loadFromSQLite(dbPath: string): TieredMemory | null {
+  if (!existsSync(dbPath)) return null;
+  
+  try {
+    const db = new Database(dbPath, { readonly: true });
+    
+    // Check if table exists
+    const tableExists = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='hierarchical_memory'"
+    ).get();
+    
+    if (!tableExists) {
+      db.close();
+      return null;
+    }
+    
+    const rows = db.prepare(`
+      SELECT id, tier, content, compressed, type, timestamp, importance, 
+             access_count as accessCount, last_accessed as lastAccessed, embedding
+      FROM hierarchical_memory
+    `).all() as Array<{
+      id: string;
+      tier: 'hot' | 'warm' | 'cold';
+      content: string;
+      compressed: string | null;
+      type: 'action' | 'observation' | 'thought' | 'goal';
+      timestamp: string;
+      importance: number;
+      accessCount: number;
+      lastAccessed: string;
+      embedding: Buffer | null;
+    }>;
+    
+    db.close();
+    
+    const memory: TieredMemory = { hot: [], warm: [], cold: [] };
+    
+    for (const row of rows) {
+      const entry: MemoryEntry = {
+        id: row.id,
+        content: row.content,
+        compressed: row.compressed || undefined,
+        type: row.type,
+        timestamp: row.timestamp,
+        importance: row.importance,
+        accessCount: row.accessCount,
+        lastAccessed: row.lastAccessed,
+        tier: row.tier,
+        embedding: row.embedding ? Array.from(new Float32Array(row.embedding.buffer)) : undefined,
+      };
+      memory[row.tier].push(entry);
+    }
+    
+    return memory;
+  } catch {
+    return null;
+  }
+}
+
+// Singleton instance with optional persistence path
 let globalManager: HierarchicalMemoryManager | null = null;
+let globalDbPath: string | null = null;
 
 export function getHierarchicalMemoryManager(
-  config?: Partial<HierarchicalConfig>
+  config?: Partial<HierarchicalConfig>,
+  dbPath?: string
 ): HierarchicalMemoryManager {
   if (!globalManager) {
     globalManager = new HierarchicalMemoryManager(config);
+    
+    // Load from SQLite if path provided
+    if (dbPath) {
+      globalDbPath = dbPath;
+      const persisted = loadFromSQLite(dbPath);
+      if (persisted) {
+        globalManager.import(persisted);
+      }
+    }
   }
   return globalManager;
+}
+
+/**
+ * Save current hierarchical memory state to disk
+ * Call periodically or on shutdown to ensure persistence
+ */
+export function saveHierarchicalMemory(dbPath?: string): void {
+  if (!globalManager) return;
+  
+  const path = dbPath || globalDbPath;
+  if (path) {
+    persistToSQLite(globalManager, path);
+  }
 }

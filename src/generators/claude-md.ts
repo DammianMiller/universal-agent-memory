@@ -750,18 +750,33 @@ function buildPrepopulatedKnowledge(
     .map(m => `- ${m.content.slice(0, 100)}${m.content.length > 100 ? '...' : ''}`)
     .join('\n');
 
-  // Learned lessons from long-term
+  // Learned lessons from long-term - use sentence-aware truncation
   const learnedLessons = longTerm
     .filter(m => m.tags?.includes('bug-fix') || m.tags?.includes('lesson') || (m.importance && m.importance >= 7))
     .slice(0, 10)
-    .map(m => `- **${m.tags?.slice(0, 2).join(', ') || 'General'}**: ${m.content.slice(0, 80)}...`)
+    .map(m => {
+      const content = m.content;
+      // Truncate at sentence boundary rather than mid-word
+      const truncated = content.length > 200
+        ? content.slice(0, 200).replace(/[^.!?]*$/, '') || content.slice(0, 200)
+        : content;
+      const suffix = content.length > truncated.length ? '...' : '';
+      return `- **${m.tags?.slice(0, 2).join(', ') || 'general'}**: ${truncated}${suffix}`;
+    })
     .join('\n');
 
-  // Known gotchas (from reverts and high-importance fixes)
+  // Known gotchas (from reverts and high-importance fixes) - preserve actionable suffix
   const knownGotchas = longTerm
     .filter(m => m.tags?.includes('revert') || m.tags?.includes('failed-approach') || m.content.includes('avoid'))
     .slice(0, 5)
-    .map(m => `- ⚠️ ${m.content.slice(0, 100)}`)
+    .map(m => {
+      const content = m.content;
+      const truncated = content.length > 200
+        ? content.slice(0, 200).replace(/[^.!?]*$/, '') || content.slice(0, 200)
+        : content;
+      const suffix = content.length > truncated.length ? '...' : '';
+      return `- ⚠️ ${truncated}${suffix}`;
+    })
     .join('\n');
 
   // Hot spots

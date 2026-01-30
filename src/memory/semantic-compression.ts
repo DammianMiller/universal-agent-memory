@@ -10,6 +10,7 @@
  */
 
 import { estimateTokens } from './context-compressor.js';
+import { jaccardSimilarity } from '../utils/string-similarity.js';
 
 export interface AtomicFact {
   content: string;
@@ -351,18 +352,7 @@ function deduplicateFacts(facts: AtomicFact[], threshold: number): AtomicFact[] 
   return unique;
 }
 
-/**
- * Jaccard similarity between two strings
- */
-function jaccardSimilarity(a: string, b: string): number {
-  const setA = new Set(a.split(/\s+/));
-  const setB = new Set(b.split(/\s+/));
-  
-  const intersection = new Set([...setA].filter(x => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  
-  return intersection.size / (union.size || 1);
-}
+// jaccardSimilarity imported from ../utils/string-similarity.js
 
 /**
  * Serialize semantic unit for storage/display

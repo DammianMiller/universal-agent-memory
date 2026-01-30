@@ -68,6 +68,9 @@ export {
   HierarchicalMemoryManager,
   getHierarchicalMemoryManager,
   calculateEffectiveImportance,
+  persistToSQLite,
+  loadFromSQLite,
+  saveHierarchicalMemory,
 } from './memory/hierarchical-memory.js';
 export type { MemoryEntry, TieredMemory, HierarchicalConfig } from './memory/hierarchical-memory.js';
 
@@ -105,6 +108,29 @@ export type {
 
 // Entropy-aware compression
 export { calculateEntropy, calculateInformationDensity } from './memory/semantic-compression.js';
+
+// String similarity utilities
+export {
+  jaccardSimilarity,
+  contentHash,
+  estimateTokensAccurate,
+  simpleStem,
+  fuzzyKeywordMatch,
+  textSimilarity,
+} from './utils/string-similarity.js';
+
+// Model router with feedback loop (memory-layer)
+export {
+  routeTask as routeTaskToModel,
+  recordTaskOutcome,
+  explainRouting,
+  getFailureHandler as getModelFailureHandler,
+  getModelFingerprint,
+  getAllModelFingerprints,
+  updateModelFingerprint,
+  ModelRouter as MemoryModelRouter,
+} from './memory/model-router.js';
+export type { ModelId, ModelFingerprint, RoutingDecision, RoutingConfig } from './memory/model-router.js';
 
 // MCP Router - Lightweight hierarchical router for 98%+ token reduction
 export {
