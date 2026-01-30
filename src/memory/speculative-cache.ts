@@ -357,6 +357,70 @@ export class SpeculativeCache {
     this.queryHistory = [];
     this.taskPatterns.clear();
   }
+
+  /**
+   * OPTIMIZATION 6: Load historical query patterns from SQLite database
+   * Pre-warms queryHistory and taskPatterns from persisted memory data
+   */
+  async loadFromDb(dbPath: string): Promise<number> {
+    let loaded = 0;
+    try {
+      const fs = await import('fs');
+      if (!fs.existsSync(dbPath)) return 0;
+
+      const BetterSqlite3 = await import('better-sqlite3');
+      const db = new BetterSqlite3.default(dbPath, { readonly: true });
+
+      try {
+        // Load top-20 most common content patterns as query history seeds
+        const rows = db.prepare(`
+          SELECT content, type FROM memories 
+          ORDER BY id DESC 
+          LIMIT 20
+        `).all() as Array<{ content: string; type: string }>;
+
+        for (const row of rows) {
+          if (row.content) {
+            const phrase = row.content.split(/[.!?\n]/)[0]?.trim().slice(0, 100) || '';
+            if (phrase.length > 5) {
+              this.queryHistory.push(phrase);
+              loaded++;
+            }
+          }
+        }
+
+        // Load high-importance session memories for pattern seeding
+        const sessionRows = db.prepare(`
+          SELECT content, type FROM session_memories 
+          WHERE importance >= 7 
+          ORDER BY id DESC 
+          LIMIT 10
+        `).all() as Array<{ content: string; type: string }>;
+
+        for (const row of sessionRows) {
+          if (row.content) {
+            const phrase = row.content.split(/[.!?\n]/)[0]?.trim().slice(0, 100) || '';
+            if (phrase.length > 5) {
+              this.queryHistory.push(phrase);
+              loaded++;
+
+              // Also detect and seed task patterns
+              const category = this.detectCategory(phrase);
+              if (category) {
+                const count = this.taskPatterns.get(category) || 0;
+                this.taskPatterns.set(category, count + 1);
+              }
+            }
+          }
+        }
+      } finally {
+        db.close();
+      }
+    } catch {
+      // Silently fail - warm-start is optional
+    }
+    return loaded;
+  }
 }
 
 // Singleton instance
@@ -367,4 +431,17 @@ export function getSpeculativeCache(config?: Partial<CacheConfig>): SpeculativeC
     globalCache = new SpeculativeCache(config);
   }
   return globalCache;
+}
+
+/**
+ * OPTIMIZATION 6: Initialize cache with historical data from database
+ * Call this at startup to warm the cache from persisted memories
+ */
+export async function initializeCacheFromDb(
+  dbPath: string,
+  config?: Partial<CacheConfig>
+): Promise<{ cache: SpeculativeCache; entriesLoaded: number }> {
+  const cache = getSpeculativeCache(config);
+  const entriesLoaded = await cache.loadFromDb(dbPath);
+  return { cache, entriesLoaded };
 }

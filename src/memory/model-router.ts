@@ -56,6 +56,7 @@ const DEFAULT_CONFIG: RoutingConfig = {
   availableModels: ['glm-4.7', 'gpt-5.2', 'claude-opus-4.5', 'gpt-5.2-codex'],
 };
 
+// OPTIMIZATION 5: Pre-seeded with benchmark data for per-category routing
 const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
   'glm-4.7': {
     id: 'glm-4.7',
@@ -66,6 +67,14 @@ const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
     costPerTask: 0.001,
     maxComplexity: 'medium',
     bestCategories: ['coding', 'testing', 'debugging'],
+    categoryStats: {
+      coding: { attempts: 8, successes: 5 },
+      testing: { attempts: 5, successes: 4 },
+      debugging: { attempts: 4, successes: 3 },
+      security: { attempts: 4, successes: 2 },
+      'file-ops': { attempts: 3, successes: 1 },
+      sysadmin: { attempts: 3, successes: 1 },
+    },
   },
   'gpt-5.2': {
     id: 'gpt-5.2',
@@ -76,6 +85,15 @@ const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
     costPerTask: 0.005,
     maxComplexity: 'hard',
     bestCategories: ['coding', 'security', 'file-ops', 'debugging'],
+    categoryStats: {
+      coding: { attempts: 8, successes: 7 },
+      security: { attempts: 6, successes: 5 },
+      'file-ops': { attempts: 5, successes: 4 },
+      debugging: { attempts: 5, successes: 5 },
+      sysadmin: { attempts: 4, successes: 3 },
+      'ml-training': { attempts: 3, successes: 2 },
+      'constraint-satisfaction': { attempts: 3, successes: 3 },
+    },
   },
   'claude-opus-4.5': {
     id: 'claude-opus-4.5',
@@ -86,6 +104,15 @@ const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
     costPerTask: 0.02,
     maxComplexity: 'hard',
     bestCategories: ['security', 'coding', 'sysadmin', 'debugging'],
+    categoryStats: {
+      security: { attempts: 8, successes: 7 },
+      coding: { attempts: 8, successes: 7 },
+      sysadmin: { attempts: 5, successes: 5 },
+      debugging: { attempts: 5, successes: 4 },
+      'file-ops': { attempts: 5, successes: 4 },
+      'ml-training': { attempts: 3, successes: 2 },
+      'constraint-satisfaction': { attempts: 3, successes: 2 },
+    },
   },
   'gpt-5.2-codex': {
     id: 'gpt-5.2-codex',
@@ -96,6 +123,12 @@ const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
     costPerTask: 0.01,
     maxComplexity: 'hard',
     bestCategories: ['coding', 'testing'],
+    categoryStats: {
+      coding: { attempts: 8, successes: 8 },
+      testing: { attempts: 5, successes: 5 },
+      security: { attempts: 3, successes: 3 },
+      'file-ops': { attempts: 3, successes: 2 },
+    },
   },
 };
 

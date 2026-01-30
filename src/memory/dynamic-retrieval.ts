@@ -16,8 +16,8 @@ import Database from 'better-sqlite3';
 import { classifyTask, extractTaskEntities, getSuggestedMemoryQueries, type TaskClassification } from './task-classifier.js';
 import { ContextBudget } from './context-compressor.js';
 import { compressToSemanticUnits } from './semantic-compression.js';
-import { decideContextLevel, type ContextDecision, type TaskMetadata } from './adaptive-context.js';
-import { getRelevantKnowledge } from './terminal-bench-knowledge.js';
+import { decideContextLevel, recordOutcome, type ContextDecision, type TaskMetadata } from './adaptive-context.js';
+import { getRelevantKnowledge, recordKnowledgeOutcome } from './terminal-bench-knowledge.js';
 import { contentHash, jaccardSimilarity } from '../utils/string-similarity.js';
 
 /**
@@ -179,13 +179,15 @@ export async function retrieveDynamicMemoryContext(
   const suggestedQueries = getSuggestedMemoryQueries(classification);
   
   // Step 6: Query all memory sources with adaptive limits
+  // OPTIMIZATION 8: Pass effectiveMaxTokens to coordinate budgets
   const memories = await queryAllMemorySources(
     taskInstruction,
     classification,
     entities,
     suggestedQueries,
     projectRoot,
-    retrievalDepth
+    retrievalDepth,
+    effectiveMaxTokens
   );
   
   // Step 7: Apply semantic compression if enabled and we have many memories
@@ -268,6 +270,10 @@ export async function retrieveDynamicMemoryContext(
 /**
  * Query all memory sources for relevant information
  * Uses adaptive retrieval depth to limit queries based on complexity
+ * 
+ * OPTIMIZATION 8: Removed internal TOKEN_BUDGET hardcap - let the outer
+ * ContextBudget manager handle truncation to avoid double-counting.
+ * Pass maxTokens through from caller for proper budget coordination.
  */
 async function queryAllMemorySources(
   taskInstruction: string,
@@ -275,7 +281,8 @@ async function queryAllMemorySources(
   entities: ReturnType<typeof extractTaskEntities>,
   suggestedQueries: string[],
   projectRoot: string,
-  depth: { shortTerm: number; sessionMem: number; longTerm: number; patterns: number }
+  depth: { shortTerm: number; sessionMem: number; longTerm: number; patterns: number },
+  maxTokens?: number
 ): Promise<RetrievedMemory[]> {
   const memories: RetrievedMemory[] = [];
   
@@ -309,6 +316,7 @@ async function queryAllMemorySources(
   memories.push(...droidPatterns);
 
   // Source 6: Terminal-Bench domain knowledge (proven to improve accuracy)
+  // OPTIMIZATION 2: Also match file-creation type from domain knowledge
   const domainKnowledge = getRelevantKnowledge(taskInstruction, classification.category);
   for (const k of domainKnowledge) {
     memories.push({
@@ -319,17 +327,18 @@ async function queryAllMemorySources(
     });
   }
   
-  // Deduplicate, sort by relevance, and apply token-budget-aware cap
+  // Deduplicate and sort by relevance
   const uniqueMemories = deduplicateMemories(memories);
   uniqueMemories.sort((a, b) => b.relevance - a.relevance);
   
-  // Use token budget instead of hard count cap to maximize useful context
-  const TOKEN_BUDGET = 3000;
+  // OPTIMIZATION 8: Use maxTokens from caller (coordinated with outer ContextBudget)
+  // instead of hardcoded internal budget that caused double-counting
+  const effectiveBudget = maxTokens || 3000;
   const budgeted: RetrievedMemory[] = [];
   let usedTokens = 0;
   for (const mem of uniqueMemories) {
     const memTokens = Math.ceil(mem.content.length / 4);
-    if (usedTokens + memTokens > TOKEN_BUDGET && budgeted.length > 0) break;
+    if (usedTokens + memTokens > effectiveBudget && budgeted.length > 0) break;
     budgeted.push(mem);
     usedTokens += memTokens;
   }
@@ -444,8 +453,25 @@ async function querySessionMemory(
   return memories;
 }
 
+// OPTIMIZATION 9: Stopwords to filter from long-term memory queries
+// These words match nearly everything and reduce query precision
+const QUERY_STOPWORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'shall', 'can', 'need', 'must',
+  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
+  'into', 'through', 'during', 'before', 'after', 'above', 'below',
+  'and', 'but', 'or', 'nor', 'not', 'so', 'yet', 'both', 'either',
+  'this', 'that', 'these', 'those', 'it', 'its',
+  'best', 'most', 'very', 'good', 'great', 'well', 'new', 'more',
+  'common', 'general', 'basic', 'simple', 'all', 'any', 'some',
+  'how', 'what', 'when', 'where', 'which', 'who', 'why',
+  'practices', 'tips', 'implementation', 'gotchas', 'mistakes', 'patterns',
+]);
+
 /**
  * Query long-term prepopulated memory
+ * OPTIMIZATION 9: Added stopword filtering for better query precision
  */
 async function queryLongTermMemory(
   queries: string[],
@@ -461,12 +487,17 @@ async function queryLongTermMemory(
     const data = JSON.parse(readFileSync(memoryPath, 'utf-8'));
     const allMemories = data.memories || data.lessons || data || [];
     
-    // Simple keyword matching for now (semantic search would be better)
     for (const query of queries.slice(0, 5)) {
       if (memories.length >= _limit) break;
       
       const queryLower = query.toLowerCase();
-      const queryWords = queryLower.split(/\s+/);
+      // OPTIMIZATION 9: Filter out stopwords to improve match quality
+      const queryWords = queryLower.split(/\s+/).filter(
+        w => w.length > 2 && !QUERY_STOPWORDS.has(w)
+      );
+      
+      // Skip queries that are entirely stopwords
+      if (queryWords.length === 0) continue;
       
       for (const mem of allMemories) {
         if (memories.length >= _limit) break;
@@ -474,7 +505,8 @@ async function queryLongTermMemory(
         const content = (mem.content || mem.text || JSON.stringify(mem)).toLowerCase();
         const matchCount = queryWords.filter(w => content.includes(w)).length;
         
-        if (matchCount >= 2) {
+        // Require at least 1 non-stopword match (was 2 including stopwords)
+        if (matchCount >= 1 && matchCount / queryWords.length >= 0.3) {
           memories.push({
             content: (mem.content || mem.text || JSON.stringify(mem)).slice(0, 500),
             type: mem.type || 'lesson',
@@ -748,4 +780,130 @@ function deduplicateMemories(memories: RetrievedMemory[]): RetrievedMemory[] {
   }
   
   return unique;
+}
+
+/**
+ * OPTIMIZATION 10: Automatic knowledge bootstrapping feedback loop
+ * 
+ * Call this after each task completes to:
+ * 1. Update adaptive context historical data
+ * 2. Update model router fingerprints
+ * 3. Record knowledge outcomes for domain knowledge improvement
+ * 4. Extract and persist new learnings from agent output
+ * 
+ * This closes the feedback loop so each benchmark run improves future accuracy.
+ */
+export interface TaskOutcome {
+  instruction: string;
+  success: boolean;
+  durationMs: number;
+  modelId?: string;
+  agentOutput?: string;
+  projectRoot?: string;
+}
+
+export function recordTaskFeedback(outcome: TaskOutcome): void {
+  const { instruction, success, durationMs, modelId, agentOutput, projectRoot } = outcome;
+
+  // 1. Classify the task for feedback routing
+  const classification = classifyTask(instruction);
+  const taskType = classification.category;
+
+  // 2. Update adaptive context historical data
+  recordOutcome(taskType, true, success, durationMs, modelId);
+
+  // 3. Record knowledge outcome to boost/demote domain knowledge
+  recordKnowledgeOutcome(instruction, success);
+
+  // 4. Extract new learnings from agent output (on success only)
+  if (success && agentOutput) {
+    const learnedPatterns = extractLearnedPatterns(agentOutput, taskType);
+    for (const pattern of learnedPatterns) {
+      const persistPath = projectRoot 
+        ? join(projectRoot, 'agents/data/memory/long_term_prepopulated.json')
+        : undefined;
+      
+      recordKnowledgeOutcome(
+        instruction,
+        true,
+        {
+          category: taskType,
+          type: pattern.type,
+          content: pattern.content,
+          keywords: pattern.keywords,
+          importance: 7,
+        },
+        persistPath
+      );
+    }
+  }
+}
+
+/**
+ * Extract learned patterns from successful agent output
+ * Looks for commands that worked, solutions that passed, and techniques used
+ */
+function extractLearnedPatterns(
+  agentOutput: string,
+  taskType: string
+): Array<{ type: 'pattern' | 'tool' | 'gotcha'; content: string; keywords: string[] }> {
+  const patterns: Array<{ type: 'pattern' | 'tool' | 'gotcha'; content: string; keywords: string[] }> = [];
+
+  // Extract successful commands (lines starting with $ or containing common tool names)
+  const commandMatches = agentOutput.match(/^\$\s+.+$/gm);
+  if (commandMatches) {
+    for (const cmd of commandMatches.slice(0, 3)) {
+      const cleanCmd = cmd.replace(/^\$\s+/, '').trim();
+      if (cleanCmd.length > 10 && cleanCmd.length < 200) {
+        const keywords = extractKeywordsFromCommand(cleanCmd);
+        patterns.push({
+          type: 'tool',
+          content: `Successful command for ${taskType}: ${cleanCmd}`,
+          keywords: [taskType, ...keywords],
+        });
+      }
+    }
+  }
+
+  // Extract "worked" or "fixed" phrases
+  const solutionMatches = agentOutput.match(/(?:fixed|solved|resolved|working|passed|succeeded)[^.]*\./gi);
+  if (solutionMatches) {
+    for (const solution of solutionMatches.slice(0, 2)) {
+      if (solution.length > 15 && solution.length < 300) {
+        patterns.push({
+          type: 'pattern',
+          content: solution.trim(),
+          keywords: [taskType],
+        });
+      }
+    }
+  }
+
+  return patterns;
+}
+
+/**
+ * Extract keywords from a command string
+ */
+function extractKeywordsFromCommand(cmd: string): string[] {
+  const toolNames = ['hashcat', 'john', 'readelf', 'objdump', 'strings', 'sqlite3',
+    'make', 'gcc', 'python', 'pip', 'npm', 'git', 'docker', 'curl', 'wget',
+    'stockfish', 'bleach', '7z', 'tar', 'grep', 'awk', 'sed'];
+  
+  const keywords: string[] = [];
+  const cmdLower = cmd.toLowerCase();
+  
+  for (const tool of toolNames) {
+    if (cmdLower.includes(tool)) {
+      keywords.push(tool);
+    }
+  }
+  
+  // Extract flags (e.g., -m 11600)
+  const flags = cmd.match(/-\w+\s+\S+/g);
+  if (flags) {
+    keywords.push(...flags.slice(0, 3).map(f => f.trim()));
+  }
+  
+  return keywords;
 }

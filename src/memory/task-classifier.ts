@@ -13,6 +13,7 @@ export type TaskCategory =
   | 'coding'        // Algorithms, APIs, refactoring, code generation
   | 'file-ops'      // Archives, downloads, conversions
   | 'testing'       // Unit tests, integration tests, test frameworks
+  | 'constraint-satisfaction'  // OPTIMIZATION 3: Added for scheduling/optimization tasks
   | 'unknown';
 
 export interface TaskClassification {
@@ -134,20 +135,40 @@ const CATEGORY_PATTERNS: CategoryPattern[] = [
     droid: 'code-quality-guardian',
     capabilities: ['testing', 'test-frameworks', 'coverage'],
   },
+  // OPTIMIZATION 3: Added constraint-satisfaction category
+  {
+    category: 'constraint-satisfaction',
+    patterns: [
+      /schedul\w+|timetabl\w+|allocat\w+/i,
+      /constraint|satisfy|feasible|optimal/i,
+      /resource.?alloc|slot|capacity/i,
+      /minimize|maximize|objective|cost.?function/i,
+      /backtrack|search|pruning|heuristic/i,
+    ],
+    keywords: ['schedule', 'constraint', 'optimize', 'allocate', 'slot', 'feasible'],
+    droid: 'code-quality-guardian',
+    capabilities: ['algorithms', 'optimization', 'constraint-solving'],
+  },
 ];
 
 /**
  * Classify a task based on its instruction/prompt
+ * OPTIMIZATION 3: Fixed scoring to use actual max possible scores per category
  */
 export function classifyTask(instruction: string): TaskClassification {
   const normalizedInstruction = instruction.toLowerCase();
   const scores: Map<TaskCategory, number> = new Map();
   const matchedKeywords: Map<TaskCategory, string[]> = new Map();
+  const maxScores: Map<TaskCategory, number> = new Map();
 
   // Score each category based on pattern matches
   for (const categoryPattern of CATEGORY_PATTERNS) {
     let score = 0;
     const keywords: string[] = [];
+
+    // OPTIMIZATION 3: Calculate actual max possible score for this category
+    const maxPossible = categoryPattern.patterns.length * 2 + categoryPattern.keywords.length;
+    maxScores.set(categoryPattern.category, maxPossible);
 
     // Check regex patterns
     for (const pattern of categoryPattern.patterns) {
@@ -179,9 +200,10 @@ export function classifyTask(instruction: string): TaskClassification {
     }
   }
 
-  // Calculate confidence (0-1)
-  const maxPossibleScore = 20; // Rough estimate
-  const confidence = Math.min(bestScore / maxPossibleScore, 1);
+  // OPTIMIZATION 3: Calculate confidence using actual max score for the matched category
+  // This gives more accurate confidence than a hardcoded estimate
+  const categoryMaxScore = maxScores.get(bestCategory) || 20;
+  const confidence = Math.min(bestScore / categoryMaxScore, 1);
 
   // Get pattern config for best category
   const patternConfig = CATEGORY_PATTERNS.find(p => p.category === bestCategory);
@@ -224,6 +246,9 @@ function generateMemoryQueryHints(category: TaskCategory, keywords: string[]): s
       break;
     case 'testing':
       hints.push('unit testing', 'test coverage', 'test patterns');
+      break;
+    case 'constraint-satisfaction':
+      hints.push('constraint solving', 'scheduling algorithms', 'optimization techniques');
       break;
   }
 

@@ -38,6 +38,10 @@ export interface SemanticCompressionConfig {
   preserveHighImportance: boolean;
 }
 
+// OPTIMIZATION 7: Added soft caps for gotchas and lessons to prevent token bloat
+const MAX_GOTCHAS_PER_UNIT = 5;
+const MAX_LESSONS_PER_UNIT = 5;
+
 const DEFAULT_CONFIG: SemanticCompressionConfig = {
   maxFactsPerUnit: 10,
   minActionability: 0.3,
@@ -299,9 +303,18 @@ export function createSemanticUnit(
   // Deduplicate similar facts
   const uniqueFacts = deduplicateFacts(allFacts, cfg.deduplicationThreshold);
   
-  // Sort by actionability and take top N
+  // OPTIMIZATION 7: Apply soft caps for gotchas and lessons to prevent token bloat
+  // Sort all facts by actionability
   uniqueFacts.sort((a, b) => b.actionability - a.actionability);
-  const topFacts = uniqueFacts.slice(0, cfg.maxFactsPerUnit);
+  
+  // Separate gotchas/lessons from other facts, apply caps, then recombine
+  const gotchas = uniqueFacts.filter(f => f.type === 'gotcha').slice(0, MAX_GOTCHAS_PER_UNIT);
+  const lessons = uniqueFacts.filter(f => f.type === 'lesson').slice(0, MAX_LESSONS_PER_UNIT);
+  const otherFacts = uniqueFacts.filter(f => f.type !== 'gotcha' && f.type !== 'lesson');
+  
+  // Recombine: gotchas and lessons first (they're highest value), then other facts
+  const cappedFacts = [...gotchas, ...lessons, ...otherFacts];
+  const topFacts = cappedFacts.slice(0, cfg.maxFactsPerUnit);
   
   // Collect all entities
   const allEntities = new Set<string>();
