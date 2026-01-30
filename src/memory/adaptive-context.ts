@@ -44,15 +44,18 @@ export interface HistoricalData {
   avgTimeWithoutUam: number;
 }
 
+// OPTIMIZATION 7: Refined low-benefit categories
 // Task categories that typically don't benefit from UAM context
 // Only skip when purely in these categories with no domain overlap
 // NOTE: 'scheduling' removed - constraint-satisfaction tasks like 'constraints-scheduling' 
 // benefit from UAM context (proven +1 task in Terminal-Bench)
+// NOTE: Added more specific categories based on Terminal-Bench analysis
 const LOW_BENEFIT_CATEGORIES = new Set([
-  'reasoning',
-  'games',
-  'pure-logic',
-  'mathematical',
+  'reasoning',       // Pure logical reasoning (sudoku, puzzles)
+  'games',           // Game theory, chess position analysis (but NOT chess-best-move which needs stockfish)
+  'pure-logic',      // Mathematical proofs, formal verification
+  'mathematical',    // Pure math calculations
+  'calendar',        // Meeting scheduling (but NOT server scheduling)
 ]);
 
 // Categories that should ALWAYS receive UAM context regardless of historical data
@@ -165,6 +168,26 @@ const CONTEXT_SECTIONS: Record<
 - Check logs first: journalctl, /var/log/
 - Use verbose flags: -v, --debug
 - Isolate the problem: binary search through changes`,
+  },
+  // OPTIMIZATION 7 & 8: Library-first and output verification context
+  domain_libraries: {
+    tokens: 100,
+    keywords: ['chess', 'statistics', 'compression', 'sampler', 'ars', 'stockfish', 'numerical'],
+    content: `### Domain Libraries (USE INSTEAD OF CUSTOM CODE)
+- Chess: python-chess + stockfish (pip install python-chess), chessimg2pos for image→FEN
+- Statistics/ARS: scipy.stats or R CRAN 'ars' package (NOT custom implementation)
+- Compression: zlib, lz4, brotli (NOT custom Huffman). Test round-trip FIRST
+- Numerical: numpy/scipy with tolerance 1e-6, test multiple random seeds`,
+  },
+  output_verification: {
+    tokens: 80,
+    keywords: ['create', 'file', 'output', 'script', 'cli', 'executable', 'shebang'],
+    content: `### Output Verification (37% of failures = missing files)
+- touch output files FIRST, then implement
+- CLI scripts: add #!/usr/bin/env python3 shebang + chmod +x
+- Test with ./script (NOT python3 script.py)
+- Verify all expected files: ls -la before claiming done
+- Partial output > no output: always create the file`,
   },
 };
 

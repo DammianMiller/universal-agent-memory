@@ -164,7 +164,7 @@ async function buildContext(
   const relevantPatterns = buildRelevantPatterns(analysis);
 
   // Template version for reproducibility
-  const TEMPLATE_VERSION = '10.13-opt';
+  const TEMPLATE_VERSION = '10.14-opt';
 
   return {
     // Project basics
@@ -747,47 +747,67 @@ function buildFileTypeRouting(languages: string[]): string | null {
 }
 
 /**
- * Build relevant patterns list based on project type.
+ * OPTIMIZATION 9: More aggressive pattern pruning based on project type.
  * Prunes domain-specific patterns (Chess, Compression impossible, Polyglot, etc.)
  * that don't apply to the project, saving ~800 tokens of context window.
+ * 
+ * Now also categorizes patterns by priority for clearer guidance.
  */
 function buildRelevantPatterns(analysis: ProjectAnalysis): string | null {
   const languages = analysis.languages.map(l => l.toLowerCase());
   const hasInfra = analysis.directories.infrastructure.length > 0;
   const hasSecurity = languages.some(l => l.includes('python') || l.includes('javascript') || l.includes('typescript'));
   const hasGit = true; // All projects use git
+  const hasCLI = analysis.components.some(c => 
+    c.name.toLowerCase().includes('cli') || 
+    c.description?.toLowerCase().includes('command') ||
+    c.description?.toLowerCase().includes('script')
+  );
   
-  // Always-relevant core patterns
-  const relevant: string[] = [
-    'P1 (EnvIsolation)', 'P2 (Recipe)', 'P3 (StateProtect)', 
-    'P4 (ToolSpec)', 'P7 (Classify)', 'P8 (CLIoverLib)',
-    'P12 (OEV)', 'P13 (IRL)', 'P15 (ER)', 'P16 (TFE)',
-    'P17 (CE)', 'P18 (MTP)',
-    'P27 (ODC)', 'P29 (MSD)',
+  // CRITICAL patterns - always included, proven high-impact
+  const critical: string[] = [
+    'P12 (OEV)', // Output Existence - 37% of failures
+    'P26 (NMI)', // Near-Miss Iteration - converted 2 tasks
+    'P35 (DFA)', // Decoder-First - compression failures
+  ];
+  
+  // HIGH priority - usually relevant
+  const high: string[] = [
+    'P3 (StateProtect)', 'P17 (CE)', 'P32 (CEV)',
+  ];
+  
+  // Standard patterns - based on project type
+  const standard: string[] = [
+    'P1 (EnvIsolation)', 'P2 (Recipe)', 'P8 (CLIoverLib)',
+    'P13 (IRL)', 'P15 (ER)', 'P16 (TFE)',
   ];
   
   // Conditionally add domain patterns
-  if (hasSecurity) relevant.push('P10 (Whitelist)', 'P20 (AT)');
-  if (hasGit) relevant.push('P22 (GRF)');
-  if (hasInfra) relevant.push('P25 (SCP)', 'P28 (SST)');
+  if (hasSecurity) high.push('P10 (Whitelist)', 'P20 (AT)');
+  if (hasGit) standard.push('P22 (GRF)');
+  if (hasInfra) standard.push('P25 (SCP)', 'P28 (SST)');
+  if (hasCLI) critical.push('P32 (CEV)'); // CLI Execution Verification
   if (languages.some(l => l.includes('rust') || l.includes('c++') || l.includes('python'))) {
-    relevant.push('P33 (NST)');
+    standard.push('P33 (NST)');
   }
   
-  // Skip by default (only add if explicitly needed):
-  // P21 (Chess/Stockfish) - only for chess projects
-  // P23 (Compression impossible) - only for compression projects
-  // P24 (Polyglot) - only for polyglot projects
-  // P34 (Image analysis) - only for image projects
-  
+  // Domain-specific (only add if detected)
+  const domain: string[] = [];
   if (analysis.components.some(c => c.name.toLowerCase().includes('chess') || c.description?.toLowerCase().includes('chess'))) {
-    relevant.push('P21 (CEI)');
+    domain.push('P21 (CEI)');
   }
   if (analysis.components.some(c => c.name.toLowerCase().includes('compress') || c.description?.toLowerCase().includes('compress'))) {
-    relevant.push('P23 (CID)', 'P31 (RTV)');
+    domain.push('P23 (CID)', 'P31 (RTV)');
   }
   
-  return `Active for this project: ${relevant.join(', ')}`;
+  // OPTIMIZATION 9: Format with priority levels for clarity
+  const lines: string[] = [];
+  lines.push(`**CRITICAL** (check every task): ${critical.join(', ')}`);
+  lines.push(`**HIGH**: ${high.join(', ')}`);
+  if (standard.length > 0) lines.push(`**Standard**: ${standard.slice(0, 8).join(', ')}`);
+  if (domain.length > 0) lines.push(`**Domain**: ${domain.join(', ')}`);
+  
+  return lines.join('\n');
 }
 
 /**

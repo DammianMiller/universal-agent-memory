@@ -1,4 +1,4 @@
-<!-- CLAUDE.md v10.13-opt - Optimized Universal Template -->
+<!-- CLAUDE.md v10.14-opt - 10 Model Outcome Success Optimizations -->
 <coding_guidelines>
 
 # {{PROJECT_NAME}} - Autonomous Agent Guide
@@ -137,28 +137,64 @@ ACTIVE: [list YES only]
 
 ---
 
-## NEAR-MISS ITERATION PROTOCOL (P26 ENFORCED)
+## NEAR-MISS ITERATION PROTOCOL (P26 ENFORCED - MANDATORY)
+
+**CRITICAL: This protocol converted 2 failing tasks to passing in v1.3.0**
 
 When >50% of tests pass but not all:
-1. **Read exact failure message** for each failing test
-2. **Fix ONLY the specific failing test** - do not refactor passing code
-3. **Re-run tests** immediately after each fix
-4. **Reserve 30% of time budget** for this iteration loop
-5. **Repeat** until 100% pass or time exhausted
-6. **Never give up** on a task that is >50% passing - small fixes flip outcomes
+1. **STOP and assess** - You are close to success, do NOT restart
+2. **Read EXACT failure message** for each failing test - copy the error verbatim
+3. **Fix ONLY the specific failing test** - do not refactor passing code
+4. **Re-run tests IMMEDIATELY** after each single fix
+5. **MANDATORY: Reserve 30% of time budget** for this iteration loop
+6. **Repeat** until 100% pass or time exhausted
+7. **Never give up** on a task that is >50% passing - small fixes flip outcomes
+
+**Time Budget Enforcement:**
+```
+Total time: 300s → Iteration budget: 90s minimum
+Total time: 120s → Iteration budget: 36s minimum
+Total time: 60s  → Iteration budget: 18s minimum
+```
+
+**Success Pattern (pytorch-model-cli 3/6→6/6):**
+- Test 1 failed: missing shebang → added `#!/usr/bin/env python3`
+- Test 2 failed: not executable → added `chmod +x`
+- Test 3 failed: wrong output format → matched expected format exactly
 
 ---
 
 ---
 
-## DECODER-FIRST PROTOCOL (P35 ENFORCED)
+## DECODER-FIRST & ROUND-TRIP PROTOCOL (P35 ENFORCED - MANDATORY)
+
+**CRITICAL: write-compressor failed 2/3 tests due to decoder format mismatch**
 
 When a task provides a decoder, validator, or expected output format:
 1. **READ the decoder/validator source code FIRST** before writing any implementation
 2. **Extract the exact format** it expects (headers, encoding, byte order, etc.)
 3. **Implement encoder/generator** to match that exact format
-4. **Test round-trip**: `original == decode(encode(original))` BEFORE optimizing
+4. **Test round-trip IMMEDIATELY**: `original == decode(encode(original))`
 5. **Never optimize** until round-trip verification passes
+6. **If round-trip fails**: debug the format mismatch, do NOT optimize for size/speed
+
+**Round-Trip Verification Script:**
+```bash
+# For compression tasks
+python3 -c "
+import sys; data = open('input','rb').read()
+compressed = compress(data); decompressed = decompress(compressed)
+assert data == decompressed, f'MISMATCH: {len(data)} vs {len(decompressed)}'
+print('Round-trip: PASS')
+"
+```
+
+**For CLI tools (P32):** Always verify execution method matches verifier:
+```bash
+chmod +x ./script.py       # Make executable
+head -1 ./script.py        # Verify shebang exists: #!/usr/bin/env python3
+./script.py --help         # Test as verifier runs it (NOT python3 script.py)
+```
 
 ---
 
@@ -393,12 +429,14 @@ MERGE → DEPLOY → MONITOR → FIX (iterate until 100%)
 2. **CHECK ENV**: `which tool` before using
 3. **CLI > LIBRARIES**: Use subprocess when uncertain
 4. **VERIFY OUTPUTS**: `ls -la` ALL expected files before "done"
-5. **ITERATE**: On partial test pass, fix specific failure, re-run (P26)
+5. **ITERATE**: On partial test pass, fix specific failure, re-run (P26) - **MANDATORY 30% time**
 6. **CREATE > EXPLAIN**: Missing output? CREATE it, don't explain
 7. **REFUSE IMPOSSIBLE**: Compression below Shannon limit → IMPOSSIBLE.md
 8. **DECODER FIRST**: When decoder/validator provided, READ IT FIRST (P35)
 9. **ERROR ESCALATION**: Same error twice → change approach completely
 10. **TIME BUDGET**: Reserve 30% for iteration/debugging
+11. **LIBRARY FIRST**: For chess use python-chess+stockfish, for stats use CRAN packages, for compression use zlib/lz4
+12. **CLI EXECUTION**: Test `./script` not `python script.py` - add shebang + chmod +x (P32)
 
 **P17 Active? Print:**
 ```

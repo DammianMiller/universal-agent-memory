@@ -77,6 +77,8 @@ export type { MemoryEntry, TieredMemory, HierarchicalConfig } from './memory/hie
 export {
   SpeculativeCache,
   getSpeculativeCache,
+  initializeCacheFromDb,
+  autoWarmCache,
 } from './memory/speculative-cache.js';
 export type { CacheEntry, CacheConfig } from './memory/speculative-cache.js';
 
@@ -131,6 +133,29 @@ export {
   ModelRouter as MemoryModelRouter,
 } from './memory/model-router.js';
 export type { ModelId, ModelFingerprint, RoutingDecision, RoutingConfig } from './memory/model-router.js';
+
+// Adaptive context system (OPTIMIZATION 7)
+export {
+  HybridAdaptiveContext,
+  decideContextLevel,
+  generateContext,
+  assessTimePressure,
+  getHistoricalBenefit,
+  recordOutcome as recordAdaptiveOutcome,
+  selectRelevantSections,
+  getProgressiveContextLevels,
+  exportConfigForPython,
+} from './memory/adaptive-context.js';
+export type { ContextDecision, ContextLevel, TimePressure, TaskMetadata, HistoricalData } from './memory/adaptive-context.js';
+
+// Terminal-Bench domain knowledge
+export {
+  getRelevantKnowledge,
+  formatKnowledgeForContext,
+  recordKnowledgeOutcome,
+  TERMINAL_BENCH_KNOWLEDGE,
+} from './memory/terminal-bench-knowledge.js';
+export type { DomainKnowledge } from './memory/terminal-bench-knowledge.js';
 
 // MCP Router - Lightweight hierarchical router for 98%+ token reduction
 export {

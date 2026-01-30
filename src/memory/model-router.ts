@@ -158,7 +158,8 @@ const FAILURE_HANDLERS: Record<string, {
 };
 
 /**
- * Score a model for a given task
+ * OPTIMIZATION 5: Enhanced per-category scoring with confidence weighting
+ * Score a model for a given task using category-specific success rates
  */
 function scoreModel(
   model: ModelFingerprint,
@@ -168,9 +169,9 @@ function scoreModel(
 ): number {
   let score = 0;
 
-  // Category match bonus
+  // Category match bonus - INCREASED weight for proven categories
   if (model.bestCategories.includes(classification.category)) {
-    score += 30;
+    score += 40; // Increased from 30
   }
 
   // Complexity match
@@ -180,12 +181,24 @@ function scoreModel(
     score -= 50; // Penalty for difficulty exceeding capability
   }
 
-  // Use per-category success rate if available, otherwise fall back to global
+  // OPTIMIZATION 5: Use per-category success rate with confidence weighting
+  // If we have enough data (>=3 attempts), weight category rate 2x higher than global
   const categoryRate = getCategorySuccessRate(model, classification.category);
-  const effectiveSuccessRate = categoryRate ?? model.successRate;
+  const categoryAttempts = model.categoryStats?.[classification.category]?.attempts || 0;
+  
+  let effectiveSuccessRate: number;
+  if (categoryRate !== null && categoryAttempts >= 3) {
+    // Blend category and global rates, weighted by sample size confidence
+    const confidence = Math.min(categoryAttempts / 10, 1); // Max confidence at 10 samples
+    effectiveSuccessRate = categoryRate * confidence + model.successRate * (1 - confidence);
+    // Bonus for having category-specific data
+    score += 10;
+  } else {
+    effectiveSuccessRate = model.successRate;
+  }
 
-  // Success rate (0-25 points)
-  score += effectiveSuccessRate * 25;
+  // Success rate (0-30 points) - INCREASED from 25
+  score += effectiveSuccessRate * 30;
 
   // Latency preference (0-15 points)
   if (config.preferLatency) {
@@ -208,11 +221,11 @@ function scoreModel(
     score -= 30;
   }
 
-  // Keyword match with model strengths
+  // Keyword match with model strengths - INCREASED weight
   const taskKeywords = classification.keywords.map(k => k.toLowerCase());
   for (const strength of model.strengths) {
     if (taskKeywords.some(kw => strength.includes(kw) || kw.includes(strength))) {
-      score += 5;
+      score += 8; // Increased from 5
     }
   }
 
