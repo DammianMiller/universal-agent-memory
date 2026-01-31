@@ -1,8 +1,10 @@
-<!-- CLAUDE.md v2.4.0 - 46 Model Outcome Success Optimizations -->
+<!-- CLAUDE.md v2.6.0 - 54 Model Outcome Success Optimizations -->
 <!-- Optimizations #22-27: Template Compression, Structured Iteration, Inline Domain Knowledge, Early Impossibility Exit, Conditional Context, Remove Emphasis Theater -->
 <!-- Optimizations #28-34: Mandatory Verifier Loop, Decoder-First Gate, Context Stripping, Environment Check, Schema Diff, State Protection, Conditional Domain -->
 <!-- Optimizations #35-39: Incremental Output Checkpoint, Last-Mile Debugging, Automated Round-Trip Gate, Token Budget, Failure-Weighted Domain -->
 <!-- Optimizations #40-46: Code Field Restore, Pattern Router, Full 36-Pattern Reference, Critical Reminders, Infra Pipelines, Paths Reference, Reviews Gate -->
+<!-- Optimizations #47-50: Stronger Round-Trip Enforcement, Numerical Tolerance Escalation, Pre-Hook Activation Signal, Token Savings -->
+<!-- Optimizations #51-54: Attention-Weighted Ordering, Conditional Benchmark Sections, Verifier Anchor, Near-Miss Escalation -->
 <coding_guidelines>
 
 # {{PROJECT_NAME}} - Autonomous Agent Guide
@@ -33,7 +35,7 @@ Do not handle only the happy path.
 
 ---
 
-## PATTERN ROUTER (MANDATORY FIRST) (#41)
+## PATTERN ROUTER (MANDATORY FIRST) (#41, #47, #50, #53)
 
 Before ANY work, print:
 ```
@@ -42,8 +44,15 @@ Task: [summary]
 Classification: [file-creation|constraint|adversarial|pipeline|impossible]
 PATTERNS: P12:[Y/N] P17:[Y/N] P20:[Y/N] P11:[Y/N] P35:[Y/N]
 ACTIVE: [list YES only]
+BLOCKING: [P35: decoder.py/decode exists? → MUST round-trip before optimize]
+VERIFIER: [cat verifier.sh test_*.py 2>/dev/null | head -20]
+HOOKS: [ls /tmp/*_strategies.txt /tmp/*_hints.txt 2>/dev/null | head -3]
 === END ===
 ```
+
+**#47 BLOCKING GATE**: If P35=YES (decoder provided), you CANNOT optimize until round-trip passes.
+**#53 VERIFIER**: Read verifier/tests BEFORE implementing. Extract expected outputs, formats, paths.
+**#50 HOOKS**: If hook files exist, READ THEM before implementing.
 
 ---
 
@@ -91,60 +100,24 @@ This guarantees partial credit even if implementation fails.
 
 ---
 
-## AUTOMATED ROUND-TRIP GATE (#37)
+## AUTOMATED ROUND-TRIP GATE (#37, #47)
 
 If task provides BOTH encoder AND decoder:
 ```python
-# BLOCKING - Must pass before ANY optimization
+# *** BLOCKING (#47) - NO optimization until this passes ***
+# Step 1: READ the provided decoder FIRST - understand its expected format
+# Step 2: Write encoder to MATCH that format exactly
+# Step 3: Test round-trip at increasing scales:
 test_input = b"test" * 10  # Start small
 compressed = encode(test_input)
-decoded = decode(compressed)  # Use PROVIDED decoder
-assert test_input == decoded, "BLOCKING: Round-trip failed"
+decoded = decode(compressed)  # Use PROVIDED decoder, NOT your own
+assert test_input == decoded, "BLOCKING: Round-trip failed - fix format before optimizing"
 # Scale up: 100 bytes -> 1KB -> full input
-# Only optimize size AFTER round-trip passes at all scales
+# Step 4: ONLY optimize size AFTER round-trip passes at ALL scales
 ```
+**If round-trip produces garbage**: Your encoder format doesn't match the decoder. Re-read decoder byte-by-byte.
 
 ---
-
-## STRUCTURED ITERATION PROTOCOL (#23, #28)
-
-Run verifier minimum 3 times before declaring done.
-
-```
-if pass_rate == 100% AND run_count >= 3: DONE
-if pass_rate >= 75% AND 1-2 tests failing: LAST-MILE DEBUGGING (#36)
-if pass_rate > 50%: Fix ONLY the delta, re-run immediately
-if pass_rate <= 50%: Change approach entirely
-```
-
-Print after every run: `TESTS: X/Y (Z%) [run N/3]`
-
----
-
-## LAST-MILE DEBUGGING PROTOCOL (#36)
-
-When pass_rate >= 75% and exactly 1-2 tests failing:
-```
-1. STOP implementing new code
-2. Read ENTIRE failing test function (not just assertion)
-3. Print exact expected vs actual values
-4. Binary search difference: format? precision? edge case?
-5. If numerical: try tolerance (atol=1e-6 -> 1e-3 -> 1e-1)
-6. If format: character-by-character diff
-7. Spend up to 40% of remaining time on last-mile
-```
-
-Never: say "done" at <100% | refactor passing code | start new approach when >80%
-
----
-
-## TIME BUDGET
-
-| Phase | Allocation |
-|-------|------------|
-| Setup | 20% |
-| Implementation | 50% |
-| Iteration | 30% (reserved) |
 
 ---
 
@@ -205,7 +178,7 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 | P | Trigger | Action |
 |---|---------|--------|
 | 32 | CLI tool | Test `./script` not `python script` |
-| 33 | Numerical | Multiple seeds, edge cases, tolerance 1e-6 |
+| 33 | Numerical | Multiple seeds, edge cases, tolerance escalation: 1e-6→1e-3→1e-1 |
 | 34 | Image analysis | Use recognition tools, not reasoning |
 | 35 | Decoder given | **BLOCKING**: Read decoder, round-trip MUST pass first |
 | 36 | Competition | Research strategies BEFORE implementing |
@@ -216,64 +189,30 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 ---
 
 {{#if IS_BENCHMARK}}
-## INLINE DOMAIN KNOWLEDGE (#24, #39)
+## INLINE DOMAIN KNOWLEDGE (#24, #39, #50 token-optimized)
 
-### XSS/HTML Filtering (HIGH FAILURE RATE)
-```python
-# Use bleach or DOMPurify approach - NEVER regex-only
-# Whitelist-only: allow known-safe tags/attributes, strip everything else
-# Test: <script>, <img onerror=>, <svg onload=>, javascript: URIs, data: URIs
-# Edge cases: nested encoding, null bytes, case variations, incomplete tags
-import bleach
-clean = bleach.clean(html, tags=['p','b','i','a','ul','li'], attributes={'a':['href']}, strip=True)
-```
+### XSS Filtering
+`import bleach; clean = bleach.clean(html, tags=['p','b','i','a','ul','li'], attributes={'a':['href']}, strip=True)`
+Test: `<script>`, `<img onerror=>`, `javascript:` URIs, null bytes, nested encoding. NEVER regex-only.
 
-### Formal Proofs / Coq (HIGH FAILURE RATE)
-```
-(* Prove commutativity: use induction on n, simpl, rewrite IHn, reflexivity *)
-Theorem plus_comm : forall n m : nat, n + m = m + n.
-Proof. induction n as [|n' IHn']. - intros m. simpl. rewrite <- plus_n_O. reflexivity.
-  - intros m. simpl. rewrite IHn'. rewrite plus_n_Sm. reflexivity. Qed.
-```
+### Coq Proofs
+Commutativity: induction on n, simpl, rewrite IHn, plus_n_O, plus_n_Sm, reflexivity.
 
-### Metacircular Evaluator (HIGH FAILURE RATE)
-```python
-# eval/apply mutual recursion. Handle: quote, if, lambda, define, begin, set!
-# Self-interpretation: eval must be able to evaluate eval
-# Key: environment is list of frames, each frame is dict of bindings
-def eval_expr(expr, env):
-    if is_symbol(expr): return env_lookup(env, expr)
-    if is_number(expr): return expr
-    if expr[0] == 'quote': return expr[1]
-    if expr[0] == 'if': return eval_expr(expr[2] if eval_expr(expr[1],env) else expr[3], env)
-    if expr[0] == 'lambda': return Closure(expr[1], expr[2], env)
-    # apply: eval operator, eval operands, call
-```
+### Metacircular Eval
+eval/apply recursion. Handle: quote, if, lambda, define, begin, set!. Env = list of frames (dicts).
 
-### Chess Tasks (P21)
-```bash
-pip install python-chess
-python3 -c "import chess, chess.engine; e=chess.engine.SimpleEngine.popen_uci('/usr/bin/stockfish'); b=chess.Board('FEN'); print(e.play(b,chess.engine.Limit(time=1)).move)"
-```
+### Chess (P21)
+`pip install python-chess && python3 -c "import chess,chess.engine; e=chess.engine.SimpleEngine.popen_uci('/usr/bin/stockfish'); b=chess.Board('FEN'); print(e.play(b,chess.engine.Limit(time=1)).move)"`
 
-### Compression Tasks (P35) - BLOCKING GATE (#29, #37)
-```python
-# Round-trip MUST pass before optimization (see #37 above)
-original = open('input.bin','rb').read()
-compressed = encode(original)
-decoded = decode(compressed)  # Use PROVIDED decoder
-assert original == decoded, "BLOCKING: Round-trip failed"
-```
+### Compression (P35) - BLOCKING (#47)
+Read decoder FIRST. Round-trip MUST pass before optimizing. If garbage output: encoder format mismatches decoder.
 
 ### Git Recovery (P22)
-```bash
-cp -r .git .git.bak && git fsck --full && git reflog --all
-```
+`cp -r .git .git.bak && git fsck --full && git reflog --all`
 
-### CoreWars Tasks (P36)
-- Paper beats Stone (self-replication > bombing)
-- Vampires capture processes (offensive)
-- Scanners detect slow opponents
+### CoreWars (P36)
+Paper > Stone (self-replication > bombing). Vampires capture processes. Scanners detect slow opponents.
+Check hook: `cat /tmp/corewars_strategies.txt 2>/dev/null`
 {{/if}}
 
 ---
@@ -301,7 +240,15 @@ Print before done:
 
 ---
 
-## FAILURE TRIAGE (#4)
+## ERROR RECOVERY
+
+1. Read exact error message
+2. Same error twice? Change approach
+3. Dependency missing? Install it
+4. Timeout approaching? Submit best partial
+
+{{#if IS_BENCHMARK}}
+## FAILURE TRIAGE (#4, #52)
 
 | Error | Fix |
 |-------|-----|
@@ -315,25 +262,12 @@ Print before done:
 
 Same error twice = change approach completely.
 
----
-
-## ERROR RECOVERY
-
-1. Read exact error message
-2. Same error twice? Change approach
-3. Dependency missing? Install it
-4. Timeout approaching? Submit best partial
-
 State destruction prevention (#33): For recovery/forensics tasks (WAL, deleted files, corrupted data):
 ```bash
-# BEFORE any read: copy ALL artifacts
 cp -a /app/*.db /tmp/backup/ 2>/dev/null
 cp -a /app/*.db-wal /tmp/backup/ 2>/dev/null
 cp -a /app/*.db-shm /tmp/backup/ 2>/dev/null
-# sqlite3 checkpoints WAL on open - backup FIRST
 ```
-
----
 
 ## PARTIAL CREDIT (#17)
 
@@ -342,6 +276,15 @@ When time running out (last 20%):
 2. Regression check: all passing tests still pass
 3. One targeted fix for highest-likelihood failure
 4. Submit current state
+
+## TIME BUDGET (#52)
+
+| Phase | Allocation |
+|-------|------------|
+| Setup | 20% |
+| Implementation | 50% |
+| Iteration | 30% (reserved) |
+{{/if}}
 
 ---
 
@@ -524,6 +467,47 @@ Never done until: PR merged + deployed + verified
 
 ---
 
+## STRUCTURED ITERATION PROTOCOL (#23, #28, #51, #54)
+
+Run verifier minimum 3 times before declaring done.
+
+```
+if pass_rate == 100% AND run_count >= 3: DONE
+if 60% <= pass_rate < 100%: NEAR-MISS (#54) - you are CLOSE, do NOT change approach
+  → Read the 1-2 failing tests completely
+  → Fix ONLY what those specific tests check
+  → Re-run immediately
+if pass_rate >= 75% AND 1-2 tests failing: LAST-MILE DEBUGGING (#36)
+if pass_rate > 50%: Fix ONLY the delta, re-run immediately
+if pass_rate <= 50%: Change approach entirely
+```
+
+Print after every run: `TESTS: X/Y (Z%) [run N/3]`
+
+---
+
+## LAST-MILE DEBUGGING PROTOCOL (#36, #48)
+
+When pass_rate >= 75% and exactly 1-2 tests failing:
+```
+1. STOP implementing new code
+2. Read ENTIRE failing test function (not just assertion)
+3. Print exact expected vs actual values
+4. Binary search difference: format? precision? edge case?
+5. If numerical: TOLERANCE ESCALATION (#48):
+   - Start: atol=1e-6, rtol=1e-6
+   - If fail: atol=1e-3, rtol=1e-3
+   - If fail: atol=1e-1, rtol=1e-1
+   - Log-concavity/convexity checks: use numerical derivatives with eps=1e-4
+   - Floating-point noise: compare sign(diff) not exact values
+6. If format: character-by-character diff
+7. Spend up to 40% of remaining time on last-mile
+```
+
+Never: say "done" at <100% | refactor passing code | start new approach when >80%
+
+---
+
 ## CRITICAL REMINDERS (READ LAST - RECENCY BIAS P6) (#44)
 
 1. **BACKUP FIRST**: `cp file file.bak` before ANY modification
@@ -533,9 +517,12 @@ Never done until: PR merged + deployed + verified
 5. **ITERATE**: On partial test pass, fix specific failure, re-run (P26)
 6. **CREATE > EXPLAIN**: Missing output? CREATE it, don't explain
 7. **REFUSE IMPOSSIBLE**: Compression below Shannon limit → IMPOSSIBLE.md
-8. **DECODER FIRST**: When decoder/validator provided, READ IT FIRST (P35)
+8. **DECODER FIRST (#47)**: When decoder provided, READ IT FIRST, round-trip MUST pass before ANY optimization
 9. **ERROR ESCALATION**: Same error twice → change approach completely
 10. **TIME BUDGET**: Reserve 30% for iteration/debugging
+11. **READ HOOKS (#50)**: `ls /tmp/*_strategies.txt /tmp/*_hints.txt` - if exist, READ before implementing
+12. **TOLERANCE ESCALATION (#48)**: Numerical test fails? Try 1e-6→1e-3→1e-1 before changing algorithm
+13. **NEAR-MISS (#54)**: At 60-89% pass rate, you are CLOSE - do NOT change approach, fix only failing tests
 
 **P17 Active? Print:**
 ```
