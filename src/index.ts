@@ -134,7 +134,7 @@ export {
 } from './memory/model-router.js';
 export type { ModelId, ModelFingerprint, RoutingDecision, RoutingConfig } from './memory/model-router.js';
 
-// Adaptive context system (OPTIMIZATION 7)
+// Adaptive context system (OPTIMIZATION 7 + v1.9.0 10 Optimizations)
 export {
   HybridAdaptiveContext,
   decideContextLevel,
@@ -145,8 +145,29 @@ export {
   selectRelevantSections,
   getProgressiveContextLevels,
   exportConfigForPython,
+  // OPT 9: Multi-category classification
+  classifyTaskMultiCategory,
+  // OPT 7: Error-to-section mapping
+  getSectionsForError,
+  // OPT 6: Task-type patterns
+  getRelevantPatterns,
+  // OPT 10: Semantic caching
+  lookupSemanticCache,
+  storeSemanticCache,
+  // OPT 8: Model fingerprint integration
+  getModelFingerprintForTask,
+  // Cleanup
+  closeHistoricalDb,
 } from './memory/adaptive-context.js';
-export type { ContextDecision, ContextLevel, TimePressure, TaskMetadata, HistoricalData } from './memory/adaptive-context.js';
+export type { 
+  ContextDecision, 
+  ContextLevel, 
+  TimePressure, 
+  TaskMetadata, 
+  HistoricalData,
+  // OPT 9: Multi-category result
+  MultiCategoryClassification,
+} from './memory/adaptive-context.js';
 
 // Terminal-Bench domain knowledge
 export {

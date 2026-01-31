@@ -6,11 +6,19 @@
  * - Model capability fingerprints (benchmarked data)
  * - Latency/accuracy/cost tradeoffs
  * - Fallback chains for resilience
+ * - OPT 8: Persistent fingerprint data from SQLite
  *
  * Based on BENCHMARK_ANALYSIS.md and MODEL_BENCHMARK_RESULTS.md data.
  */
 
+import Database from 'better-sqlite3';
+import { existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { classifyTask, type TaskClassification } from './task-classifier.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export type ModelId = 'glm-4.7' | 'gpt-5.2' | 'claude-opus-4.5' | 'gpt-5.2-codex';
 
@@ -133,6 +141,135 @@ const MODEL_FINGERPRINTS: Record<ModelId, ModelFingerprint> = {
 };
 
 const COMPLEXITY_RANK = { easy: 1, medium: 2, hard: 3 };
+
+// OPT 8: SQLite-backed fingerprint persistence
+let fingerprintDb: Database.Database | null = null;
+
+function getFingerprintDb(): Database.Database {
+  if (fingerprintDb) return fingerprintDb;
+  
+  const dbDir = join(__dirname, '../../agents/data/memory');
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+  }
+  
+  const dbPath = join(dbDir, 'model_fingerprints.db');
+  fingerprintDb = new Database(dbPath);
+  fingerprintDb.pragma('journal_mode = WAL');
+  
+  // Create schema
+  fingerprintDb.exec(`
+    CREATE TABLE IF NOT EXISTS fingerprint_updates (
+      model_id TEXT NOT NULL,
+      avg_latency_ms REAL,
+      success_rate REAL,
+      updated_at INTEGER,
+      PRIMARY KEY (model_id)
+    );
+    
+    CREATE TABLE IF NOT EXISTS category_stats (
+      model_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      successes INTEGER DEFAULT 0,
+      updated_at INTEGER,
+      PRIMARY KEY (model_id, category)
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_category_stats_model ON category_stats(model_id);
+  `);
+  
+  return fingerprintDb;
+}
+
+/**
+ * OPT 8: Load persisted fingerprint data on module init
+ */
+function loadPersistedFingerprints(): void {
+  try {
+    const db = getFingerprintDb();
+    
+    // Load global updates
+    const updates = db.prepare('SELECT * FROM fingerprint_updates').all() as Array<{
+      model_id: string;
+      avg_latency_ms: number;
+      success_rate: number;
+    }>;
+    
+    for (const update of updates) {
+      const fp = MODEL_FINGERPRINTS[update.model_id as ModelId];
+      if (fp) {
+        // Blend persisted data with defaults (70% persisted, 30% default)
+        fp.avgLatencyMs = fp.avgLatencyMs * 0.3 + update.avg_latency_ms * 0.7;
+        fp.successRate = fp.successRate * 0.3 + update.success_rate * 0.7;
+      }
+    }
+    
+    // Load category stats
+    const categoryData = db.prepare('SELECT * FROM category_stats').all() as Array<{
+      model_id: string;
+      category: string;
+      attempts: number;
+      successes: number;
+    }>;
+    
+    for (const cat of categoryData) {
+      const fp = MODEL_FINGERPRINTS[cat.model_id as ModelId];
+      if (fp) {
+        if (!fp.categoryStats) fp.categoryStats = {};
+        // Merge with existing stats
+        const existing = fp.categoryStats[cat.category] || { attempts: 0, successes: 0 };
+        fp.categoryStats[cat.category] = {
+          attempts: existing.attempts + cat.attempts,
+          successes: existing.successes + cat.successes,
+        };
+      }
+    }
+  } catch (err) {
+    // Silently fail - fingerprints will use defaults
+    console.warn('Failed to load persisted fingerprints:', err);
+  }
+}
+
+/**
+ * OPT 8: Persist fingerprint updates to SQLite
+ */
+function persistFingerprintUpdate(modelId: ModelId): void {
+  try {
+    const db = getFingerprintDb();
+    const fp = MODEL_FINGERPRINTS[modelId];
+    if (!fp) return;
+    
+    db.prepare(`
+      INSERT OR REPLACE INTO fingerprint_updates (model_id, avg_latency_ms, success_rate, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(modelId, fp.avgLatencyMs, fp.successRate, Date.now());
+  } catch (err) {
+    console.warn('Failed to persist fingerprint update:', err);
+  }
+}
+
+/**
+ * OPT 8: Persist category stats to SQLite
+ */
+function persistCategoryStats(modelId: ModelId, category: string): void {
+  try {
+    const db = getFingerprintDb();
+    const fp = MODEL_FINGERPRINTS[modelId];
+    const stats = fp?.categoryStats?.[category];
+    if (!stats) return;
+    
+    db.prepare(`
+      INSERT OR REPLACE INTO category_stats (model_id, category, attempts, successes, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(modelId, category, stats.attempts, stats.successes, Date.now());
+  } catch (err) {
+    console.warn('Failed to persist category stats:', err);
+  }
+}
+
+// Initialize on module load
+loadPersistedFingerprints();
 
 /**
  * Failure handlers for model-specific known issues
@@ -333,7 +470,7 @@ export function updateModelFingerprint(
 /**
  * Record task outcome to update model fingerprints (feedback loop)
  * Call this after each task completes to improve future routing decisions
- * Now tracks per-category success rates for more intelligent routing
+ * OPT 8: Now persists to SQLite for cross-session learning
  */
 export function recordTaskOutcome(
   modelId: ModelId,
@@ -351,6 +488,9 @@ export function recordTaskOutcome(
   // Update latency using exponential moving average
   fp.avgLatencyMs = fp.avgLatencyMs * 0.8 + latencyMs * 0.2;
   
+  // OPT 8: Persist global fingerprint update
+  persistFingerprintUpdate(modelId);
+  
   // Update per-category stats if category provided
   if (taskCategory) {
     if (!fp.categoryStats) fp.categoryStats = {};
@@ -361,6 +501,9 @@ export function recordTaskOutcome(
     if (success) {
       fp.categoryStats[taskCategory].successes++;
     }
+    
+    // OPT 8: Persist category stats
+    persistCategoryStats(modelId, taskCategory);
   }
 }
 
@@ -383,6 +526,23 @@ export function explainRouting(instruction: string, difficulty: 'easy' | 'medium
   return lines.join('\n');
 }
 
+/**
+ * OPT 8: Close fingerprint database connection
+ */
+export function closeFingerprintDb(): void {
+  if (fingerprintDb) {
+    fingerprintDb.close();
+    fingerprintDb = null;
+  }
+}
+
+/**
+ * OPT 8: Force reload fingerprints from database
+ */
+export function reloadFingerprints(): void {
+  loadPersistedFingerprints();
+}
+
 export const ModelRouter = {
   routeTask,
   getFailureHandler,
@@ -391,6 +551,8 @@ export const ModelRouter = {
   updateModelFingerprint,
   recordTaskOutcome,
   explainRouting,
+  closeFingerprintDb,
+  reloadFingerprints,
 };
 
 export default ModelRouter;
