@@ -164,7 +164,7 @@ async function buildContext(
   const relevantPatterns = buildRelevantPatterns(analysis);
 
   // Template version for reproducibility
-  const TEMPLATE_VERSION = '10.15-opt';
+  const TEMPLATE_VERSION = '10.16-opt';
 
   return {
     // Project basics
@@ -280,6 +280,14 @@ async function buildContext(
     // Platform detection
     IS_WEB_PLATFORM: isWebPlatform,
     IS_DESKTOP_PLATFORM: !isWebPlatform,
+    
+    // Benchmark mode detection (#34) - conditional domain knowledge
+    // Enable for terminal-bench tasks to include domain-specific patterns
+    // Disable for production to save ~300 tokens
+    IS_BENCHMARK: config.template?.sections?.benchmark || 
+                  existsSync(join(cwd, '.tbench')) ||
+                  existsSync(join(cwd, 'verifier.sh')) ||
+                  process.env.UAM_BENCHMARK_MODE === 'true',
     
     // PROJECT.md separation support
     HAS_PROJECT_MD: existsSync(join(cwd, '.factory/PROJECT.md')) || 

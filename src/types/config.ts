@@ -116,6 +116,7 @@ export const TemplateSectionsSchema = z.object({
   troubleshooting: z.boolean().default(true),
   augmentedCapabilities: z.boolean().default(true),
   pipelineOnly: z.boolean().default(false), // Enforce pipeline-only infrastructure policy
+  benchmark: z.boolean().default(false), // Enable benchmark mode with domain-specific patterns
 });
 
 export const TemplateSchema = z.object({

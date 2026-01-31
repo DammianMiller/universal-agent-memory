@@ -226,6 +226,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
             troubleshooting: config.template?.sections?.troubleshooting ?? true,
             augmentedCapabilities: config.template?.sections?.augmentedCapabilities ?? true,
             pipelineOnly: true,
+            benchmark: false,
           },
         }
       : config.template,

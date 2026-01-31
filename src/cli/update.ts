@@ -99,6 +99,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
             troubleshooting: config.template?.sections?.troubleshooting ?? true,
             augmentedCapabilities: config.template?.sections?.augmentedCapabilities ?? true,
             pipelineOnly: true,
+            benchmark: false,
           },
         },
       }

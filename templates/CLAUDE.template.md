@@ -1,5 +1,6 @@
-<!-- CLAUDE.md v2.1.0 - 27 Model Outcome Success Optimizations -->
+<!-- CLAUDE.md v2.2.0 - 34 Model Outcome Success Optimizations -->
 <!-- Optimizations #22-27: Template Compression, Structured Iteration, Inline Domain Knowledge, Early Impossibility Exit, Conditional Context, Remove Emphasis Theater -->
+<!-- Optimizations #28-34: Mandatory Verifier Loop, Decoder-First Gate, Context Stripping, Environment Check, Schema Diff, State Protection, Conditional Domain -->
 <coding_guidelines>
 
 # {{PROJECT_NAME}} - Autonomous Agent Guide
@@ -28,22 +29,35 @@ Claim partial credit with stub outputs, then stop.
 
 ---
 
-## ENVIRONMENT SNAPSHOT (#21)
+## ENVIRONMENT SNAPSHOT (#21, #31)
 
 Run first in any task:
 ```bash
 python3 --version; which pip3 gcc make node npm git curl 2>/dev/null | head -10
 ```
 
+Environment check (#31): If Dockerfile exists, read it to know what's pre-installed.
+Packages installed via pip at runtime may NOT be available in the test environment.
+```bash
+cat Dockerfile 2>/dev/null || cat /tmp/tbench2/*/environment/Dockerfile 2>/dev/null || true
+```
+
 ---
 
-## VERIFIER-FIRST (#5)
+## VERIFIER-FIRST (#5, #32)
 
 Before implementing any task with tests:
 1. Read verifier/test code first
 2. Extract expected paths, formats, return values
 3. Create stub outputs matching format
 4. Run verifier after each change
+
+Schema diff gate (#32): Before running verifier, diff your output structure against expected:
+```bash
+# Compare output schema to what tests expect
+# Check: field names, data types, array lengths, file paths, line counts
+# Fix mismatches BEFORE running verifier - saves iteration cycles
+```
 
 ```bash
 echo '#!/usr/bin/env python3\nprint("stub")' > script && chmod +x script
@@ -52,11 +66,14 @@ echo '#!/usr/bin/env python3\nprint("stub")' > script && chmod +x script
 
 ---
 
-## STRUCTURED ITERATION PROTOCOL (#23)
+## STRUCTURED ITERATION PROTOCOL (#23, #28)
+
+MANDATORY: Run verifier/tests minimum 3 times before declaring done.
 
 After each test run:
 ```
-if pass_rate == 100%: DONE
+if pass_rate == 100% AND run_count >= 3: DONE
+if pass_rate == 100% AND run_count < 3: Re-run to confirm (not flaky)
 if pass_rate > 50%:
   1. Read failing test source
   2. Diff expected vs actual
@@ -65,7 +82,7 @@ if pass_rate > 50%:
 if pass_rate <= 50%: Change approach entirely
 ```
 
-Print after every run: `TESTS: X/Y (Z%)`
+Print after every run: `TESTS: X/Y (Z%) [run N/3]`
 
 When 1-2 tests fail:
 1. Copy full failing test function
@@ -88,7 +105,7 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 
 ---
 
-## PATTERNS (Merged P12+P16, P13+P26)
+## PATTERNS (Merged P12+P16, P13+P26, +#28-34)
 
 | ID | Trigger | Action |
 |----|---------|--------|
@@ -103,10 +120,14 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 | P20 | "bypass/break/exploit" | Attacker mindset, enumerate vectors |
 | P22 | Git recovery | `cp -r .git .git.bak` first |
 | P32 | CLI tool | Test `./script` not `python script` |
-| P35 | Decoder given | Read decoder first, test round-trip |
+| P35 | Decoder given | **BLOCKING**: Read decoder, round-trip MUST pass first |
+| P37 | Output format specified | Diff output schema vs test expectations before verifier |
+| P38 | Recovery/forensics task | COPY ALL artifacts before ANY read operation |
+| P39 | Tests use separate env | Check Dockerfile; pip installs may not persist |
 
 ---
 
+{{#if IS_BENCHMARK}}
 ## INLINE DOMAIN KNOWLEDGE (#24)
 
 ### Chess Tasks (P21)
@@ -116,13 +137,19 @@ pip install python-chess
 python3 -c "import chess, chess.engine; e=chess.engine.SimpleEngine.popen_uci('/usr/bin/stockfish'); b=chess.Board('FEN'); print(e.play(b,chess.engine.Limit(time=1)).move)"
 ```
 
-### Compression Tasks (P35)
+### Compression Tasks (P35) - BLOCKING GATE (#29)
 ```python
-# ALWAYS test round-trip before optimizing:
+# DECODER-FIRST: If decoder/decompressor provided, analyze it FIRST
+# This is a BLOCKING GATE - round-trip MUST pass before ANY optimization
+
+# 1. Read decoder to understand expected format
+# 2. Create minimal test case
+# 3. Verify round-trip BEFORE optimizing:
 original = open('input.bin','rb').read()
 compressed = encode(original)
-decoded = decode(compressed)
-assert original == decoded, "Round-trip failed"
+decoded = decode(compressed)  # Use PROVIDED decoder
+assert original == decoded, "BLOCKING: Round-trip failed - fix format first"
+# 4. Only after round-trip passes, optimize for size
 ```
 
 ### CoreWars Tasks (P36)
@@ -137,24 +164,29 @@ git fsck --full
 git reflog --all
 git log --all --oneline | head -50
 ```
+{{/if}}
 
 ---
 
-## COMPLETION GATES
+## COMPLETION GATES (#28-34)
 
 | Gate | Check | If Fail |
 |------|-------|---------|
+| 0 | If decoder provided: round-trip passes | **BLOCKING** - fix format first |
 | 1 | `ls -la` outputs exist | Create immediately |
-| 2 | Constraints satisfied | Fix violations |
-| 3 | Tests 100% pass | Iterate, not done |
+| 2 | Schema matches test expectations | Diff and fix before verifier |
+| 3 | Constraints satisfied | Fix violations |
+| 4 | Tests 100% pass (3+ runs) | Iterate, not done |
 
 Print before done:
 ```
 === COMPLETION ===
+[x/o] If decoder: round-trip tested (BLOCKING)
 [x/o] Outputs verified: ls -la
-[x/o] Tests: X/Y (must be 100%)
+[x/o] Schema diffed against test expectations
+[x/o] Tests: X/Y (must be 100%, run 3+ times)
 [x/o] If CLI: tested as ./script
-[x/o] If compression: round-trip tested
+[x/o] If recovery: artifacts copied before read
 ```
 
 ---
@@ -181,6 +213,15 @@ Same error twice = change approach completely.
 2. Same error twice? Change approach
 3. Dependency missing? Install it
 4. Timeout approaching? Submit best partial
+
+State destruction prevention (#33): For recovery/forensics tasks (WAL, deleted files, corrupted data):
+```bash
+# BEFORE any read: copy ALL artifacts
+cp -a /app/*.db /tmp/backup/ 2>/dev/null
+cp -a /app/*.db-wal /tmp/backup/ 2>/dev/null
+cp -a /app/*.db-shm /tmp/backup/ 2>/dev/null
+# sqlite3 checkpoints WAL on open - backup FIRST
+```
 
 ---
 
@@ -305,10 +346,13 @@ Never done until: PR merged + deployed + verified
 ## FINAL DIRECTIVES
 
 1. Read verifier/test before implementing
-2. `ls -la` all outputs before saying done
-3. If >50% tests pass, iterate - do not restart
-4. Use libraries, not custom code
-5. Same error twice = change approach
-6. Never done if tests <100%
+2. If decoder provided: round-trip MUST pass before optimizing (BLOCKING)
+3. `ls -la` all outputs before saying done
+4. Diff output schema vs test expectations before running verifier
+5. If >50% tests pass, iterate - do not restart
+6. Use libraries, not custom code
+7. Same error twice = change approach
+8. Run verifier minimum 3 times before declaring done
+9. Never done if tests <100%
 
 </coding_guidelines>

@@ -128,6 +128,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
         troubleshooting: true,
         augmentedCapabilities: true,
         pipelineOnly: withPipelineOnly,
+        benchmark: false,
         // codeField enabled by default in template v8.0
         ...existingConfig.template?.sections,
       },
