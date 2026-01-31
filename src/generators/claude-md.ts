@@ -164,7 +164,7 @@ async function buildContext(
   const relevantPatterns = buildRelevantPatterns(analysis);
 
   // Template version for reproducibility
-  const TEMPLATE_VERSION = '10.16-opt';
+  const TEMPLATE_VERSION = '10.17-opt';
 
   return {
     // Project basics
