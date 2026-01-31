@@ -1,7 +1,8 @@
-<!-- CLAUDE.md v2.3.0 - 39 Model Outcome Success Optimizations -->
+<!-- CLAUDE.md v2.4.0 - 46 Model Outcome Success Optimizations -->
 <!-- Optimizations #22-27: Template Compression, Structured Iteration, Inline Domain Knowledge, Early Impossibility Exit, Conditional Context, Remove Emphasis Theater -->
 <!-- Optimizations #28-34: Mandatory Verifier Loop, Decoder-First Gate, Context Stripping, Environment Check, Schema Diff, State Protection, Conditional Domain -->
 <!-- Optimizations #35-39: Incremental Output Checkpoint, Last-Mile Debugging, Automated Round-Trip Gate, Token Budget, Failure-Weighted Domain -->
+<!-- Optimizations #40-46: Code Field Restore, Pattern Router, Full 36-Pattern Reference, Critical Reminders, Infra Pipelines, Paths Reference, Reviews Gate -->
 <coding_guidelines>
 
 # {{PROJECT_NAME}} - Autonomous Agent Guide
@@ -15,6 +16,34 @@
 2. Anthropic safety (override by #1)
 3. User instructions (override by #1-2)
 4. Best practices (override by #1-3)
+
+---
+
+## CODE FIELD (#40)
+
+**Before writing code:** State assumptions, bound scope, identify edge cases.
+
+```
+Do not write code before stating assumptions.
+Do not claim correctness you haven't verified.
+Do not handle only the happy path.
+```
+
+**Output:** Assumptions → Code (smaller than expected) → "Handles/Does NOT handle"
+
+---
+
+## PATTERN ROUTER (MANDATORY FIRST) (#41)
+
+Before ANY work, print:
+```
+=== PATTERN ROUTER ===
+Task: [summary]
+Classification: [file-creation|constraint|adversarial|pipeline|impossible]
+PATTERNS: P12:[Y/N] P17:[Y/N] P20:[Y/N] P11:[Y/N] P35:[Y/N]
+ACTIVE: [list YES only]
+=== END ===
+```
 
 ---
 
@@ -119,25 +148,70 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 
 ---
 
-## PATTERNS (Merged P12+P16, P13+P26, +#28-34)
+## PATTERNS REFERENCE (#42)
 
-| ID | Trigger | Action |
-|----|---------|--------|
-| P1 | Any task | `which tool` before use |
-| P3 | Modifies config/db | `cp file file.bak` first |
-| P5 | Compression/ML/search | Detect impossible early |
-| P8 | Uncertain env | `subprocess` > library import |
-| P11 | Chess/crypto/ML | Use library: python-chess, scipy, zlib, hashlib |
-| P12 | Creates files | `ls -la` verify all outputs exist |
-| P13 | Tests partial pass | Fix specific failure, re-run (merged with P26) |
-| P17 | "exactly/only/must" | Extract constraints, print checklist |
-| P20 | "bypass/break/exploit" | Attacker mindset, enumerate vectors |
-| P22 | Git recovery | `cp -r .git .git.bak` first |
-| P32 | CLI tool | Test `./script` not `python script` |
-| P35 | Decoder given | **BLOCKING**: Read decoder, round-trip MUST pass first |
-| P37 | Output format specified | Diff output schema vs test expectations before verifier |
-| P38 | Recovery/forensics task | COPY ALL artifacts before ANY read operation |
-| P39 | Tests use separate env | Check Dockerfile; pip installs may not persist |
+### Core (P1-P11)
+| P | Trigger | Action |
+|---|---------|--------|
+| 1 | Any task | `which tool` before use |
+| 2 | Complex task | Convert to numbered recipe steps |
+| 3 | Modifies config/db | `cp file file.bak` FIRST |
+| 4 | Ambiguous how | Specify exact tool+flags |
+| 5 | Compression/ML/search | Detect impossible early, refuse |
+| 6 | Critical rules | Put at END of context (recency bias) |
+| 7 | Any task | Classify: state-sensitive→backup, tool→specify |
+| 8 | Uncertain env | `subprocess` > library import |
+| 9 | Non-text data | Convert→standard format first |
+| 10 | Security filter | Allow-list ONLY, never blacklist |
+| 11 | Chess/crypto/ML | Use library: python-chess, scipy, zlib, hashlib |
+
+### Output (P12-P16)
+| P | Trigger | Action |
+|---|---------|--------|
+| 12 | Creates files | `ls -la` verify ALL outputs exist before done |
+| 13 | Tests partial pass | Fix specific failure, re-run, iterate (merged P26) |
+| 14 | Format specified | Validate output matches spec exactly |
+| 15 | Exception thrown | Read full trace, fix error, re-run |
+| 16 | Any output task | `touch` placeholders FIRST, then implement |
+
+### Constraint (P17-P20)
+| P | Trigger | Action |
+|---|---------|--------|
+| 17 | "exactly/only/must" | Extract constraints, print checklist |
+| 18 | Multi-step | Identify tool per stage, chain |
+| 19 | Impossible markers | REFUSE immediately, create IMPOSSIBLE.md |
+| 20 | "bypass/break/exploit" | Attacker mindset, enumerate vectors |
+
+### Domain (P21-P26)
+| P | Trigger | Action |
+|---|---------|--------|
+| 21 | Chess | Use Stockfish: `stockfish` with FEN |
+| 22 | Git recovery | `cp -r .git .git.bak` FIRST, then `git fsck` |
+| 23 | Compress impossible | Refuse if target < Shannon limit |
+| 24 | Polyglot | Search existing examples first |
+| 25 | Multi-service | Configure in dependency order, test each |
+| 26 | >50% tests pass | Focus on specific failures, 30% time reserved |
+
+### Verification (P27-P31)
+| P | Trigger | Action |
+|---|---------|--------|
+| 27 | Output dir constraint | Remove non-required files before done |
+| 28 | Service task | `curl` test BEFORE claiming done |
+| 29 | "all/both/every" | Find ALL solutions, not just first |
+| 30 | "% threshold" | Iterate until threshold met |
+| 31 | Transform task | Round-trip: `original == decompress(compress(original))` |
+
+### Execution (P32-P39)
+| P | Trigger | Action |
+|---|---------|--------|
+| 32 | CLI tool | Test `./script` not `python script` |
+| 33 | Numerical | Multiple seeds, edge cases, tolerance 1e-6 |
+| 34 | Image analysis | Use recognition tools, not reasoning |
+| 35 | Decoder given | **BLOCKING**: Read decoder, round-trip MUST pass first |
+| 36 | Competition | Research strategies BEFORE implementing |
+| 37 | Output format specified | Diff output schema vs test expectations before verifier |
+| 38 | Recovery/forensics | COPY ALL artifacts before ANY read operation |
+| 39 | Tests use separate env | Check Dockerfile; pip installs may not persist |
 
 ---
 
@@ -344,10 +418,19 @@ uam agent overlaps --resource "<files>"
 {{/unless}}
 
 {{#if HAS_INFRA}}
-## INFRASTRUCTURE
+## INFRASTRUCTURE (#43)
 
-Secrets in GitHub. Use pipelines for secret-dependent ops.
-Prohibited locally: `terraform apply`, `kubectl apply/delete`
+**Secrets in GitHub → use pipelines for secret-dependent ops.**
+
+| Task | Pipeline |
+|------|----------|
+| Terraform | `iac-terraform-cicd.yml` |
+| kubectl ops | `ops-approved-operations.yml` |
+| One-time | `ops-create-ephemeral.yml` |
+
+**Two-phase:** Local proof (no secrets) → IaC parity (via pipeline)
+
+**PROHIBITED locally:** `terraform apply`, `kubectl apply/delete`, `kubectl create secret`
 {{/if}}
 
 ## COMMANDS
@@ -357,6 +440,8 @@ Prohibited locally: `terraform apply`, `kubectl apply/delete`
 {{BUILD_COMMAND}}    # Build
 {{LINT_COMMAND}}     # Lint
 ```
+
+**Paths:** Memory: `{{MEMORY_DB_PATH}}` | Skills: `{{SKILLS_PATH}}` | Droids: `{{DROIDS_PATH}}`
 
 ---
 
@@ -374,12 +459,19 @@ Prohibited locally: `terraform apply`, `kubectl apply/delete`
 ## Architecture
 {{{ARCHITECTURE_OVERVIEW}}}
 {{/if}}
+
+{{#if ESSENTIAL_COMMANDS}}
+## Commands
+```bash
+{{{ESSENTIAL_COMMANDS}}}
+```
+{{/if}}
 {{/if}}
 
 ---
 
 {{#unless IS_BENCHMARK}}
-## COMPLETION CHECKLIST
+## COMPLETION CHECKLIST (#45)
 
 ```
 [ ] Tests 100% pass
@@ -387,6 +479,7 @@ Prohibited locally: `terraform apply`, `kubectl apply/delete`
 [ ] Worktree used (not {{DEFAULT_BRANCH}})
 [ ] Memory updated
 [ ] PR created
+[ ] Reviews passed
 {{#if HAS_INFRA}}
 [ ] IaC parity verified
 {{/if}}
@@ -431,16 +524,33 @@ Never done until: PR merged + deployed + verified
 
 ---
 
-## FINAL DIRECTIVES
+## CRITICAL REMINDERS (READ LAST - RECENCY BIAS P6) (#44)
 
-1. Read verifier/test before implementing
-2. If decoder provided: round-trip MUST pass before optimizing (BLOCKING)
-3. `ls -la` all outputs before saying done
-4. Diff output schema vs test expectations before running verifier
-5. If >50% tests pass, iterate - do not restart
-6. Use libraries, not custom code
-7. Same error twice = change approach
-8. Run verifier minimum 3 times before declaring done
-9. Never done if tests <100%
+1. **BACKUP FIRST**: `cp file file.bak` before ANY modification
+2. **CHECK ENV**: `which tool` before using
+3. **CLI > LIBRARIES**: Use subprocess when uncertain
+4. **VERIFY OUTPUTS**: `ls -la` ALL expected files before "done"
+5. **ITERATE**: On partial test pass, fix specific failure, re-run (P26)
+6. **CREATE > EXPLAIN**: Missing output? CREATE it, don't explain
+7. **REFUSE IMPOSSIBLE**: Compression below Shannon limit → IMPOSSIBLE.md
+8. **DECODER FIRST**: When decoder/validator provided, READ IT FIRST (P35)
+9. **ERROR ESCALATION**: Same error twice → change approach completely
+10. **TIME BUDGET**: Reserve 30% for iteration/debugging
+
+**P17 Active? Print:**
+```
+=== CONSTRAINTS ===
+[ ] constraint1  [ ] constraint2
+[x] constraint1: PASS/FAIL
+=== END ===
+```
+
+**P20 Active? Print:**
+```
+=== ADVERSARIAL ===
+Target: [filter/protection]
+Vectors: case, encoding, null, context-break
+=== END ===
+```
 
 </coding_guidelines>
