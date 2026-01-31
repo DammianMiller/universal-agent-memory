@@ -1,10 +1,8 @@
-<!-- CLAUDE.md v2.6.0 - 54 Model Outcome Success Optimizations -->
-<!-- Optimizations #22-27: Template Compression, Structured Iteration, Inline Domain Knowledge, Early Impossibility Exit, Conditional Context, Remove Emphasis Theater -->
-<!-- Optimizations #28-34: Mandatory Verifier Loop, Decoder-First Gate, Context Stripping, Environment Check, Schema Diff, State Protection, Conditional Domain -->
-<!-- Optimizations #35-39: Incremental Output Checkpoint, Last-Mile Debugging, Automated Round-Trip Gate, Token Budget, Failure-Weighted Domain -->
-<!-- Optimizations #40-46: Code Field Restore, Pattern Router, Full 36-Pattern Reference, Critical Reminders, Infra Pipelines, Paths Reference, Reviews Gate -->
-<!-- Optimizations #47-50: Stronger Round-Trip Enforcement, Numerical Tolerance Escalation, Pre-Hook Activation Signal, Token Savings -->
-<!-- Optimizations #51-54: Attention-Weighted Ordering, Conditional Benchmark Sections, Verifier Anchor, Near-Miss Escalation -->
+<!-- CLAUDE.md v2.7.0 - 58 Model Outcome Success Optimizations -->
+<!-- #55: Pattern Table Compression (keep 12 essential + conditional domain) -->
+<!-- #56: Round-Trip Deduplication (single authoritative section) -->
+<!-- #57: Memory System Compression (inline format) -->
+<!-- #58: Critical Reminders Trim (8 highest-impact items) -->
 <coding_guidelines>
 
 # universal-agent-memory - Autonomous Agent Guide
@@ -98,91 +96,37 @@ This guarantees partial credit even if implementation fails.
 
 ---
 
-## AUTOMATED ROUND-TRIP GATE (#37, #47)
+## ROUND-TRIP GATE (P35, #37, #47) - BLOCKING
 
 If task provides BOTH encoder AND decoder:
-```python
-# *** BLOCKING (#47) - NO optimization until this passes ***
-# Step 1: READ the provided decoder FIRST - understand its expected format
-# Step 2: Write encoder to MATCH that format exactly
-# Step 3: Test round-trip at increasing scales:
-test_input = b"test" * 10  # Start small
-compressed = encode(test_input)
-decoded = decode(compressed)  # Use PROVIDED decoder, NOT your own
-assert test_input == decoded, "BLOCKING: Round-trip failed - fix format before optimizing"
-# Scale up: 100 bytes -> 1KB -> full input
-# Step 4: ONLY optimize size AFTER round-trip passes at ALL scales
-```
-**If round-trip produces garbage**: Your encoder format doesn't match the decoder. Re-read decoder byte-by-byte.
+1. READ decoder FIRST - understand its expected format
+2. Write encoder to MATCH that format exactly
+3. Test round-trip at scales: `10B → 100B → 1KB → full`
+4. ONLY optimize size AFTER round-trip passes at ALL scales
+
+If garbage output: encoder format mismatches decoder. Re-read decoder byte-by-byte.
+Completion Gate 0: If decoder provided, round-trip MUST pass before ANY optimization.
 
 ---
 
----
+## ESSENTIAL PATTERNS (#42, #55)
 
-## PATTERNS REFERENCE (#42)
-
-### Core (P1-P11)
 | P | Trigger | Action |
 |---|---------|--------|
 | 1 | Any task | `which tool` before use |
-| 2 | Complex task | Convert to numbered recipe steps |
 | 3 | Modifies config/db | `cp file file.bak` FIRST |
-| 4 | Ambiguous how | Specify exact tool+flags |
 | 5 | Compression/ML/search | Detect impossible early, refuse |
-| 6 | Critical rules | Put at END of context (recency bias) |
-| 7 | Any task | Classify: state-sensitive→backup, tool→specify |
-| 8 | Uncertain env | `subprocess` > library import |
-| 9 | Non-text data | Convert→standard format first |
-| 10 | Security filter | Allow-list ONLY, never blacklist |
 | 11 | Chess/crypto/ML | Use library: python-chess, scipy, zlib, hashlib |
-
-### Output (P12-P16)
-| P | Trigger | Action |
-|---|---------|--------|
 | 12 | Creates files | `ls -la` verify ALL outputs exist before done |
-| 13 | Tests partial pass | Fix specific failure, re-run, iterate (merged P26) |
-| 14 | Format specified | Validate output matches spec exactly |
-| 15 | Exception thrown | Read full trace, fix error, re-run |
+| 13 | Tests partial pass | Fix specific failure, re-run, iterate |
 | 16 | Any output task | `touch` placeholders FIRST, then implement |
-
-### Constraint (P17-P20)
-| P | Trigger | Action |
-|---|---------|--------|
 | 17 | "exactly/only/must" | Extract constraints, print checklist |
-| 18 | Multi-step | Identify tool per stage, chain |
-| 19 | Impossible markers | REFUSE immediately, create IMPOSSIBLE.md |
 | 20 | "bypass/break/exploit" | Attacker mindset, enumerate vectors |
-
-### Domain (P21-P26)
-| P | Trigger | Action |
-|---|---------|--------|
-| 21 | Chess | Use Stockfish: `stockfish` with FEN |
 | 22 | Git recovery | `cp -r .git .git.bak` FIRST, then `git fsck` |
-| 23 | Compress impossible | Refuse if target < Shannon limit |
-| 24 | Polyglot | Search existing examples first |
-| 25 | Multi-service | Configure in dependency order, test each |
 | 26 | >50% tests pass | Focus on specific failures, 30% time reserved |
-
-### Verification (P27-P31)
-| P | Trigger | Action |
-|---|---------|--------|
-| 27 | Output dir constraint | Remove non-required files before done |
-| 28 | Service task | `curl` test BEFORE claiming done |
-| 29 | "all/both/every" | Find ALL solutions, not just first |
-| 30 | "% threshold" | Iterate until threshold met |
-| 31 | Transform task | Round-trip: `original == decompress(compress(original))` |
-
-### Execution (P32-P39)
-| P | Trigger | Action |
-|---|---------|--------|
-| 32 | CLI tool | Test `./script` not `python script` |
-| 33 | Numerical | Multiple seeds, edge cases, tolerance escalation: 1e-6→1e-3→1e-1 |
-| 34 | Image analysis | Use recognition tools, not reasoning |
 | 35 | Decoder given | **BLOCKING**: Read decoder, round-trip MUST pass first |
-| 36 | Competition | Research strategies BEFORE implementing |
-| 37 | Output format specified | Diff output schema vs test expectations before verifier |
-| 38 | Recovery/forensics | COPY ALL artifacts before ANY read operation |
 | 39 | Tests use separate env | Check Dockerfile; pip installs may not persist |
+
 
 ---
 
@@ -236,16 +180,10 @@ Print before done:
 
 ---
 
-## MEMORY SYSTEM
+## MEMORY SYSTEM (#57)
 
-```
-L1 Working  | SQLite memories      | 50 max | <1ms
-L2 Session  | SQLite session_mem   | current     | <5ms
-L3 Semantic | Qdrant | search      | ~50ms
-L4 Knowledge| SQLite entities/rels | graph       | <20ms
-```
+Memory: L1 SQLite 50max (<1ms) | L2 Session (<5ms) | L3 Qdrant (~50ms) | L4 Graph (<20ms)
 
-**Commands:**
 ```bash
 sqlite3 ./agents/data/memory/short_term.db "SELECT * FROM memories ORDER BY id DESC LIMIT 10;"
 uam memory query "keywords"
@@ -440,7 +378,7 @@ A: UAM works without Docker....
 - Detect these ...
 
 ### Hot Spots
-Frequently modified files (hot spots): package.json (70 changes), package-lock.json (46 changes), templates/CLAUDE.template.md (41 changes), .beads/issues.jsonl (31 changes), CLAUDE.md (22 changes), src/generators/claude-md.ts (20 changes), src/bin/cli.ts (10 changes), README.md (10 changes), src/uam_harbor/uam_agent.py (10 changes), src/cli/init.ts (9 changes). These files may need extra attention during changes.
+Frequently modified files (hot spots): package.json (71 changes), package-lock.json (46 changes), templates/CLAUDE.template.md (42 changes), .beads/issues.jsonl (31 changes), CLAUDE.md (23 changes), src/generators/claude-md.ts (20 changes), src/bin/cli.ts (10 changes), README.md (10 changes), src/uam_harbor/uam_agent.py (10 changes), src/cli/init.ts (9 changes). These files may need extra attention during changes.
 
 ---
 
@@ -485,36 +423,17 @@ Never: say "done" at <100% | refactor passing code | start new approach when >80
 
 ---
 
-## CRITICAL REMINDERS (READ LAST - RECENCY BIAS P6) (#44)
+## CRITICAL REMINDERS (READ LAST - RECENCY BIAS) (#44, #58)
 
-1. **BACKUP FIRST**: `cp file file.bak` before ANY modification
-2. **CHECK ENV**: `which tool` before using
-3. **CLI > LIBRARIES**: Use subprocess when uncertain
-4. **VERIFY OUTPUTS**: `ls -la` ALL expected files before "done"
-5. **ITERATE**: On partial test pass, fix specific failure, re-run (P26)
-6. **CREATE > EXPLAIN**: Missing output? CREATE it, don't explain
-7. **REFUSE IMPOSSIBLE**: Compression below Shannon limit → IMPOSSIBLE.md
-8. **DECODER FIRST (#47)**: When decoder provided, READ IT FIRST, round-trip MUST pass before ANY optimization
-9. **ERROR ESCALATION**: Same error twice → change approach completely
-10. **TIME BUDGET**: Reserve 30% for iteration/debugging
-11. **READ HOOKS (#50)**: `ls /tmp/*_strategies.txt /tmp/*_hints.txt` - if exist, READ before implementing
-12. **TOLERANCE ESCALATION (#48)**: Numerical test fails? Try 1e-6→1e-3→1e-1 before changing algorithm
-13. **NEAR-MISS (#54)**: At 60-89% pass rate, you are CLOSE - do NOT change approach, fix only failing tests
+1. **BACKUP**: `cp file file.bak` before modification (P3)
+2. **VERIFY**: `ls -la` ALL outputs before "done" (P12)
+3. **ITERATE**: Partial pass? Fix specific failure, re-run (P13/P26)
+4. **CREATE > EXPLAIN**: Missing output? CREATE it
+5. **DECODER FIRST**: Round-trip MUST pass before optimization (P35)
+6. **NEAR-MISS**: 60-89% pass = CLOSE, fix only failing tests (#54)
+7. **HOOKS**: `ls /tmp/*_strategies.txt` - if exist, READ first (#50)
+8. **ERROR ESCALATION**: Same error twice → change approach
 
-**P17 Active? Print:**
-```
-=== CONSTRAINTS ===
-[ ] constraint1  [ ] constraint2
-[x] constraint1: PASS/FAIL
-=== END ===
-```
-
-**P20 Active? Print:**
-```
-=== ADVERSARIAL ===
-Target: [filter/protection]
-Vectors: case, encoding, null, context-break
-=== END ===
-```
+**P17 (constraints)?** Print checklist. **P20 (adversarial)?** Print attack vectors.
 
 </coding_guidelines>
