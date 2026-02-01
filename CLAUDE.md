@@ -230,6 +230,19 @@ uam agent overlaps --resource "<files>"
 | sysadmin-expert | Kernel, QEMU, networking |
 | ml-training-expert | Model training, MTEB |
 
+## INFRASTRUCTURE (#43)
+
+**Secrets in GitHub → use pipelines for secret-dependent ops.**
+
+| Task | Pipeline |
+|------|----------|
+| Terraform | `iac-terraform-cicd.yml` |
+| kubectl ops | `ops-approved-operations.yml` |
+| One-time | `ops-create-ephemeral.yml` |
+
+**Two-phase:** Local proof (no secrets) → IaC parity (via pipeline)
+
+**PROHIBITED locally:** `terraform apply`, `kubectl apply/delete`, `kubectl create secret`
 
 ## COMMANDS
 
@@ -255,22 +268,27 @@ npm run lint     # Lint
 universal-agent-memory/
 ├── src/                           # Source code
 │   ├── analyzers/                 # Project analysis (languages, frameworks)
-│   ├── benchmarks/                # Terminal-Bench integration
+│   ├── benchmarks/                # Terminal-Bench integration & tasks
 │   ├── bin/                       # CLI entry points
-│   ├── cli/                       # CLI commands (init, generate, memory, worktree, agent)
+│   ├── cli/                       # CLI commands (init, generate, memory, worktree, agent, model, mcp-router)
 │   ├── coordination/              # Multi-agent overlap detection
 │   ├── generators/                # CLAUDE.md template engine
-│   ├── memory/                    # 4-layer memory system
+│   ├── mcp-router/                # MCP hierarchical router (98%+ token reduction)
+│   ├── memory/                    # Hierarchical memory system (hot/warm/cold)
+│   ├── models/                    # Multi-model architecture & routing
+│   ├── tasks/                     # Task management system
+│   ├── types/                     # TypeScript type definitions
+│   ├── uam_harbor/                # Harbor/Terminal-Bench agent integration (Python)
 │   └── utils/                     # Shared utilities
 ├── templates/                     # Handlebars templates
-│   └── CLAUDE.template.md         # Universal template v10.13-opt
+│   └── CLAUDE.template.md         # Universal template v2.7.0
 ├── agents/data/memory/            # Persistent memory databases
 ├── .factory/                      # Factory AI configuration
 │   ├── droids/                    # Custom AI agents (8 droids)
-│   ├── skills/                    # Reusable skills
-│   └── PROJECT.md                 # This file
-├── test/                          # Test suites (vitest)
-└── docs/                          # Documentation
+│   ├── skills/                    # Reusable skills (6 skills)
+│   └── PROJECT.md                 # Project-specific config
+├── test/                          # Test suites (vitest, 85 tests)
+└── docs/                          # Documentation (25+ docs)
 ```
 
 ---
@@ -279,7 +297,7 @@ universal-agent-memory/
 
 ```bash
 npm run build    # TypeScript compilation
-npm test         # Vitest (54 tests)
+npm test         # Vitest (85 tests)
 npm run lint     # ESLint
 ```
 
@@ -318,6 +336,7 @@ Files requiring extra attention during changes:
 [ ] Memory updated
 [ ] PR created
 [ ] Reviews passed
+[ ] IaC parity verified
 [ ] No secrets in code
 ```
 
@@ -378,7 +397,7 @@ A: UAM works without Docker....
 - Detect these ...
 
 ### Hot Spots
-Frequently modified files (hot spots): package.json (71 changes), package-lock.json (46 changes), templates/CLAUDE.template.md (42 changes), .beads/issues.jsonl (31 changes), CLAUDE.md (23 changes), src/generators/claude-md.ts (20 changes), src/bin/cli.ts (10 changes), README.md (10 changes), src/uam_harbor/uam_agent.py (10 changes), src/cli/init.ts (9 changes). These files may need extra attention during changes.
+Frequently modified files (hot spots): package.json (72 changes), package-lock.json (47 changes), templates/CLAUDE.template.md (43 changes), .beads/issues.jsonl (31 changes), CLAUDE.md (24 changes), src/generators/claude-md.ts (20 changes), src/bin/cli.ts (10 changes), README.md (10 changes), src/uam_harbor/uam_agent.py (10 changes), src/cli/init.ts (9 changes). These files may need extra attention during changes.
 
 ---
 

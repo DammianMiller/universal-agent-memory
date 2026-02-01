@@ -41,12 +41,16 @@ UAM fixes this by giving AI agents:
 | Capability | What It Means |
 |------------|---------------|
 | **4-Layer Memory** | Recall decisions from months ago |
-| **36 Agent Patterns** | Battle-tested patterns from Terminal-Bench 2.0 |
+| **Hierarchical Memory** | Hot/warm/cold tiering with auto-promotion |
+| **58 Optimizations** | Battle-tested from Terminal-Bench 2.0 benchmarking |
 | **Pattern Router** | Auto-selects optimal patterns per task |
+| **Adaptive Context** | Selectively loads context based on task type and history |
 | **Multi-Agent Coordination** | Multiple AIs work without conflicts |
 | **Worktree Isolation** | No accidental commits to main |
 | **Code Field** | 89% bug detection vs 39% baseline |
 | **Completion Gates** | 3 mandatory checks before "done" |
+| **MCP Router** | 98%+ token reduction for multi-tool contexts |
+| **Pre-execution Hooks** | Domain-specific setup before agent runs |
 
 ---
 
@@ -111,9 +115,9 @@ Memory persists with the project in SQLite databases that travel with the code:
 
 ```
 agents/data/memory/
-├── short_term.db      # Recent actions, fast lookup
-├── session_memories   # Current session decisions
-└── long_term.json     # Learnings for semantic search
+├── short_term.db                # L1/L2: Recent actions + session memories (SQLite)
+├── long_term_prepopulated.json  # L3: Prepopulated learnings for search
+└── historical_context.db        # Adaptive context + semantic cache (SQLite/WAL)
 ```
 
 This means:
@@ -143,7 +147,7 @@ uam droids add rust-expert --capabilities "ownership,lifetimes,async" --triggers
 
 ### 🎯 Pattern Router - Battle-Tested Intelligence
 
-**36 patterns discovered through Terminal-Bench 2.0 analysis (52.5% pass rate on 40 hard tasks).**
+**58 optimizations in v2.7.0 from Terminal-Bench 2.0 analysis.**
 
 Before ANY task, UAM's Pattern Router auto-selects which patterns apply:
 
@@ -151,14 +155,11 @@ Before ANY task, UAM's Pattern Router auto-selects which patterns apply:
 === PATTERN ROUTER ===
 Task: Implement user authentication
 Classification: file-creation
-
-SELECTED PATTERNS:
-- P12 (OEV): YES - Task creates files
-- P17 (CE): YES - Has constraints ("must use bcrypt")
-- P3 (State Protection): YES - Modifies config files
-
-ACTIVE PATTERNS: P3, P12, P17
-=== END ROUTER ===
+PATTERNS: P12:[Y] P17:[Y] P20:[N] P11:[N] P35:[N]
+ACTIVE: P3, P12, P17
+BLOCKING: [none]
+VERIFIER: [read tests first]
+=== END ===
 ```
 
 **Key Patterns:**
@@ -169,16 +170,22 @@ ACTIVE PATTERNS: P3, P12, P17
 | **P17** | Constraint Extraction | Catches "exactly/only/single" requirements |
 | **P3** | Pre-execution State Protection | Backups before destructive actions |
 | **P20** | Adversarial Thinking | Attack mindset for security bypass tasks |
-| **P21** | Chess Engine Integration | Use Stockfish, don't reason about chess |
-| **P23** | Compression Impossibility Detection | Refuse impossible compression tasks |
+| **P35** | Decoder-First Analysis | Read decoder BEFORE writing encoder |
+| **P11** | Pre-Computed Solutions | Use libraries (Stockfish, scipy) not custom code |
 
 **Pattern Categories:**
-- **Execution (P1-P8)**: Environment isolation, recipe following, CLI over libraries
-- **Output (P12-P16)**: File creation verification, format validation
+- **Core (P1-P12)**: Tool checks, state protection, output verification
 - **Constraints (P17)**: Extract hidden requirements from task descriptions
 - **Domain (P21-P26)**: Chess, git recovery, compression, polyglot code
 - **Verification (P27-P31)**: Output cleanup, smoke tests, round-trip checks
 - **Advanced (P32-P36)**: CLI execution, numerical stability, decoder-first analysis
+
+**Optimization Categories (#40-#58):**
+- **Code Field (#40)**: State assumptions before coding
+- **Pattern Router (#41, #47)**: Auto-classification and blocking gates
+- **Verifier-First (#53)**: Read tests before implementing
+- **Near-Miss Handling (#54)**: 60-89% pass = fix specific failures, don't change approach
+- **Compression (#55-#57)**: Reduced template size while preserving effectiveness
 
 ---
 
@@ -324,6 +331,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 | `uam init` | Initialize/update UAM (auto-merges, never loses data) |
 | `uam generate` | Regenerate CLAUDE.md from project analysis |
 | `uam update` | Update templates while preserving customizations |
+| `uam analyze` | Analyze project structure and generate metadata |
 
 ### Memory
 
@@ -343,6 +351,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 | `uam task list` | List all tasks |
 | `uam task claim <id>` | Claim task (announces to other agents) |
 | `uam task release <id>` | Complete task |
+| `uam task ready` | List tasks ready to work on |
+| `uam task stats` | Show task statistics |
 
 ### Worktrees
 
@@ -351,6 +361,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 | `uam worktree create <name>` | Create isolated branch |
 | `uam worktree pr <id>` | Create PR from worktree |
 | `uam worktree cleanup <id>` | Remove worktree |
+| `uam worktree list` | List all worktrees |
 
 ### Droids
 
@@ -358,6 +369,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 |---------|-------------|
 | `uam droids list` | List available expert droids |
 | `uam droids add <name>` | Create new expert droid |
+| `uam droids import <path>` | Import droids from another platform |
 
 ### Coordination
 
@@ -365,28 +377,59 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 |---------|-------------|
 | `uam agent status` | View active agents |
 | `uam agent overlaps` | Check for file conflicts |
+| `uam agent announce` | Announce intent to work on a resource |
 | `uam coord status` | Coordination overview |
+
+### Deploy Batching
+
+| Command | Description |
+|---------|-------------|
+| `uam deploy queue` | Queue a deploy action for batching |
+| `uam deploy batch` | Create a batch from pending actions |
+| `uam deploy execute` | Execute a deploy batch |
+| `uam deploy flush` | Flush all pending deploys |
+
+### Multi-Model Architecture
+
+| Command | Description |
+|---------|-------------|
+| `uam model status` | Show model router status |
+| `uam model list` | List available models |
+| `uam model fingerprint` | Show model performance fingerprints |
+
+### MCP Router (98%+ token reduction)
+
+| Command | Description |
+|---------|-------------|
+| `uam mcp-router start` | Start hierarchical MCP router |
+| `uam mcp-router stats` | Show router statistics and token savings |
+| `uam mcp-router discover` | Discover tools matching a query |
+| `uam mcp-router list` | List configured MCP servers |
 
 ## How It Works
 
 1. **Install & Init**: `npm i -g universal-agent-memory && uam init`
 
-2. **CLAUDE.md Generated**: Auto-populated with project structure, commands, droids
+2. **CLAUDE.md Generated**: Auto-populated with project structure, commands, patterns, droids, and memory system instructions
 
 3. **AI Reads CLAUDE.md**: Follows the embedded workflows automatically
 
 4. **Every Task**:
-   - Query memory for context
-   - Check for agent overlaps
+   - Pattern Router classifies task and selects applicable patterns
+   - Adaptive context decides what memory to load (none/minimal/full)
+   - Dynamic retrieval queries relevant memories from all tiers
+   - Check for agent overlaps before starting work
    - Route to specialist droids if needed
-   - Create worktree for changes
-   - Apply Code Field for better code
-   - Run tests, create PR
-   - Store learnings in memory
+   - Create worktree for isolated changes
+   - Apply Code Field for better code generation
+   - Run completion gates: outputs exist, constraints met, tests pass
+   - Store learnings in memory for future sessions
 
 5. **Close-Out**: Merge → Deploy → Monitor → Fix loop until 100%
 
 ## Memory Architecture
+
+### 4-Layer Memory System
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -396,6 +439,40 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DammianMiller/universal-agen
 │  L4: KNOWLEDGE    │ Entity relationships │ SQLite  │ Graph     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Hierarchical Memory (Hot/Warm/Cold Tiering)
+
+On top of the 4-layer system, UAM implements hierarchical memory management:
+
+```
+HOT   (10 entries)  → In-context, always included   → <1ms access
+WARM  (50 entries)  → Cached, promoted on access     → <5ms access
+COLD  (500 entries) → Archived, semantic search only  → ~50ms access
+```
+
+- **Time-decay importance**: `importance * (0.95 ^ days_since_access)`
+- **Auto-promotion**: Frequently accessed cold/warm entries promote to hotter tiers
+- **Consolidation**: Old warm entries summarized into compressed cold entries
+- **SQLite persistence**: Survives across sessions via `hierarchical_memory` table
+
+### Adaptive Context System
+
+The memory system selectively loads context based on task classification:
+
+- **21 optimizations** including SQLite-backed historical benefit tracking
+- **TF-IDF-like keyword scoring** for section relevance
+- **13 domain-specific context sections** (security, file formats, git recovery, etc.)
+- **Error-to-section mapping** for progressive escalation on failure
+- **Semantic caching** for task-to-outcome mappings
+
+### Additional Memory Features
+
+- **Dynamic retrieval**: Adaptive depth based on query complexity (simple/moderate/complex)
+- **Semantic compression**: 2-3x token reduction while preserving meaning
+- **Speculative cache**: Pre-warms queries based on category patterns
+- **Deduplication**: SHA-256 content hash + Jaccard similarity (0.8 threshold)
+- **Feedback loop**: `recordTaskFeedback()` captures success/failure to improve future runs
+- **Model router**: Per-model performance fingerprints by task category
 
 **Data is never deleted.** Memory databases persist with the project.
 
@@ -441,13 +518,24 @@ Configuration in `.uam.json`:
 | Droid | Specialization | When Used |
 |-------|----------------|-----------|
 | `code-quality-guardian` | SOLID, complexity, naming | Before every PR |
-| `security-auditor` | OWASP, secrets, injection | Before every PR |
+| `security-auditor` | OWASP, secrets, injection (enhanced with 150+ security sources) | Before every PR |
 | `performance-optimizer` | Algorithms, memory, caching | On request |
 | `documentation-expert` | JSDoc, README, accuracy | On request |
-| `debug-expert` | Dependency conflicts, runtime errors | Error handling |
-| `sysadmin-expert` | Kernel, QEMU, networking | Infrastructure tasks |
-| `ml-training-expert` | Model training, MTEB, datasets | ML tasks |
-| `terminal-bench-optimizer` | Task routing, time budgets | Benchmarking |
+| `debug-expert` | Dependency conflicts, runtime errors, SWE-bench debugging | Error handling |
+| `sysadmin-expert` | Kernel, QEMU, networking, DNS, systemd | Infrastructure tasks |
+| `ml-training-expert` | Model training, MTEB, RL, datasets | ML tasks |
+| `terminal-bench-optimizer` | Task routing, time budgets, strategy orchestration | Benchmarking |
+
+## Built-in Skills
+
+| Skill | Purpose | Trigger |
+|-------|---------|---------|
+| `balls-mode` | Decomposed reasoning with confidence scoring | Complex decisions, debugging |
+| `cli-design-expert` | CLI/TUI design patterns, UX, help systems | Building CLI tools |
+| `typescript-node-expert` | TypeScript best practices, strict typing | TypeScript projects |
+| `terminal-bench-strategies` | Proven strategies for Terminal-Bench tasks | Benchmark tasks |
+| `unreal-engine-developer` | UE5, Blueprints, C++, Python scripting | Game development |
+| `sec-context-review` | Security context review patterns | Security analysis |
 
 ## Requirements
 
@@ -478,31 +566,57 @@ A: A prompt technique that makes AI state assumptions before coding. Based on [c
 
 Want to understand how UAM works under the hood?
 
+### Architecture & Analysis
+
 | Document | Description |
 |----------|-------------|
 | [UAM Complete Analysis](docs/UAM_COMPLETE_ANALYSIS.md) | Full system architecture, all features |
-| [Terminal-Bench Learnings](docs/TERMINAL_BENCH_LEARNINGS.md) | 8 universal agent patterns discovered |
+| [Adaptive UAM Design](docs/ADAPTIVE_UAM_DESIGN.md) | Hybrid adaptive context selector design |
+| [Multi-Model Architecture](docs/MULTI_MODEL_ARCHITECTURE.md) | Model routing and fingerprints |
+| [MCP Router Setup](docs/MCP_ROUTER_SETUP.md) | Hierarchical MCP router for token reduction |
+
+### Benchmarking & Optimization
+
+| Document | Description |
+|----------|-------------|
+| [Terminal-Bench Learnings](docs/TERMINAL_BENCH_LEARNINGS.md) | Universal agent patterns discovered |
 | [Behavioral Patterns](docs/BEHAVIORAL_PATTERNS.md) | What works vs what doesn't analysis |
 | [Failing Tasks Solution Plan](docs/FAILING_TASKS_SOLUTION_PLAN.md) | Detailed fix strategies for each failure mode |
 | [Benchmark Results](benchmark-results/) | All Terminal-Bench 2.0 run results |
+| [Benchmark Evolution](docs/BENCHMARK_EVOLUTION.md) | How benchmark performance evolved |
+| [Domain Strategy Guides](docs/DOMAIN_STRATEGY_GUIDES.md) | Task-specific strategies |
+
+### Optimization Plans
+
+| Document | Description |
+|----------|-------------|
+| [UAM Performance Analysis](docs/UAM_PERFORMANCE_ANALYSIS_2026-01-18.md) | Performance metrics and analysis |
+| [Optimization Options](docs/OPTIMIZATION_OPTIONS.md) | Available optimization strategies |
+| [V110 Pattern Analysis](docs/UAM_V110_PATTERN_ANALYSIS_2026-01-18.md) | Pattern effectiveness analysis |
 
 ---
 
 ## What's Next?
 
-UAM is actively developed. Recent additions:
+UAM v2.7.0 includes 58 optimizations. Recent additions:
 
-- ✅ **36 Agent Patterns** - Battle-tested from Terminal-Bench 2.0
-- ✅ **Pattern Router** - Auto-selects optimal patterns per task
+- ✅ **58 Optimizations** - Battle-tested from Terminal-Bench 2.0
+- ✅ **Pattern Router** - Auto-selects optimal patterns per task with blocking gates
 - ✅ **Completion Gates** - 3 mandatory checks before "done"
 - ✅ **8 Expert Droids** - Specialized agents for common tasks
-- ✅ **PROJECT.md Separation** - Seamless template upgrades
+- ✅ **6 Skills** - Reusable capabilities (balls-mode, CLI design, etc.)
+- ✅ **Pre-execution Hooks** - Task-specific setup before agent runs
+- ✅ **Hierarchical Memory** - Hot/warm/cold tiering with auto-promotion
+- ✅ **Adaptive Context** - Selective context loading based on task type
+- ✅ **MCP Router** - 98%+ token reduction for multi-tool contexts
+- ✅ **Harbor Integration** - Terminal-Bench 2.0 benchmarking agent
+- ✅ **Model Router** - Per-model performance fingerprints
 
 Coming soon:
 
-- **Pre-execution Hooks** - Task-specific setup before agent runs
 - **Cross-Project Learning** - Share patterns between codebases
 - **Visual Memory Dashboard** - See what your AI knows
+- **Continuous Benchmark Tracking** - Auto-run benchmarks on template changes
 
 **Star the repo** to follow updates. **Open an issue** to request features.
 
