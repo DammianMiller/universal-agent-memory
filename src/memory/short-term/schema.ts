@@ -16,19 +16,20 @@ export function ensureShortTermSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_memories_timestamp ON memories(timestamp);
     CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
     CREATE INDEX IF NOT EXISTS idx_memories_project_type ON memories(project_id, type);
-    CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
   `);
 
-  // Migration: add importance column if missing (for existing databases)
+  // Migration: add importance column if missing (for existing databases created before importance was added)
   try {
     const cols = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
     if (!cols.some(c => c.name === 'importance')) {
       db.exec(`ALTER TABLE memories ADD COLUMN importance INTEGER NOT NULL DEFAULT 5`);
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)`);
     }
   } catch {
     // Ignore migration errors - column may already exist
   }
+
+  // Create importance index after migration ensures column exists
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)`);
 
   // Enable WAL mode for concurrent reads and better write performance
   db.pragma('journal_mode = WAL');
