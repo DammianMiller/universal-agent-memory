@@ -13,6 +13,7 @@ import { AgentContextConfigSchema } from '../types/index.js';
 import type { AgentContextConfig } from '../types/index.js';
 import type { MemoryEntry } from '../memory/backends/base.js';
 import type { DiscoveredSkill } from '../memory/prepopulate.js';
+import { statusBadge, miniGauge, divider, keyValue, tree, type TreeNode } from './visualize.js';
 
 // CRITICAL: Memory databases are NEVER deleted or overwritten.
 // They persist with the project for its entire lifecycle.
@@ -58,56 +59,63 @@ export async function memoryCommand(action: MemoryAction, options: MemoryOptions
 }
 
 async function showStatus(cwd: string): Promise<void> {
-  console.log(chalk.bold('\n📊 Memory System Status\n'));
+  console.log('');
+  console.log(chalk.bold.cyan('  Memory System Status'));
+  console.log(divider(50));
+  console.log('');
 
-  // Check short-term memory
+  let sqliteActive = false;
+  let qdrantActive = false;
+
+  // Short-term memory
   const shortTermPath = join(cwd, 'agents/data/memory/short_term.db');
   if (existsSync(shortTermPath)) {
+    sqliteActive = true;
     const stats = statSync(shortTermPath);
     const sizeKB = Math.round(stats.size / 1024);
-    const modified = stats.mtime.toLocaleDateString();
     
-    console.log(chalk.green('✓ Short-term memory: Active'));
-    console.log(chalk.dim(`  Path: ${shortTermPath}`));
-    console.log(chalk.dim(`  Size: ${sizeKB} KB | Last modified: ${modified}`));
-    console.log(chalk.dim('  ⚠️  This database is protected and will not be deleted'));
-    
-    // Count entries
+    let entryCount = 0;
     try {
       const db = new SQLiteShortTermMemory({
         dbPath: shortTermPath,
         projectId: 'status-check',
-        maxEntries: 9999, // Don't prune during status check
+        maxEntries: 9999,
       });
-      const count = await db.count();
+      entryCount = await db.count();
       await db.close();
-      console.log(chalk.dim(`  Entries: ${count}`));
-    } catch {
-      // Ignore errors during count
-    }
-  } else {
-    console.log(chalk.yellow('○ Short-term memory: Not initialized'));
-    console.log(chalk.dim('  Will be created on first use (uam memory store or agent action)'));
-  }
+    } catch { /* ignore */ }
 
-  // Check Qdrant
+    console.log(`  ${statusBadge('active')} ${chalk.bold('Short-term Memory')}`);
+    for (const line of keyValue([
+      ['Size', `${sizeKB} KB`],
+      ['Entries', entryCount],
+      ['Modified', stats.mtime.toLocaleDateString()],
+    ], { indent: 4 })) console.log(line);
+    console.log(`    ${'Capacity'.padEnd(18)} ${miniGauge(entryCount, 50, 15)} ${chalk.dim(`${entryCount}/50`)}`);
+  } else {
+    console.log(`  ${statusBadge('not_available')} ${chalk.bold('Short-term Memory')} ${chalk.dim('Not initialized')}`);
+  }
   console.log('');
+
+  // Qdrant
   try {
-    execSync('docker ps --filter name=qdrant --format "{{.Status}}"', { encoding: 'utf-8' });
-    const status = execSync('docker ps --filter name=qdrant --format "{{.Status}}"', { encoding: 'utf-8' }).trim();
-    if (status) {
-      console.log(chalk.green('✓ Long-term memory (Qdrant): Running'));
-      console.log(chalk.dim(`  Status: ${status}`));
+    const dockerStatus = execSync(
+      'docker ps --filter name=qdrant --format "{{.Status}}"',
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+    ).trim();
+    if (dockerStatus) {
+      qdrantActive = true;
+      console.log(`  ${statusBadge('running')} ${chalk.bold('Qdrant')} ${chalk.dim(dockerStatus)}`);
+      console.log(chalk.dim('    Endpoint: http://localhost:6333'));
     } else {
-      console.log(chalk.yellow('○ Long-term memory (Qdrant): Not running'));
+      console.log(`  ${statusBadge('stopped')} ${chalk.bold('Qdrant')} ${chalk.dim('Container not running')}`);
     }
   } catch {
-    console.log(chalk.yellow('○ Long-term memory (Qdrant): Not available'));
-    console.log(chalk.dim('  Run `uam memory start` to initialize'));
+    console.log(`  ${statusBadge('not_available')} ${chalk.bold('Qdrant')} ${chalk.dim('Docker not available')}`);
   }
-
-  // Check Ollama for embeddings
   console.log('');
+
+  // Ollama
   try {
     const ollamaResponse = await fetch('http://localhost:11434/api/tags', {
       method: 'GET',
@@ -115,35 +123,40 @@ async function showStatus(cwd: string): Promise<void> {
     });
     
     if (ollamaResponse.ok) {
-      const ollamaData = await ollamaResponse.json() as { models: Array<{ name: string }> };
+      const ollamaData = await ollamaResponse.json() as { models: Array<{ name: string; size: number }> };
       const embedModels = ollamaData.models?.filter(m => 
         m.name.includes('embed') || m.name.includes('nomic')
       ) || [];
       
       if (embedModels.length > 0) {
-        console.log(chalk.green('✓ Embeddings (Ollama): Active'));
-        console.log(chalk.dim(`  Models: ${embedModels.map(m => m.name).join(', ')}`));
+        console.log(`  ${statusBadge('active')} ${chalk.bold('Embeddings')}`);
+        for (const model of embedModels) {
+          const sizeMB = Math.round((model.size || 0) / 1024 / 1024);
+          console.log(`    ${chalk.cyan(model.name)} ${chalk.dim(`${sizeMB} MB`)}`);
+        }
       } else {
-        console.log(chalk.yellow('○ Embeddings (Ollama): Running but no embed models'));
-        console.log(chalk.dim('  Run `ollama pull nomic-embed-text` to enable'));
+        console.log(`  ${statusBadge('not_available')} ${chalk.bold('Embeddings')} ${chalk.dim('No embed models')}`);
+        console.log(chalk.dim('    Run: ollama pull nomic-embed-text'));
       }
     } else {
-      console.log(chalk.yellow('○ Embeddings (Ollama): Not responding'));
+      console.log(`  ${statusBadge('stopped')} ${chalk.bold('Embeddings')} ${chalk.dim('Not responding')}`);
     }
   } catch {
-    console.log(chalk.yellow('○ Embeddings (Ollama): Not running'));
-    console.log(chalk.dim('  Install from https://ollama.ai and run `ollama pull nomic-embed-text`'));
+    console.log(`  ${statusBadge('not_available')} ${chalk.bold('Embeddings')} ${chalk.dim('Ollama not running')}`);
   }
 
-  // Check docker-compose
-  const composePath = join(cwd, 'agents/docker-compose.yml');
-  if (!existsSync(composePath)) {
-    const dockerPath = join(cwd, 'docker/docker-compose.yml');
-    if (!existsSync(dockerPath)) {
-      console.log(chalk.dim('\n  No docker-compose.yml found. Memory services need manual setup.'));
-    }
-  }
-
+  // Architecture tree
+  console.log('');
+  const layers: TreeNode = {
+    label: chalk.bold('Memory Layers'),
+    children: [
+      { label: 'L1 Working',  status: sqliteActive ? chalk.green('ON') : chalk.red('--'), meta: 'SQLite, <1ms' },
+      { label: 'L2 Session',  status: sqliteActive ? chalk.green('ON') : chalk.red('--'), meta: 'SQLite, <5ms' },
+      { label: 'L3 Semantic', status: qdrantActive ? chalk.green('ON') : chalk.yellow('--'), meta: 'Qdrant, ~50ms' },
+      { label: 'L4 Graph',    status: sqliteActive ? chalk.green('ON') : chalk.red('--'), meta: 'SQLite entities' },
+    ],
+  };
+  for (const line of tree(layers)) console.log(line);
   console.log('');
 }
 

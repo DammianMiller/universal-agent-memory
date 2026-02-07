@@ -13,6 +13,17 @@ import type {
   UpdateTaskInput,
 } from '../tasks/types.js';
 import { STATUS_ICONS, TYPE_ICONS, PRIORITY_LABELS } from '../tasks/types.js';
+import {
+  progressBar,
+  stackedBar,
+  stackedBarLegend,
+  horizontalBarChart,
+  sectionHeader,
+  miniGauge,
+  divider,
+  inlineProgressSummary,
+  type BarSegment,
+} from './visualize.js';
 
 type TaskAction =
   | 'create'
@@ -165,6 +176,8 @@ async function createTask(service: TaskService, options: TaskOptions): Promise<v
     if (options.json) {
       console.log(JSON.stringify(task, null, 2));
     }
+
+    for (const line of inlineProgressSummary(service.getStats())) console.log(line);
   } catch (error) {
     spinner.fail('Failed to create task');
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
@@ -414,6 +427,8 @@ async function closeTask(service: TaskService, options: TaskOptions): Promise<vo
     if (options.reason) {
       console.log(chalk.dim(`  Reason: ${options.reason}`));
     }
+
+    for (const line of inlineProgressSummary(service.getStats())) console.log(line);
   } catch (error) {
     spinner.fail('Failed to close task');
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
@@ -452,12 +467,16 @@ async function showReady(service: TaskService, options: TaskOptions): Promise<vo
     return;
   }
 
+  const stats = service.getStats();
+  for (const line of inlineProgressSummary(stats)) console.log(line);
+  console.log('');
+
   if (tasks.length === 0) {
     console.log(chalk.dim('No ready tasks'));
     return;
   }
 
-  console.log(chalk.bold.green(`\n✓ Ready Tasks (${tasks.length})\n`));
+  console.log(chalk.bold.green(`✓ Ready Tasks (${tasks.length})\n`));
 
   for (const task of tasks) {
     const priorityColor = getPriorityColor(task.priority);
@@ -483,12 +502,16 @@ async function showBlocked(service: TaskService, options: TaskOptions): Promise<
     return;
   }
 
+  const stats = service.getStats();
+  for (const line of inlineProgressSummary(stats)) console.log(line);
+  console.log('');
+
   if (tasks.length === 0) {
     console.log(chalk.dim('No blocked tasks'));
     return;
   }
 
-  console.log(chalk.bold.red(`\n❄ Blocked Tasks (${tasks.length})\n`));
+  console.log(chalk.bold.red(`❄ Blocked Tasks (${tasks.length})\n`));
 
   for (const task of tasks) {
     const priorityColor = getPriorityColor(task.priority);
@@ -579,6 +602,8 @@ async function claimTask(service: TaskService, options: TaskOptions): Promise<vo
         console.log(chalk.yellow(`    ${overlap.conflictRisk}: ${overlap.suggestion}`));
       }
     }
+
+    for (const line of inlineProgressSummary(service.getStats())) console.log(line);
   } catch (error) {
     spinner.fail('Failed to claim task');
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
@@ -613,6 +638,8 @@ async function releaseTask(service: TaskService, options: TaskOptions): Promise<
 
     spinner.succeed(`Task released: ${options.id}`);
     console.log(`  ${STATUS_ICONS.done} ${result.task.title}`);
+
+    for (const line of inlineProgressSummary(service.getStats())) console.log(line);
   } catch (error) {
     spinner.fail('Failed to release task');
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
@@ -628,36 +655,69 @@ async function showStats(service: TaskService, options: TaskOptions): Promise<vo
     return;
   }
 
-  console.log(chalk.bold('\n📊 Task Statistics\n'));
-
-  console.log(`  Total: ${chalk.bold(stats.total)}`);
-  console.log(`  Ready: ${chalk.green(stats.ready)}`);
-  console.log(`  Blocked: ${chalk.red(stats.blocked)}`);
+  console.log('');
+  console.log(chalk.bold.cyan('  Task Statistics'));
+  console.log(divider(60));
   console.log('');
 
-  console.log(chalk.bold('  By Status:'));
-  console.log(`    ${STATUS_ICONS.open} Open: ${stats.byStatus.open}`);
-  console.log(`    ${STATUS_ICONS.in_progress} In Progress: ${stats.byStatus.in_progress}`);
-  console.log(`    ${STATUS_ICONS.blocked} Blocked: ${stats.byStatus.blocked}`);
-  console.log(`    ${STATUS_ICONS.done} Done: ${stats.byStatus.done}`);
-  console.log(`    ${STATUS_ICONS.wont_do} Won't Do: ${stats.byStatus.wont_do}`);
+  // Completion progress bar
+  const completed = stats.byStatus.done + stats.byStatus.wont_do;
+  console.log(`  ${progressBar(completed, stats.total, 40, {
+    label: 'Completion',
+    filled: chalk.green,
+  })}`);
   console.log('');
 
-  console.log(chalk.bold('  By Priority:'));
-  for (let p = 0; p <= 4; p++) {
-    const count = stats.byPriority[p as TaskPriority];
-    const color = getPriorityColor(p as TaskPriority);
-    console.log(`    ${color(`P${p}`)}: ${count}`);
+  // Status stacked bar
+  const segments: BarSegment[] = [
+    { value: stats.byStatus.done, color: chalk.green, label: `Done ${STATUS_ICONS.done}` },
+    { value: stats.byStatus.in_progress, color: chalk.cyan, label: `In Progress ${STATUS_ICONS.in_progress}` },
+    { value: stats.byStatus.open, color: chalk.white, label: `Open ${STATUS_ICONS.open}` },
+    { value: stats.byStatus.blocked, color: chalk.red, label: `Blocked ${STATUS_ICONS.blocked}` },
+    { value: stats.byStatus.wont_do, color: chalk.dim, label: `Won't Do ${STATUS_ICONS.wont_do}` },
+  ];
+  console.log(`  ${stackedBar(segments, stats.total, 50)}`);
+  console.log(`  ${stackedBarLegend(segments)}`);
+  console.log('');
+
+  // Gauges
+  console.log(`  ${chalk.bold('Total    ')} ${chalk.bold(String(stats.total))}`);
+  console.log(`  ${chalk.bold('Ready    ')} ${miniGauge(stats.ready, stats.total, 15)} ${chalk.green(String(stats.ready))}`);
+  console.log(`  ${chalk.bold('Blocked  ')} ${miniGauge(stats.blocked, stats.total, 15)} ${chalk.red(String(stats.blocked))}`);
+  console.log('');
+
+  // Priority chart
+  console.log(sectionHeader('By Priority'));
+  console.log('');
+  for (const line of horizontalBarChart([
+    { label: 'P0 Critical', value: stats.byPriority[0], color: chalk.red },
+    { label: 'P1 High', value: stats.byPriority[1], color: chalk.yellow },
+    { label: 'P2 Medium', value: stats.byPriority[2], color: chalk.blue },
+    { label: 'P3 Low', value: stats.byPriority[3], color: chalk.dim },
+    { label: 'P4 Backlog', value: stats.byPriority[4], color: chalk.dim },
+  ], { maxWidth: 30, maxLabelWidth: 14 })) {
+    console.log(line);
   }
   console.log('');
 
-  console.log(chalk.bold('  By Type:'));
-  for (const [type, count] of Object.entries(stats.byType)) {
-    if (count > 0) {
-      console.log(`    ${TYPE_ICONS[type as TaskType]} ${type}: ${count}`);
+  // Type chart
+  const typeData = (Object.entries(stats.byType) as [TaskType, number][])
+    .filter(([, count]) => count > 0);
+  if (typeData.length > 0) {
+    console.log(sectionHeader('By Type'));
+    console.log('');
+    for (const line of horizontalBarChart(
+      typeData.map(([type, count]) => ({
+        label: `${TYPE_ICONS[type]} ${type}`,
+        value: count,
+        color: chalk.magenta,
+      })),
+      { maxWidth: 30, maxLabelWidth: 14 }
+    )) {
+      console.log(line);
     }
+    console.log('');
   }
-  console.log('');
 }
 
 async function syncTasks(service: TaskService, _options: TaskOptions): Promise<void> {

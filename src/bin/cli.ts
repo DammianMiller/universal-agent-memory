@@ -17,6 +17,7 @@ import { deployCommand } from '../cli/deploy.js';
 import { taskCommand } from '../cli/task.js';
 import { registerModelCommands } from '../cli/model.js';
 import { mcpRouterCommand } from '../cli/mcp-router.js';
+import { dashboardCommand } from '../cli/dashboard.js';
 
 // Read version from package.json
 const __filename = fileURLToPath(import.meta.url);
@@ -444,6 +445,44 @@ program
     const { updateCommand } = await import('../cli/update.js');
     await updateCommand(options);
   });
+
+// Dashboard - rich data visualisation and progress tracking
+program
+  .command('dashboard')
+  .alias('dash')
+  .description('Rich data visualisation dashboard for tasks, agents, memory, and progress')
+  .addCommand(
+    new Command('overview')
+      .description('Full system overview with charts and progress bars')
+      .option('-v, --verbose', 'Show detailed information')
+      .option('--compact', 'Compact output for narrow terminals')
+      .action((options) => dashboardCommand('overview', options))
+  )
+  .addCommand(
+    new Command('tasks')
+      .description('Task breakdown with charts, progress bars, and hierarchy trees')
+      .option('-v, --verbose', 'Show detailed information')
+      .option('--compact', 'Compact output')
+      .action((options) => dashboardCommand('tasks', options))
+  )
+  .addCommand(
+    new Command('agents')
+      .description('Agent activity, resource claims, and coordination status')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => dashboardCommand('agents', options))
+  )
+  .addCommand(
+    new Command('memory')
+      .description('Memory system health, capacity, and layer architecture')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => dashboardCommand('memory', options))
+  )
+  .addCommand(
+    new Command('progress')
+      .description('Completion tracking with per-priority and per-type progress')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => dashboardCommand('progress', options))
+  );
 
 // Multi-Model Architecture commands
 registerModelCommands(program);

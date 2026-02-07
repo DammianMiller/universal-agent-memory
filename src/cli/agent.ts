@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { CoordinationService } from '../coordination/service.js';
 import type { MessageChannel, MessagePayload, WorkIntentType } from '../types/coordination.js';
+import { statusBadge, divider, keyValue, bulletList } from './visualize.js';
 
 type AgentAction = 'register' | 'heartbeat' | 'status' | 'announce' | 'complete' | 'overlaps' | 'broadcast' | 'send' | 'receive' | 'deregister';
 
@@ -110,56 +111,96 @@ async function showAgentStatus(service: CoordinationService, options: AgentOptio
   const id = options.id;
   
   if (id) {
-    // Show specific agent
     const agent = service.getAgent(id);
     if (!agent) {
       console.error(chalk.red(`Agent not found: ${id}`));
       process.exit(1);
     }
 
-    console.log(chalk.bold('\n🤖 Agent Status\n'));
-    console.log(`  ID: ${chalk.cyan(agent.id)}`);
-    console.log(`  Name: ${chalk.bold(agent.name)}`);
-    console.log(`  Status: ${statusColor(agent.status)}`);
+    console.log('');
+    console.log(chalk.bold.cyan('  Agent Status'));
+    console.log(divider(50));
+    console.log('');
+
+    for (const line of keyValue([
+      ['ID', agent.id],
+      ['Name', agent.name],
+      ['Status', ''],
+    ])) console.log(line);
+    console.log(`  ${'Status'.padEnd(18)} ${statusBadge(agent.status)}`);
+
     if (agent.currentTask) {
-      console.log(`  Task: ${agent.currentTask}`);
+      for (const line of keyValue([['Task', agent.currentTask]])) console.log(line);
     }
-    console.log(`  Started: ${chalk.dim(agent.startedAt)}`);
-    console.log(`  Last Heartbeat: ${chalk.dim(agent.lastHeartbeat)}`);
+    for (const line of keyValue([
+      ['Started', agent.startedAt],
+      ['Last Heartbeat', agent.lastHeartbeat],
+    ])) console.log(line);
     if (agent.capabilities && agent.capabilities.length > 0) {
-      console.log(`  Capabilities: ${agent.capabilities.join(', ')}`);
+      for (const line of keyValue([['Capabilities', agent.capabilities.join(', ')]])) console.log(line);
     }
 
-    // Show claims
     const claims = service.getAgentClaims(id);
     if (claims.length > 0) {
-      console.log(chalk.bold('\n  Claims:'));
-      for (const claim of claims) {
-        console.log(`    - ${claim.resource} (${claim.claimType})`);
-      }
+      console.log('');
+      console.log(chalk.bold('  Resource Claims:'));
+      for (const line of bulletList(
+        claims.map(c => ({
+          text: `${chalk.yellow(c.resource)} ${chalk.dim(`(${c.claimType})`)}`,
+          status: c.claimType === 'exclusive' ? 'warn' as const : 'ok' as const,
+        }))
+      )) console.log(line);
     }
 
-    // Show pending messages
     const pending = service.getPendingMessages(id);
-    console.log(`\n  Pending Messages: ${chalk.yellow(pending)}`);
+    console.log('');
+    for (const line of keyValue([['Pending Messages', pending]])) console.log(line);
   } else {
-    // Show all agents
     const agents = service.getActiveAgents();
-    console.log(chalk.bold('\n🤖 Active Agents\n'));
+    const activeWork = service.getActiveWork();
+
+    console.log('');
+    console.log(chalk.bold.cyan('  Active Agents'));
+    console.log(divider(50));
+    console.log('');
     
     if (agents.length === 0) {
       console.log(chalk.dim('  No active agents'));
-      return;
-    }
-
-    for (const agent of agents) {
-      console.log(`  ${chalk.cyan(agent.name)} (${agent.id.slice(0, 8)}...)`);
-      console.log(`    Status: ${statusColor(agent.status)}`);
-      if (agent.currentTask) {
-        console.log(`    Task: ${chalk.dim(agent.currentTask)}`);
+    } else {
+      for (const agent of agents) {
+        console.log(`  ${statusBadge(agent.status)} ${chalk.cyan(chalk.bold(agent.name))} ${chalk.dim(`(${agent.id.slice(0, 8)}...)`)}`);
+        if (agent.currentTask) {
+          console.log(chalk.dim(`     Task: ${agent.currentTask}`));
+        }
       }
     }
+
+    if (activeWork.length > 0) {
+      console.log('');
+      console.log(chalk.bold('  Active Work:'));
+      const grouped = new Map<string, typeof activeWork>();
+      for (const work of activeWork) {
+        const existing = grouped.get(work.resource) || [];
+        existing.push(work);
+        grouped.set(work.resource, existing);
+      }
+      for (const [resource, works] of grouped) {
+        const conflict = works.length > 1;
+        const icon = conflict ? chalk.red('!!') : chalk.green('OK');
+        console.log(`  ${icon} ${chalk.bold(resource)}`);
+        for (const w of works) {
+          console.log(`     ${chalk.cyan(w.agentName || w.agentId.slice(0, 8))} ${chalk.dim(w.intentType)}`);
+        }
+      }
+    }
+
+    console.log('');
+    for (const line of keyValue([
+      ['Total Agents', agents.length],
+      ['Active Work', activeWork.length],
+    ])) console.log(line);
   }
+  console.log('');
 }
 
 async function announceWork(service: CoordinationService, options: AgentOptions): Promise<void> {
@@ -196,13 +237,12 @@ async function announceWork(service: CoordinationService, options: AgentOptions)
     console.log(chalk.dim(`  Announcement ID: ${announcement.id}`));
     
     if (overlaps.length === 0) {
-      console.log(chalk.green('\n  No overlapping work detected. You have clear path!'));
+      console.log(`\n  ${chalk.bgGreen.black(' CLEAR ')} No overlapping work detected`);
     } else {
       console.log(chalk.yellow(`\n  ⚠️  Overlapping work detected (${overlaps.length}):`));
       
       for (const overlap of overlaps) {
-        const riskColor = getRiskColor(overlap.conflictRisk);
-        console.log(`\n  ${riskColor(`[${overlap.conflictRisk.toUpperCase()}]`)} ${overlap.resource}`);
+        console.log(`\n  ${getRiskBadge(overlap.conflictRisk)} ${overlap.resource}`);
         
         for (const agent of overlap.agents) {
           console.log(chalk.dim(`    - ${agent.name || agent.id.slice(0, 8)} (${agent.intentType})`));
@@ -257,17 +297,19 @@ async function showOverlaps(service: CoordinationService, options: AgentOptions)
   const resource = options.resource;
 
   if (!resource) {
-    // Show all active work
     const activeWork = service.getActiveWork();
     
-    console.log(chalk.bold('\n📋 Active Work Across All Agents\n'));
+    console.log('');
+    console.log(chalk.bold.cyan('  Active Work'));
+    console.log(divider(50));
+    console.log('');
     
     if (activeWork.length === 0) {
       console.log(chalk.dim('  No active work announcements'));
+      console.log('');
       return;
     }
 
-    // Group by resource
     const grouped = new Map<string, typeof activeWork>();
     for (const work of activeWork) {
       const existing = grouped.get(work.resource) || [];
@@ -275,12 +317,17 @@ async function showOverlaps(service: CoordinationService, options: AgentOptions)
       grouped.set(work.resource, existing);
     }
 
+    let conflicts = 0;
     for (const [res, works] of grouped) {
       const hasMultiple = works.length > 1;
-      console.log(`  ${hasMultiple ? chalk.yellow('⚠️') : '📁'} ${chalk.bold(res)}`);
+      if (hasMultiple) conflicts++;
+      const riskBadge = hasMultiple
+        ? chalk.bgRed.white(' CONFLICT ')
+        : chalk.bgGreen.black(' CLEAR ');
+      console.log(`  ${riskBadge} ${chalk.bold(res)}`);
       
       for (const work of works) {
-        console.log(`    ${chalk.cyan(work.agentName || work.agentId.slice(0, 8))} - ${work.intentType}`);
+        console.log(`    ${chalk.cyan(work.agentName || work.agentId.slice(0, 8))} ${chalk.dim(work.intentType)}`);
         if (work.worktreeBranch) {
           console.log(chalk.dim(`      Branch: ${work.worktreeBranch}`));
         }
@@ -290,24 +337,34 @@ async function showOverlaps(service: CoordinationService, options: AgentOptions)
       }
       console.log('');
     }
+
+    for (const line of keyValue([
+      ['Resources', grouped.size],
+      ['Workers', activeWork.length],
+      ['Conflicts', conflicts > 0 ? chalk.red(String(conflicts)) as unknown as number : 0],
+    ])) console.log(line);
+    console.log('');
   } else {
-    // Check specific resource
     const overlaps = service.detectOverlaps(resource);
     
-    console.log(chalk.bold(`\n🔍 Overlap Check: ${resource}\n`));
+    console.log('');
+    console.log(chalk.bold.cyan(`  Overlap Check: ${resource}`));
+    console.log(divider(50));
+    console.log('');
 
     if (overlaps.length === 0) {
-      console.log(chalk.green('  ✓ No overlapping work detected'));
+      console.log(`  ${chalk.bgGreen.black(' CLEAR ')} No overlapping work detected`);
       console.log(chalk.dim('  Safe to proceed with your changes'));
+      console.log('');
       return;
     }
 
     for (const overlap of overlaps) {
-      const riskColor = getRiskColor(overlap.conflictRisk);
-      console.log(`  ${riskColor(`[${overlap.conflictRisk.toUpperCase()}]`)} ${overlap.resource}`);
+      const riskBadge = getRiskBadge(overlap.conflictRisk);
+      console.log(`  ${riskBadge} ${chalk.bold(overlap.resource)}`);
       
       for (const agent of overlap.agents) {
-        console.log(`    - ${chalk.cyan(agent.name || agent.id.slice(0, 8))} (${agent.intentType})`);
+        console.log(`    ${chalk.cyan(agent.name || agent.id.slice(0, 8))} ${chalk.dim(`(${agent.intentType})`)}`);
         if (agent.worktreeBranch) {
           console.log(chalk.dim(`      Branch: ${agent.worktreeBranch}`));
         }
@@ -319,18 +376,18 @@ async function showOverlaps(service: CoordinationService, options: AgentOptions)
   }
 }
 
-function getRiskColor(risk: string): (text: string) => string {
+function getRiskBadge(risk: string): string {
   switch (risk) {
     case 'critical':
-      return chalk.bgRed.white;
+      return chalk.bgRed.white(' CRITICAL ');
     case 'high':
-      return chalk.red;
+      return chalk.bgRed.white(' HIGH ');
     case 'medium':
-      return chalk.yellow;
+      return chalk.bgYellow.black(' MEDIUM ');
     case 'low':
-      return chalk.green;
+      return chalk.bgGreen.black(' LOW ');
     default:
-      return chalk.dim;
+      return chalk.dim(`[${risk}]`);
   }
 }
 
@@ -438,17 +495,4 @@ async function deregisterAgent(service: CoordinationService, options: AgentOptio
   }
 }
 
-function statusColor(status: string): string {
-  switch (status) {
-    case 'active':
-      return chalk.green(status);
-    case 'idle':
-      return chalk.yellow(status);
-    case 'completed':
-      return chalk.blue(status);
-    case 'failed':
-      return chalk.red(status);
-    default:
-      return status;
-  }
-}
+
