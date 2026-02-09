@@ -707,6 +707,68 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 
 ---
 
+## UAM VISUAL STATUS FEEDBACK (MANDATORY WHEN UAM IS ACTIVE)
+
+**When UAM tools are in use, ALWAYS use the built-in status display commands to provide visual feedback on progress and underlying numbers. Do NOT silently perform operations -- show the user what is happening.**
+
+### After Task Operations
+After creating, updating, closing, or claiming tasks, run:
+```bash
+uam dashboard progress     # Show completion %, status bars, velocity
+uam task stats             # Show priority/type breakdown with charts
+```
+
+### After Memory Operations
+After storing, querying, or prepopulating memory, run:
+```bash
+uam memory status          # Show memory layer health, capacity gauges, service status
+uam dashboard memory       # Show detailed memory dashboard with architecture tree
+```
+
+### After Agent/Coordination Operations
+After registering agents, checking overlaps, or claiming resources, run:
+```bash
+uam dashboard agents       # Show agent status table, resource claims, active work
+```
+
+### Periodic Overview
+At session start and after completing major work items, run:
+```bash
+uam dashboard overview     # Full overview: task progress, agent status, memory health
+```
+
+### Display Function Reference
+
+UAM provides these visual output functions (from `src/cli/visualize.ts`):
+
+| Function | Purpose | When to Use |
+|----------|---------|-------------|
+| `progressBar` | Completion bar with % and count | Task/test progress |
+| `stackedBar` + `stackedBarLegend` | Multi-segment status bar | Status distribution |
+| `horizontalBarChart` | Labeled bar chart | Priority/type breakdowns |
+| `miniGauge` | Compact colored gauge | Capacity/utilization |
+| `sparkline` | Inline trend line | Historical data trends |
+| `table` | Formatted data table | Task/agent listings |
+| `tree` | Hierarchical tree view | Memory layers, task hierarchy |
+| `box` | Bordered summary box | Section summaries |
+| `statusBadge` | Colored status labels | Agent/service status |
+| `keyValue` | Aligned key-value pairs | Metadata display |
+| `inlineProgressSummary` | Compact progress bar with counts | After task mutations |
+| `trend` | Up/down arrow with delta | Before/after comparisons |
+| `heatmapRow` | Color-coded cell row | Activity density |
+| `bulletList` | Status-colored bullet list | Health checks |
+
+### Rules
+
+1. **Never silently complete a UAM operation** -- always follow up with the relevant dashboard/status command
+2. **Show numbers, not just success messages** -- the user needs to see counts, percentages, and trends
+3. **Use `uam dashboard overview`** at session start to establish baseline awareness
+4. **Use `uam task stats`** after any task state change to show the impact
+5. **Use `uam memory status`** after any memory write to confirm storage and show capacity
+6. **Prefer dashboard commands over raw SQLite queries** for status checks -- they provide formatted visual output
+
+---
+
 {{#if HAS_PROJECT_MD}}
 {{> PROJECT}}
 {{else}}
