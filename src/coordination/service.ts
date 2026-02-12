@@ -125,7 +125,16 @@ export class CoordinationService {
   // Cleanup stale agents (no heartbeat for too long)
   cleanupStaleAgents(): number {
     const cutoff = new Date(Date.now() - this.heartbeatIntervalMs * 3).toISOString();
-    
+    return this.cleanupAgentsOlderThan(cutoff);
+  }
+
+  // Cleanup agents with heartbeat older than a specific duration in hours
+  cleanupStaleAgentsByTime(hours: number = 24): number {
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    return this.cleanupAgentsOlderThan(cutoff);
+  }
+
+  private cleanupAgentsOlderThan(cutoff: string): number {
     // Get stale agents
     const staleStmt = this.db.prepare(`
       SELECT id FROM agent_registry
@@ -133,9 +142,13 @@ export class CoordinationService {
     `);
     const staleAgents = staleStmt.all(cutoff) as Array<{ id: string }>;
 
-    // Release their claims
+    // Release their claims and complete their announcements
     for (const agent of staleAgents) {
       this.releaseAllClaims(agent.id);
+      this.db.prepare(`
+        UPDATE work_announcements SET completed_at = ?
+        WHERE agent_id = ? AND completed_at IS NULL
+      `).run(new Date().toISOString(), agent.id);
     }
 
     // Mark as failed

@@ -8,7 +8,8 @@
  */
 
 import Database from 'better-sqlite3';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
+import { join } from 'path';
 import { ensureDailyLogSchema } from './daily-log.js';
 
 export interface MaintenanceResult {
@@ -16,6 +17,7 @@ export interface MaintenanceResult {
   decayedEntriesUpdated: number;
   dailyLogsArchived: number;
   duplicatesRemoved: number;
+  staleWorktrees: string[];
   recommendations: string[];
 }
 
@@ -48,6 +50,7 @@ export function runMaintenance(
     decayedEntriesUpdated: 0,
     dailyLogsArchived: 0,
     duplicatesRemoved: 0,
+    staleWorktrees: [],
     recommendations: [],
   };
 
@@ -71,8 +74,11 @@ export function runMaintenance(
     // 4. Remove duplicates
     result.duplicatesRemoved = removeDuplicates(db);
 
-    // 5. Generate recommendations
-    result.recommendations = generateRecommendations(db, cfg);
+    // 5. Detect stale worktrees
+    result.staleWorktrees = detectStaleWorktrees(dbPath, cfg);
+
+    // 6. Generate recommendations
+    result.recommendations = generateRecommendations(db, cfg, result.staleWorktrees);
 
   } finally {
     db.close();
@@ -213,7 +219,39 @@ function removeDuplicates(db: Database.Database): number {
   return removed;
 }
 
-function generateRecommendations(db: Database.Database, cfg: MaintenanceConfig): string[] {
+function detectStaleWorktrees(dbPath: string, cfg: MaintenanceConfig): string[] {
+  // Look for .worktrees directory relative to the DB path
+  // DB is typically at agents/data/memory/short_term.db, project root is 3 levels up
+  const projectRoot = join(dbPath, '..', '..', '..', '..');
+  const worktreesDir = join(projectRoot, '.worktrees');
+
+  if (!existsSync(worktreesDir)) return [];
+
+  const stale: string[] = [];
+  const staleDays = cfg.archiveDaysOld; // reuse same threshold
+  const cutoff = Date.now() - staleDays * 24 * 60 * 60 * 1000;
+
+  try {
+    const entries = readdirSync(worktreesDir);
+    for (const entry of entries) {
+      const entryPath = join(worktreesDir, entry);
+      try {
+        const stats = statSync(entryPath);
+        if (stats.isDirectory() && stats.mtimeMs < cutoff) {
+          stale.push(entry);
+        }
+      } catch {
+        // Skip entries we can't stat
+      }
+    }
+  } catch {
+    // Can't read directory
+  }
+
+  return stale;
+}
+
+function generateRecommendations(db: Database.Database, cfg: MaintenanceConfig, staleWorktrees: string[] = []): string[] {
   const recs: string[] = [];
 
   try {
@@ -262,6 +300,10 @@ function generateRecommendations(db: Database.Database, cfg: MaintenanceConfig):
     }
   } catch {
     // Table might not exist
+  }
+
+  if (staleWorktrees.length > 0) {
+    recs.push(`${staleWorktrees.length} stale worktrees found (>${cfg.archiveDaysOld} days old): ${staleWorktrees.slice(0, 5).join(', ')}${staleWorktrees.length > 5 ? '...' : ''}. Run \`uam worktree cleanup <id>\` to remove.`);
   }
 
   if (recs.length === 0) {
