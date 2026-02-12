@@ -18,6 +18,7 @@ import { taskCommand } from '../cli/task.js';
 import { registerModelCommands } from '../cli/model.js';
 import { mcpRouterCommand } from '../cli/mcp-router.js';
 import { dashboardCommand } from '../cli/dashboard.js';
+import { hooksCommand } from '../cli/hooks.js';
 
 // Read version from package.json
 const __filename = fileURLToPath(import.meta.url);
@@ -86,10 +87,11 @@ program
   )
   .addCommand(
     new Command('store')
-      .description('Store a memory')
+      .description('Store a memory (applies write gate unless --force)')
       .argument('<content>', 'Memory content')
       .option('-t, --tags <tags>', 'Comma-separated tags')
       .option('-i, --importance <number>', 'Importance score (1-10)', '5')
+      .option('-f, --force', 'Bypass write gate (store without quality check)')
       .action((content, options) => memoryCommand('store', { content, ...options }))
   )
   .addCommand(
@@ -101,6 +103,25 @@ program
       .option('--since <date>', 'Only analyze commits since date (e.g., "2024-01-01")')
       .option('-v, --verbose', 'Show detailed output')
       .action((options) => memoryCommand('prepopulate', options))
+  )
+  .addCommand(
+    new Command('promote')
+      .description('Review and promote daily log entries to working/semantic memory')
+      .action((options) => memoryCommand('promote', options))
+  )
+  .addCommand(
+    new Command('correct')
+      .description('Correct a memory (propagates across all tiers, marks old as superseded)')
+      .argument('<search>', 'Search term to find the memory to correct')
+      .option('-c, --correction <text>', 'The corrected content')
+      .option('-r, --reason <reason>', 'Reason for correction')
+      .action((search, options) => memoryCommand('correct', { search, ...options }))
+  )
+  .addCommand(
+    new Command('maintain')
+      .description('Run maintenance: decay, prune stale, archive old, remove duplicates')
+      .option('-v, --verbose', 'Show detailed output')
+      .action((options) => memoryCommand('maintain', options))
   );
 
 program
@@ -523,6 +544,21 @@ program
       .option('-c, --config <path>', 'Path to mcp.json config file')
       .option('--json', 'Output as JSON')
       .action((options) => mcpRouterCommand('list', options))
+  );
+
+// Session Hooks - automatic memory injection and pre-compaction flush
+program
+  .command('hooks')
+  .description('Manage Claude Code session hooks for automatic memory integration')
+  .addCommand(
+    new Command('install')
+      .description('Install UAM session hooks into .claude/ directory')
+      .action(() => hooksCommand('install'))
+  )
+  .addCommand(
+    new Command('status')
+      .description('Show hooks installation status')
+      .action(() => hooksCommand('status'))
   );
 
 program.parse();

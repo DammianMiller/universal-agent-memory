@@ -111,6 +111,33 @@ export type {
 // Entropy-aware compression
 export { calculateEntropy, calculateInformationDensity } from './memory/semantic-compression.js';
 
+// Write Gate - quality filter for memory writes
+export {
+  evaluateWriteGate,
+  formatGateResult,
+} from './memory/write-gate.js';
+export type {
+  WriteGateResult,
+  GateCriteria,
+  WriteGateConfig,
+} from './memory/write-gate.js';
+
+// Daily Log - staging area for memory writes
+export { DailyLog, ensureDailyLogSchema } from './memory/daily-log.js';
+export type { DailyLogEntry, PromotionCandidate } from './memory/daily-log.js';
+
+// Correction Propagation
+export { propagateCorrection, getSupersededHistory, ensureSupersededSchema } from './memory/correction-propagator.js';
+export type { CorrectionResult, SupersededEntry } from './memory/correction-propagator.js';
+
+// Memory Maintenance
+export { runMaintenance, getHealthSummary } from './memory/memory-maintenance.js';
+export type { MaintenanceResult, MaintenanceConfig } from './memory/memory-maintenance.js';
+
+// Agent-Scoped Memory (per-agent isolation)
+export { AgentScopedMemory, ensureAgentScopedSchema } from './memory/agent-scoped-memory.js';
+export type { AgentMemoryPartition, AgentScopedEntry } from './memory/agent-scoped-memory.js';
+
 // String similarity utilities
 export {
   jaccardSimilarity,

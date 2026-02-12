@@ -14,12 +14,16 @@ import type { AgentContextConfig } from '../types/index.js';
 import type { MemoryEntry } from '../memory/backends/base.js';
 import type { DiscoveredSkill } from '../memory/prepopulate.js';
 import { statusBadge, miniGauge, divider, keyValue, tree, type TreeNode } from './visualize.js';
+import { evaluateWriteGate, formatGateResult } from '../memory/write-gate.js';
+import { DailyLog } from '../memory/daily-log.js';
+import { propagateCorrection } from '../memory/correction-propagator.js';
+import { runMaintenance } from '../memory/memory-maintenance.js';
 
 // CRITICAL: Memory databases are NEVER deleted or overwritten.
 // They persist with the project for its entire lifecycle.
 // Users can manually delete if absolutely necessary.
 
-type MemoryAction = 'status' | 'start' | 'stop' | 'query' | 'store' | 'prepopulate';
+type MemoryAction = 'status' | 'start' | 'stop' | 'query' | 'store' | 'prepopulate' | 'promote' | 'correct' | 'maintain';
 
 interface MemoryOptions {
   search?: string;
@@ -31,6 +35,9 @@ interface MemoryOptions {
   git?: boolean;
   since?: string;
   verbose?: boolean;
+  force?: boolean;
+  correction?: string;
+  reason?: string;
 }
 
 export async function memoryCommand(action: MemoryAction, options: MemoryOptions = {}): Promise<void> {
@@ -50,10 +57,19 @@ export async function memoryCommand(action: MemoryAction, options: MemoryOptions
       await queryMemory(cwd, options.search!, parseInt(options.limit || '10'));
       break;
     case 'store':
-      await storeMemory(cwd, options.content!, options.tags, parseInt(options.importance || '5'));
+      await storeMemory(cwd, options.content!, options.tags, parseInt(options.importance || '5'), options.force);
       break;
     case 'prepopulate':
       await prepopulateFromSources(cwd, options);
+      break;
+    case 'promote':
+      await promoteFromDailyLog(cwd, options);
+      break;
+    case 'correct':
+      await correctMemory(cwd, options);
+      break;
+    case 'maintain':
+      await maintainMemory(cwd, options);
       break;
   }
 }
@@ -306,8 +322,30 @@ async function storeMemory(
   cwd: string,
   content: string,
   tags?: string,
-  importance: number = 5
+  importance: number = 5,
+  force: boolean = false
 ): Promise<void> {
+  // Apply write gate unless --force is used
+  if (!force) {
+    const gateResult = evaluateWriteGate(content);
+    if (!gateResult.passed) {
+      console.log(chalk.bold('\n🚫 Write Gate: REJECTED\n'));
+      console.log(chalk.dim(formatGateResult(gateResult)));
+      console.log('');
+      console.log(chalk.yellow('  This memory does not meet the write gate criteria.'));
+      console.log(chalk.yellow('  Use --force to bypass the write gate.'));
+      console.log('');
+      return;
+    }
+    console.log(chalk.bold('\n✓ Write Gate: PASSED') + chalk.dim(` (score: ${gateResult.score.toFixed(2)})`));
+    const matchedCriteria = gateResult.criteria.filter(c => c.matched);
+    if (matchedCriteria.length > 0) {
+      console.log(chalk.dim(`  Matched: ${matchedCriteria.map(c => c.name).join(', ')}`));
+    }
+  } else {
+    console.log(chalk.dim('\n  Write gate bypassed (--force)'));
+  }
+
   console.log(chalk.bold('\n💾 Storing memory...\n'));
   console.log(chalk.dim(`Content: ${content}`));
   console.log(chalk.dim(`Tags: ${tags || 'none'}`));
@@ -339,8 +377,19 @@ async function storeMemory(
     importance >= 6 ? 'thought' :
     tags?.includes('observation') ? 'observation' : 'action';
 
-  // Store in short-term memory (SQLite) - always available
+  // Always write to daily log first (staging area)
   const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+  const gateScore = force ? 1.0 : evaluateWriteGate(content).score;
+  try {
+    const dailyLog = new DailyLog(dbPath);
+    dailyLog.write(content, memoryType, gateScore);
+    dailyLog.close();
+    console.log(chalk.green('\n✓ Written to daily log (staging area)'));
+  } catch (error) {
+    console.log(chalk.yellow('Could not write to daily log:'), error);
+  }
+
+  // Also store in short-term memory (SQLite) for immediate availability
   try {
     const shortTermDb = new SQLiteShortTermMemory({
       dbPath,
@@ -351,7 +400,7 @@ async function storeMemory(
     await shortTermDb.store(memoryType, content);
     await shortTermDb.close();
 
-    console.log(chalk.green('\n✓ Stored in short-term memory (SQLite)'));
+    console.log(chalk.green('✓ Stored in short-term memory (SQLite)'));
     console.log(chalk.dim(`  Type: ${memoryType}`));
     console.log(chalk.dim(`  Path: ${dbPath}`));
   } catch (error) {
@@ -707,4 +756,139 @@ async function storeLongTermToQdrant(
   } catch (error) {
     return { stored: 0, backend: `qdrant (${url})`, reason: error instanceof Error ? error.message : 'Qdrant error' };
   }
+}
+
+async function promoteFromDailyLog(cwd: string, _options: MemoryOptions): Promise<void> {
+  console.log(chalk.bold('\n📋 Daily Log Promotion Review\n'));
+
+  const configPath = join(cwd, '.uam.json');
+  let config: AgentContextConfig;
+  try {
+    config = existsSync(configPath)
+      ? AgentContextConfigSchema.parse(JSON.parse(readFileSync(configPath, 'utf-8')))
+      : { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  } catch {
+    config = { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  }
+
+  const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+
+  try {
+    const dailyLog = new DailyLog(dbPath);
+    const candidates = dailyLog.getPromotionCandidates();
+
+    if (candidates.length === 0) {
+      console.log(chalk.dim('  No candidates for promotion. All entries are either already promoted or below threshold.'));
+      dailyLog.close();
+      return;
+    }
+
+    console.log(chalk.dim(`  Found ${candidates.length} candidates for promotion:\n`));
+
+    const shortTermDb = new SQLiteShortTermMemory({
+      dbPath,
+      projectId: config.project.name,
+      maxEntries: config.memory?.shortTerm?.maxEntries || 50,
+    });
+
+    let promoted = 0;
+    for (const candidate of candidates) {
+      const { entry, suggestedTier, reason } = candidate;
+      console.log(`  ${chalk.cyan(`[${entry.date}]`)} ${entry.content.slice(0, 100)}${entry.content.length > 100 ? '...' : ''}`);
+      console.log(chalk.dim(`    → ${suggestedTier} (score: ${entry.gateScore.toFixed(2)}) - ${reason}`));
+
+      // Auto-promote based on score
+      if (suggestedTier === 'working') {
+        const memType = entry.type === 'goal' || entry.type === 'action' || entry.type === 'observation' || entry.type === 'thought'
+          ? entry.type as 'action' | 'observation' | 'thought' | 'goal'
+          : 'observation';
+        await shortTermDb.store(memType, entry.content, Math.round(entry.gateScore * 10));
+        dailyLog.markPromoted(entry.id, 'working');
+        promoted++;
+        console.log(chalk.green(`    ✓ Promoted to working memory`));
+      } else {
+        dailyLog.markPromoted(entry.id, 'semantic');
+        promoted++;
+        console.log(chalk.green(`    ✓ Marked for semantic storage`));
+      }
+      console.log('');
+    }
+
+    await shortTermDb.close();
+    dailyLog.close();
+    console.log(chalk.bold.green(`\n  Promoted ${promoted} entries.\n`));
+  } catch (error) {
+    console.log(chalk.red('Failed to promote:'), error);
+  }
+}
+
+async function correctMemory(cwd: string, options: MemoryOptions): Promise<void> {
+  console.log(chalk.bold('\n🔄 Correction Propagation\n'));
+
+  if (!options.search || !options.correction) {
+    console.log(chalk.red('  Usage: uam memory correct <search> --correction <corrected> [--reason <reason>]'));
+    return;
+  }
+
+  const configPath = join(cwd, '.uam.json');
+  let config: AgentContextConfig;
+  try {
+    config = existsSync(configPath)
+      ? AgentContextConfigSchema.parse(JSON.parse(readFileSync(configPath, 'utf-8')))
+      : { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  } catch {
+    config = { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  }
+
+  const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+  const result = propagateCorrection(dbPath, options.search, options.correction, options.reason || 'user correction');
+
+  if (result.originalFound) {
+    console.log(chalk.green(`  ✓ Found and corrected across ${result.tiersUpdated.length} tiers`));
+    console.log(chalk.dim(`    Tiers updated: ${result.tiersUpdated.join(', ')}`));
+    console.log(chalk.dim(`    Superseded entries: ${result.supersededCount}`));
+    if (result.originalContent) {
+      console.log(chalk.dim(`    Original: ${result.originalContent.slice(0, 100)}...`));
+    }
+    console.log(chalk.dim(`    Corrected: ${options.correction}`));
+  } else {
+    console.log(chalk.yellow(`  No matching entries found for: "${options.search}"`));
+    console.log(chalk.dim('  The correction was still logged to the daily log for reference.'));
+  }
+  console.log('');
+}
+
+async function maintainMemory(cwd: string, _options: MemoryOptions): Promise<void> {
+  console.log(chalk.bold('\n🔧 Memory Maintenance\n'));
+
+  const configPath = join(cwd, '.uam.json');
+  let config: AgentContextConfig;
+  try {
+    config = existsSync(configPath)
+      ? AgentContextConfigSchema.parse(JSON.parse(readFileSync(configPath, 'utf-8')))
+      : { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  } catch {
+    config = { version: '1.0.0', project: { name: 'project', defaultBranch: 'main' } };
+  }
+
+  const dbPath = config.memory?.shortTerm?.path || join(cwd, 'agents/data/memory/short_term.db');
+  const spinner = ora('Running maintenance cycle...').start();
+
+  const result = runMaintenance(dbPath);
+  spinner.succeed('Maintenance complete');
+
+  console.log('');
+  console.log(chalk.dim(`  Decayed entries updated: ${result.decayedEntriesUpdated}`));
+  console.log(chalk.dim(`  Stale entries pruned: ${result.staleEntriesPruned}`));
+  console.log(chalk.dim(`  Daily logs archived: ${result.dailyLogsArchived}`));
+  console.log(chalk.dim(`  Duplicates removed: ${result.duplicatesRemoved}`));
+  console.log('');
+
+  if (result.recommendations.length > 0) {
+    console.log(chalk.bold('  Recommendations:'));
+    for (const rec of result.recommendations) {
+      console.log(`    ${chalk.yellow('•')} ${rec}`);
+    }
+  }
+  console.log('');
 }

@@ -36,9 +36,11 @@ export interface HierarchicalConfig {
   warmMaxEntries: number;
   coldMaxEntries: number;
   hotMaxTokens: number;
+  warmMaxTokens: number;
   decayRate: number;
   promotionThreshold: number;
   demotionThreshold: number;
+  staleDaysThreshold: number;
 }
 
 const DEFAULT_CONFIG: HierarchicalConfig = {
@@ -46,9 +48,11 @@ const DEFAULT_CONFIG: HierarchicalConfig = {
   warmMaxEntries: 50,
   coldMaxEntries: 500,
   hotMaxTokens: 2000,
+  warmMaxTokens: 8000,
   decayRate: 0.95,
   promotionThreshold: 0.7,
   demotionThreshold: 0.3,
+  staleDaysThreshold: 14,
 };
 
 /**
@@ -238,6 +242,84 @@ export class HierarchicalMemoryManager {
         this.memory.cold = this.memory.cold.slice(0, this.config.coldMaxEntries);
       }
     }
+  }
+
+  /**
+   * Prune stale entries that haven't been accessed within staleDaysThreshold.
+   * Demotes from hot -> warm, or warm -> cold.
+   */
+  pruneStale(): number {
+    const now = Date.now();
+    const threshold = this.config.staleDaysThreshold * 24 * 60 * 60 * 1000;
+    let pruned = 0;
+
+    // Demote stale hot entries to warm
+    const staleHot = this.memory.hot.filter(e => {
+      const lastAccess = new Date(e.lastAccessed).getTime();
+      return (now - lastAccess) > threshold;
+    });
+    for (const entry of staleHot) {
+      entry.tier = 'warm';
+      this.memory.warm.unshift(entry);
+      pruned++;
+    }
+    this.memory.hot = this.memory.hot.filter(e => !staleHot.includes(e));
+
+    // Demote stale warm entries to cold
+    const staleWarm = this.memory.warm.filter(e => {
+      const lastAccess = new Date(e.lastAccessed).getTime();
+      return (now - lastAccess) > threshold * 2; // 2x threshold for warm
+    });
+    for (const entry of staleWarm) {
+      entry.tier = 'cold';
+      const compressed = compressMemoryEntry(entry.content, { compressionLevel: 'aggressive' });
+      entry.compressed = compressed.compressed;
+      this.memory.cold.unshift(entry);
+      pruned++;
+    }
+    this.memory.warm = this.memory.warm.filter(e => !staleWarm.includes(e));
+
+    return pruned;
+  }
+
+  /**
+   * Enforce token budget on hot and warm tiers.
+   * Demotes entries when token budget is exceeded.
+   */
+  enforceTokenBudget(): number {
+    let demoted = 0;
+
+    // Enforce hot tier token budget
+    let hotTokens = this.memory.hot.reduce((sum, e) => sum + estimateTokens(e.content), 0);
+    while (hotTokens > this.config.hotMaxTokens && this.memory.hot.length > 1) {
+      const lowest = this.memory.hot.reduce((min, e) =>
+        calculateEffectiveImportance(e, this.config.decayRate) <
+        calculateEffectiveImportance(min, this.config.decayRate) ? e : min
+      );
+      lowest.tier = 'warm';
+      this.memory.warm.unshift(lowest);
+      this.memory.hot = this.memory.hot.filter(e => e.id !== lowest.id);
+      hotTokens -= estimateTokens(lowest.content);
+      demoted++;
+    }
+
+    // Enforce warm tier token budget
+    let warmTokens = this.memory.warm.reduce((sum, e) => sum + estimateTokens(e.content), 0);
+    while (warmTokens > this.config.warmMaxTokens && this.memory.warm.length > 1) {
+      const lowest = this.memory.warm.reduce((min, e) =>
+        calculateEffectiveImportance(e, this.config.decayRate) <
+        calculateEffectiveImportance(min, this.config.decayRate) ? e : min
+      );
+      lowest.tier = 'cold';
+      const compressed = compressMemoryEntry(lowest.content, { compressionLevel: 'aggressive' });
+      lowest.compressed = compressed.compressed;
+      this.memory.cold.unshift(lowest);
+      this.memory.warm = this.memory.warm.filter(e => e.id !== lowest.id);
+      warmTokens -= estimateTokens(lowest.content);
+      demoted++;
+    }
+
+    return demoted;
   }
 
   /**
