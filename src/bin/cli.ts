@@ -18,7 +18,7 @@ import { taskCommand } from '../cli/task.js';
 import { registerModelCommands } from '../cli/model.js';
 import { mcpRouterCommand } from '../cli/mcp-router.js';
 import { dashboardCommand } from '../cli/dashboard.js';
-import { hooksCommand } from '../cli/hooks.js';
+import { hooksCommand, type HooksTarget } from '../cli/hooks.js';
 
 // Read version from package.json
 const __filename = fileURLToPath(import.meta.url);
@@ -549,16 +549,18 @@ program
 // Session Hooks - automatic memory injection and pre-compaction flush
 program
   .command('hooks')
-  .description('Manage Claude Code session hooks for automatic memory integration')
+  .description('Manage session hooks for Claude Code, Factory.AI, Cursor, VSCode, OpenCode')
   .addCommand(
     new Command('install')
-      .description('Install UAM session hooks into .claude/ directory')
-      .action(() => hooksCommand('install'))
+      .description('Install UAM session hooks')
+      .option('-t, --target <target>', 'Target platform: claude, factory, cursor, vscode, opencode (default: all)')
+      .action((options) => hooksCommand('install', { target: options.target as HooksTarget | undefined }))
   )
   .addCommand(
     new Command('status')
       .description('Show hooks installation status')
-      .action(() => hooksCommand('status'))
+      .option('-t, --target <target>', 'Target platform: claude, factory, cursor, vscode, opencode (default: all)')
+      .action((options) => hooksCommand('status', { target: options.target as HooksTarget | undefined }))
   );
 
 program.parse();
