@@ -740,9 +740,11 @@ uam agent status                                  # Check other active agents
 
 ## MULTI-AGENT COORDINATION PROTOCOL
 
-**Parallel-first rule**: When safe, run independent tool calls in parallel (searches, reads, status checks) and invoke multiple subagents concurrently for review. Optimize for fewer turns and lower tokens without losing accuracy.
+**Skip this section for single-agent sessions.** Only activate when multiple agents work concurrently (e.g., parallel subagents via Task tool, or multiple Claude Code sessions on same repo).
 
-### Before Claiming Any Work
+**Parallel-first rule**: When safe, run independent tool calls in parallel (searches, reads, status checks) and invoke multiple subagents concurrently for review.
+
+### Before Claiming Any Work (multi-agent only)
 
 ```bash
 uam agent overlaps --resource "<files-or-directories>"
@@ -750,13 +752,12 @@ uam agent overlaps --resource "<files-or-directories>"
 
 ### Overlap Response Matrix
 
-| Risk Level | Action | Rationale |
-|------------|--------|-----------|
-| `none` | Proceed immediately | No conflict possible |
-| `low` | Proceed, note merge order | Different files/sections |
-| `medium` | Announce, coordinate sections | Same directory |
-| `high` | Wait or split work | Same file, different sections |
-| `critical` | STOP - request handoff | Same file, same sections |
+| Risk Level | Action |
+|------------|--------|
+| `none` | Proceed immediately |
+| `low` | Proceed, note merge order |
+| `medium` | Announce, coordinate sections |
+| `high`/`critical` | Wait or split work |
 
 ### Agent Capability Routing
 
@@ -786,21 +787,11 @@ uam agent overlaps --resource "<files-or-directories>"
 
 ## MULTI-AGENT EXECUTION (DEPENDENCY-AWARE)
 
-**Goal**: Finish faster by parallelizing independent work while preserving correctness and avoiding conflicts.
-
-**Aggressive parallelization mandate**: Default to multi-agent execution whenever tasks can be safely decomposed; only stay single-threaded when dependencies or overlap risk make parallel work unsafe.
-
-**Process**:
-1. **Decompose** the request into discrete work items with clear inputs/outputs.
-2. **Map dependencies** (A blocks B). Only run B after A is complete.
-3. **Parallelize** dependency-free items with separate agents and explicit file boundaries.
-4. **Gate edits** with `uam agent overlaps --resource "<files>"` before touching any file.
-5. **Merge in dependency order** (upstream first). Rebase or re-run dependent steps if needed.
-
-**Conflict avoidance**:
-- One agent per file at a time
-- Declare file ownership in prompts
-- If overlap risk is high, wait or split by section
+**Skip for single-agent sessions.** When using parallel subagents:
+1. **Decompose** into discrete work items. **Map dependencies** (A blocks B).
+2. **Parallelize** dependency-free items with separate agents and explicit file boundaries.
+3. **Gate edits** with `uam agent overlaps --resource "<files>"` before touching any file.
+4. **Merge in dependency order** (upstream first).
 
 ---
 
@@ -882,13 +873,19 @@ effective_importance = importance * (0.95 ^ days_since_access)
 
 ## WORKTREE WORKFLOW
 
-**ALL code changes use worktrees. NO EXCEPTIONS.**
+**Use worktrees for multi-file features/refactors. Skip for single-file fixes.**
+
+| Change Scope | Workflow |
+|-------------|----------|
+| Single-file fix (<20 lines) | Direct commit to feature branch, no worktree needed |
+| Multi-file change (2-5 files) | Worktree recommended if touching shared interfaces |
+| Feature/refactor (3+ files, new feature) | Worktree required |
+| CLAUDE.md or config changes | Worktree required |
 
 ```bash
-# Create
+# Create (when needed)
 {{WORKTREE_CREATE_CMD}} <slug>
 cd {{WORKTREE_DIR}}/NNN-<slug>/
-pwd | grep -q "{{WORKTREE_DIR}}" || echo "STOP!"  # Verify location
 
 # Work
 git add -A && git commit -m "type: description"
@@ -896,7 +893,7 @@ git add -A && git commit -m "type: description"
 # PR (runs tests, triggers parallel reviewers)
 {{WORKTREE_PR_CMD}} <id>
 
-# Cleanup
+# Cleanup (ALWAYS cleanup after merge)
 {{WORKTREE_CLEANUP_CMD}} <id>
 ```
 
@@ -934,9 +931,12 @@ Task(subagent_type: "documentation-expert", prompt: "Check: <files>")
 | work request (fix/add/change/update/create/implement/build) | `uam task create --type task` |
 | bug report/error | `uam task create --type bug` |
 | feature request | `uam task create --type feature` |
-| code file for editing | check overlaps -> skills -> worktree |
+| single-file fix | direct commit to branch, skip worktree |
+| multi-file feature (3+ files) | create worktree, then work |
 | review/check/look | query memory first |
 | ANY code change | tests required |
+
+**Agent coordination**: Only use `uam agent` commands when multiple agents are active concurrently. For single-agent sessions (most common), skip agent registration and overlap checks.
 
 ---
 

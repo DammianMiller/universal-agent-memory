@@ -315,7 +315,93 @@ async function queryMemory(cwd: string, search: string, limit: number): Promise<
   }
 
   // Query long-term memory (Qdrant) if available
-  console.log(chalk.dim('\nNote: Long-term semantic search requires Qdrant + embedding service (not yet integrated)'));
+  await queryQdrant(cwd, config, search, limit);
+}
+
+async function queryQdrant(
+  _cwd: string,
+  config: AgentContextConfig,
+  search: string,
+  limit: number
+): Promise<void> {
+  const endpoint = config.memory?.longTerm?.endpoint || 'localhost:6333';
+  const url = endpoint.startsWith('http://') || endpoint.startsWith('https://') ? endpoint : `http://${endpoint}`;
+  const apiKey = config.memory?.longTerm?.qdrantCloud?.apiKey || process.env.QDRANT_API_KEY;
+  const collection = config.memory?.longTerm?.collection || 'agent_memory';
+
+  try {
+    const client = new QdrantClient({ url, apiKey });
+    await client.getCollections();
+
+    // Try collection variants (main and prepopulated)
+    const collections = await client.getCollections();
+    const candidates = [collection, `${collection}_prepopulated`];
+    const availableCollections = candidates.filter(c =>
+      collections.collections.some(col => col.name === c)
+    );
+
+    if (availableCollections.length === 0) {
+      console.log(chalk.dim('\nNo Qdrant collections found. Run `uam memory prepopulate` first.'));
+      return;
+    }
+
+    // Use deterministic embedding for search (same as storage)
+    const searchVector = createDeterministicEmbedding(`${search}`);
+
+    let allResults: Array<{ content: string; type: string; score: number; tags?: string[] }> = [];
+    for (const col of availableCollections) {
+      try {
+        const results = await client.search(col, {
+          vector: searchVector,
+          limit,
+          with_payload: true,
+        });
+        for (const r of results) {
+          const payload = r.payload as Record<string, unknown> | null;
+          if (payload) {
+            allResults.push({
+              content: (payload.content as string) || '',
+              type: (payload.type as string) || 'unknown',
+              score: r.score,
+              tags: payload.tags as string[] | undefined,
+            });
+          }
+        }
+      } catch {
+        // Collection might have incompatible vector size
+      }
+    }
+
+    // Deduplicate and sort by score
+    const seen = new Set<string>();
+    allResults = allResults.filter(r => {
+      const key = r.content.slice(0, 100);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => b.score - a.score).slice(0, limit);
+
+    if (allResults.length > 0) {
+      console.log(chalk.green(`\nFound ${allResults.length} results in long-term memory (Qdrant):\n`));
+      for (const r of allResults) {
+        const typeColor = r.type === 'action' ? chalk.blue :
+                         r.type === 'observation' ? chalk.cyan :
+                         r.type === 'thought' ? chalk.magenta :
+                         chalk.yellow;
+        const scoreStr = chalk.dim(`(${(r.score * 100).toFixed(0)}%)`);
+        console.log(`  ${typeColor(`[${r.type}]`)} ${scoreStr}`);
+        console.log(`    ${r.content.slice(0, 150)}${r.content.length > 150 ? '...' : ''}`);
+        if (r.tags && r.tags.length > 0) {
+          console.log(`    ${chalk.dim(`tags: ${r.tags.join(', ')}`)}`);
+        }
+        console.log('');
+      }
+    } else {
+      console.log(chalk.dim('\nNo results in long-term memory'));
+    }
+  } catch {
+    console.log(chalk.dim('\nQdrant not available for long-term search. Run `uam memory start` first.'));
+  }
 }
 
 async function storeMemory(
@@ -882,6 +968,9 @@ async function maintainMemory(cwd: string, _options: MemoryOptions): Promise<voi
   console.log(chalk.dim(`  Stale entries pruned: ${result.staleEntriesPruned}`));
   console.log(chalk.dim(`  Daily logs archived: ${result.dailyLogsArchived}`));
   console.log(chalk.dim(`  Duplicates removed: ${result.duplicatesRemoved}`));
+  if (result.staleWorktrees.length > 0) {
+    console.log(chalk.yellow(`  Stale worktrees: ${result.staleWorktrees.length}`));
+  }
   console.log('');
 
   if (result.recommendations.length > 0) {
