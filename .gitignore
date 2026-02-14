@@ -46,3 +46,4 @@ pnpm-lock.yaml
 .npmrc
 .worktrees/
 .claude/settings.local.json
+.roam/
