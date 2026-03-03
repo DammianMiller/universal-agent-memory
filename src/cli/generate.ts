@@ -43,10 +43,12 @@ function checkDependencies(): DependencyStatus {
   try {
     execSync('docker --version', { stdio: 'pipe' });
     status.docker = true;
-    
+
     // Check if Qdrant container is running
     try {
-      const output = execSync('docker ps --filter "name=qdrant" --format "{{.Names}}"', { stdio: 'pipe' }).toString();
+      const output = execSync('docker ps --filter "name=qdrant" --format "{{.Names}}"', {
+        stdio: 'pipe',
+      }).toString();
       status.qdrant = output.includes('qdrant');
     } catch {
       // docker ps failed
@@ -61,24 +63,28 @@ function checkDependencies(): DependencyStatus {
 // Print dependency status - used when verbose flag is enabled
 export function printDependencyHelp(deps: DependencyStatus): void {
   console.log(chalk.bold('\n📦 Dependency Status:\n'));
-  
+
   console.log(`  ${deps.git ? '✅' : '❌'} Git: ${deps.git ? 'Available' : 'Not found'}`);
   if (!deps.git) {
     console.log(chalk.dim('     Install: https://git-scm.com/downloads'));
   }
-  
-  console.log(`  ${deps.docker ? '✅' : '⚠️ '} Docker: ${deps.docker ? 'Available' : 'Not found (optional)'}`);
+
+  console.log(
+    `  ${deps.docker ? '✅' : '⚠️ '} Docker: ${deps.docker ? 'Available' : 'Not found (optional)'}`
+  );
   if (!deps.docker) {
     console.log(chalk.dim('     Install for semantic memory: https://docs.docker.com/get-docker/'));
   }
-  
-  console.log(`  ${deps.qdrant ? '✅' : '⚠️ '} Qdrant: ${deps.qdrant ? 'Running' : 'Not running (optional)'}`);
+
+  console.log(
+    `  ${deps.qdrant ? '✅' : '⚠️ '} Qdrant: ${deps.qdrant ? 'Running' : 'Not running (optional)'}`
+  );
   if (deps.docker && !deps.qdrant) {
     console.log(chalk.dim('     Start with: uam memory start'));
   } else if (!deps.docker) {
     console.log(chalk.dim('     Requires Docker - UAM works without it (no semantic memory)'));
   }
-  
+
   console.log('');
 }
 
@@ -88,7 +94,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   // Check dependencies
   const deps = checkDependencies();
-  
+
   if (!deps.git) {
     console.error(chalk.red('\n❌ Git is required but not found.'));
     console.log(chalk.dim('  Install Git: https://git-scm.com/downloads\n'));
@@ -110,7 +116,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       return;
     }
   } else {
-    console.log(chalk.yellow('No .uam.json found. Run `uam init` first, or generating with defaults.'));
+    console.log(
+      chalk.yellow('No .uam.json found. Run `uam init` first, or generating with defaults.')
+    );
     config = {
       version: '1.0.0',
       project: {
@@ -141,16 +149,16 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
   const agentMdPath = join(cwd, 'AGENT.md');
   const claudeMdExists = existsSync(claudeMdPath);
   const agentMdExists = existsSync(agentMdPath);
-  
+
   let existingContent: string | undefined;
   // Use AGENT.md when --web flag is passed, CLAUDE.md otherwise
   let targetPath = isWebPlatform ? agentMdPath : claudeMdPath;
   let targetFileName = isWebPlatform ? 'AGENT.md' : 'CLAUDE.md';
-  
+
   // Check if target file or alternate file exists
   const targetExists = existsSync(targetPath);
   const alternateExists = isWebPlatform ? claudeMdExists : agentMdExists;
-  
+
   if ((targetExists || alternateExists) && !options.force && !options.dryRun) {
     // Read existing content from target or alternate file
     if (targetExists) {
@@ -159,9 +167,11 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       // Read from alternate file but will write to target
       const alternatePath = isWebPlatform ? claudeMdPath : agentMdPath;
       existingContent = readFileSync(alternatePath, 'utf-8');
-      console.log(chalk.dim(`Migrating ${isWebPlatform ? 'CLAUDE.md' : 'AGENT.md'} to ${targetFileName}`));
+      console.log(
+        chalk.dim(`Migrating ${isWebPlatform ? 'CLAUDE.md' : 'AGENT.md'} to ${targetFileName}`)
+      );
     }
-    
+
     const { action } = await inquirer.prompt([
       {
         type: 'list',
@@ -175,20 +185,21 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
         default: 'merge',
       },
     ]);
-    
+
     if (action === 'cancel') {
       console.log(chalk.yellow('Generation cancelled.'));
       return;
     }
-    
+
     if (action === 'overwrite') {
       existingContent = undefined;
     }
   }
 
   // Apply --pipeline-only flag to config sections if provided
-  const pipelineOnlyEnabled = options.pipelineOnly || config.template?.sections?.pipelineOnly || false;
-  
+  const pipelineOnlyEnabled =
+    options.pipelineOnly || config.template?.sections?.pipelineOnly || false;
+
   // Override config based on flags
   // --web: set webDatabase to trigger web platform detection
   // --pipeline-only: enable pipeline-only infrastructure policy
@@ -232,7 +243,9 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       : config.template,
   };
 
-  const genSpinner = ora(`${existingContent ? 'Merging' : 'Generating'} ${targetFileName}...`).start();
+  const genSpinner = ora(
+    `${existingContent ? 'Merging' : 'Generating'} ${targetFileName}...`
+  ).start();
   try {
     const newClaudeMd = await generateClaudeMd(analysis, effectiveConfig);
     const claudeMd = existingContent ? mergeClaudeMd(existingContent, newClaudeMd) : newClaudeMd;
@@ -254,12 +267,18 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
       genSpinner.succeed(`${existingContent ? 'Merged' : 'Generated'} (dry run)`);
       console.log(chalk.dim(`\n--- ${targetFileName} Preview ---\n`));
       console.log(claudeMd.substring(0, 2000) + '\n...\n');
-      console.log(chalk.dim(`Total: ${claudeMd.length} characters, ${claudeMd.split('\n').length} lines`));
+      console.log(
+        chalk.dim(`Total: ${claudeMd.length} characters, ${claudeMd.split('\n').length} lines`)
+      );
     } else {
       writeFileSync(targetPath, claudeMd);
-      genSpinner.succeed(`${existingContent ? 'Merged and updated' : 'Generated'} ${targetFileName}`);
+      genSpinner.succeed(
+        `${existingContent ? 'Merged and updated' : 'Generated'} ${targetFileName}`
+      );
       if (existingContent) {
-        console.log(chalk.dim('  Preserved custom sections and extracted valuable content from existing file'));
+        console.log(
+          chalk.dim('  Preserved custom sections and extracted valuable content from existing file')
+        );
       }
     }
   } catch (error) {
@@ -290,13 +309,13 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 
   if (!options.dryRun) {
     console.log(chalk.green('\n✅ Generation complete!\n'));
-    
+
     // Print helpful next steps
     console.log(chalk.bold('Next Steps:\n'));
     console.log('  1. Your AI assistant will now read CLAUDE.md automatically');
     console.log('  2. The AI handles memory, tasks, and workflows autonomously');
     console.log('  3. Just talk to your AI naturally - it follows the CLAUDE.md instructions\n');
-    
+
     // Show optional enhancements
     if (!deps.docker || !deps.qdrant) {
       console.log(chalk.dim('Optional: For persistent semantic memory across sessions:'));
@@ -319,7 +338,7 @@ async function generatePlatformFiles(
   dryRun?: boolean
 ): Promise<void> {
   const { mkdirSync, writeFileSync, existsSync: pathExists } = await import('fs');
-  
+
   switch (platform) {
     case 'claudeCode': {
       // Generate .claude/ structure for Claude Code Desktop
@@ -328,7 +347,7 @@ async function generatePlatformFiles(
         if (!pathExists(claudeDir)) {
           mkdirSync(claudeDir, { recursive: true });
         }
-        
+
         // .claude/settings.json - workspace-specific settings
         const settings = {
           autoApprove: ['read', 'write', 'shell'],
@@ -338,7 +357,7 @@ async function generatePlatformFiles(
           worktreeDirectory: config.worktrees?.directory || '.worktrees',
         };
         writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings, null, 2));
-        
+
         // .claude/commands.json - custom slash commands
         const commands = {
           memory: 'uam memory query "$1"',
@@ -350,7 +369,7 @@ async function generatePlatformFiles(
       }
       break;
     }
-    
+
     case 'factory': {
       // Generate .factory/ structure for Factory.AI
       const factoryDir = join(cwd, '.factory');
@@ -358,7 +377,7 @@ async function generatePlatformFiles(
         if (!pathExists(factoryDir)) {
           mkdirSync(factoryDir, { recursive: true });
         }
-        
+
         // .factory/config.json
         const factoryConfig = {
           name: analysis.projectName || config.project.name,
@@ -374,7 +393,7 @@ async function generatePlatformFiles(
           },
         };
         writeFileSync(join(factoryDir, 'config.json'), JSON.stringify(factoryConfig, null, 2));
-        
+
         // Ensure droids and skills directories exist
         const droidsDir = join(factoryDir, 'droids');
         const skillsDir = join(factoryDir, 'skills');
@@ -383,7 +402,7 @@ async function generatePlatformFiles(
       }
       break;
     }
-    
+
     case 'vscode': {
       // Generate .vscode/ settings for VSCode + extensions
       const vscodeDir = join(cwd, '.vscode');
@@ -391,7 +410,7 @@ async function generatePlatformFiles(
         if (!pathExists(vscodeDir)) {
           mkdirSync(vscodeDir, { recursive: true });
         }
-        
+
         // .vscode/settings.json
         const settingsPath = join(vscodeDir, 'settings.json');
         let existingSettings: Record<string, unknown> = {};
@@ -402,7 +421,7 @@ async function generatePlatformFiles(
             // Ignore parse errors
           }
         }
-        
+
         const vscodeSettings = {
           ...existingSettings,
           'files.associations': {
@@ -418,7 +437,7 @@ async function generatePlatformFiles(
           },
         };
         writeFileSync(settingsPath, JSON.stringify(vscodeSettings, null, 2));
-        
+
         // .vscode/extensions.json - recommended extensions
         const extensions = {
           recommendations: [
@@ -431,10 +450,10 @@ async function generatePlatformFiles(
       }
       break;
     }
-    
+
     case 'opencode': {
       // Generate opencode.json for OpenCode CLI
-      // OpenCode config only supports: $schema, provider, model, mcp
+      // OpenCode config only supports: $schema, provider, model, agents, mcp
       // Project context (memory, git, commands) belongs in CLAUDE.md, not here
       if (!dryRun) {
         const opencodeConfigPath = join(cwd, 'opencode.json');
@@ -453,6 +472,11 @@ async function generatePlatformFiles(
           $schema: 'https://opencode.ai/config.json',
           ...(existingOpencodeConfig.provider ? { provider: existingOpencodeConfig.provider } : {}),
           ...(existingOpencodeConfig.model ? { model: existingOpencodeConfig.model } : {}),
+          agents: existingOpencodeConfig.agents ?? {
+            build: { temperature: 0.1 },
+            plan: { temperature: 0.2 },
+            memory: { temperature: 0.0 },
+          },
           ...(existingOpencodeConfig.mcp ? { mcp: existingOpencodeConfig.mcp } : {}),
         };
         writeFileSync(opencodeConfigPath, JSON.stringify(opencodeConfig, null, 2));
