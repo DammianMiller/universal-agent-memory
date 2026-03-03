@@ -434,7 +434,7 @@ async function generatePlatformFiles(
     
     case 'opencode': {
       // Generate opencode.json for OpenCode CLI
-      // OpenCode config only supports: $schema, provider, model, agents, mcp
+      // OpenCode config only supports: $schema, provider, model, mcp
       // Project context (memory, git, commands) belongs in CLAUDE.md, not here
       if (!dryRun) {
         const opencodeConfigPath = join(cwd, 'opencode.json');
@@ -453,11 +453,6 @@ async function generatePlatformFiles(
           $schema: 'https://opencode.ai/config.json',
           ...(existingOpencodeConfig.provider ? { provider: existingOpencodeConfig.provider } : {}),
           ...(existingOpencodeConfig.model ? { model: existingOpencodeConfig.model } : {}),
-          agents: existingOpencodeConfig.agents ?? {
-            build: { temperature: 0.1 },
-            plan: { temperature: 0.2 },
-            memory: { temperature: 0.0 },
-          },
           ...(existingOpencodeConfig.mcp ? { mcp: existingOpencodeConfig.mcp } : {}),
         };
         writeFileSync(opencodeConfigPath, JSON.stringify(opencodeConfig, null, 2));
