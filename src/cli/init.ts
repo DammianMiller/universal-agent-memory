@@ -6,13 +6,16 @@ import { analyzeProject } from '../analyzers/index.js';
 import { generateClaudeMd } from '../generators/claude-md.js';
 import { mergeClaudeMd } from '../utils/merge-claude-md.js';
 import { initializeMemoryDatabase } from '../memory/short-term/schema.js';
+import { generateScripts, ensurePythonVenv, findPython } from './patterns.js';
+import { isQdrantReachable } from './memory.js';
 import type { AgentContextConfig, Platform } from '../types/index.js';
 
-interface InitOptions {
+export interface InitOptions {
   platform: string[];
   web?: boolean;
   memory?: boolean;     // --no-memory sets this to false
   worktrees?: boolean;  // --no-worktrees sets this to false
+  patterns?: boolean;   // --patterns / --no-patterns (auto-detect by default)
   pipelineOnly?: boolean; // --pipeline-only enables infrastructure policy
   force?: boolean;
 }
@@ -75,6 +78,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   }
 
+  // Patterns: auto-detect from existing config if not explicitly set
+  const withPatterns = options.patterns !== undefined
+    ? options.patterns
+    : existingConfig.memory?.patternRag?.enabled === true ||
+      (withMemory && existingConfig.memory?.longTerm?.provider === 'qdrant');
+
   // Build configuration - merge with existing to preserve user customizations
   const config: AgentContextConfig = {
     $schema: 'https://raw.githubusercontent.com/DammianMiller/universal-agent-memory/main/schema.json',
@@ -106,6 +115,20 @@ export async function initCommand(options: InitOptions): Promise<void> {
             collection: existingConfig.memory?.longTerm?.collection || 'agent_memory',
             embeddingModel: existingConfig.memory?.longTerm?.embeddingModel || 'all-MiniLM-L6-v2',
           },
+          ...(withPatterns ? {
+            patternRag: {
+              enabled: true,
+              collection: existingConfig.memory?.patternRag?.collection || 'agent_patterns',
+              embeddingModel: existingConfig.memory?.patternRag?.embeddingModel || 'all-MiniLM-L6-v2',
+              vectorSize: existingConfig.memory?.patternRag?.vectorSize || 384,
+              scoreThreshold: existingConfig.memory?.patternRag?.scoreThreshold || 0.35,
+              topK: existingConfig.memory?.patternRag?.topK || 2,
+              indexScript: existingConfig.memory?.patternRag?.indexScript || './agents/scripts/index_patterns_to_qdrant.py',
+              queryScript: existingConfig.memory?.patternRag?.queryScript || './agents/scripts/query_patterns.py',
+              sourceFile: existingConfig.memory?.patternRag?.sourceFile || 'CLAUDE.md',
+              maxBodyChars: existingConfig.memory?.patternRag?.maxBodyChars || 400,
+            },
+          } : {}),
         }
       : existingConfig.memory,
     worktrees: withWorktrees
@@ -181,6 +204,49 @@ export async function initCommand(options: InitOptions): Promise<void> {
     } catch (error) {
       memorySpinner.fail('Failed to initialize memory database');
       console.error(chalk.red(error));
+    }
+  }
+
+  // Pattern RAG scaffolding (best-effort, don't fail init)
+  if (withPatterns) {
+    const scriptsSpinner = ora('Generating pattern scripts...').start();
+    try {
+      await generateScripts(cwd);
+      scriptsSpinner.succeed('Generated pattern scripts');
+    } catch {
+      scriptsSpinner.warn('Could not generate pattern scripts (non-fatal)');
+    }
+
+    const venvSpinner = ora('Setting up Python venv...').start();
+    const pythonPath = findPython(cwd) || ensurePythonVenv(cwd);
+    if (pythonPath) {
+      venvSpinner.succeed(`Python ready (${pythonPath})`);
+
+      // Attempt to index patterns if Qdrant is reachable
+      const endpoint = config.memory?.longTerm?.endpoint || 'localhost:6333';
+      const qdrantUp = await isQdrantReachable(endpoint.startsWith('http') ? endpoint : `http://${endpoint}`);
+      if (qdrantUp) {
+        const indexSpinner = ora('Indexing patterns into Qdrant...').start();
+        try {
+          const { execFileSync } = await import('child_process');
+          const indexScript = config.memory?.patternRag?.indexScript || './agents/scripts/index_patterns_to_qdrant.py';
+          const scriptPath = join(cwd, indexScript);
+          if (existsSync(scriptPath)) {
+            execFileSync(pythonPath, [scriptPath], { cwd, stdio: 'pipe', timeout: 120000 });
+            indexSpinner.succeed('Patterns indexed into Qdrant');
+          } else {
+            indexSpinner.warn('Index script not found, skipping indexing');
+          }
+        } catch {
+          indexSpinner.warn('Could not index patterns (non-fatal)');
+        }
+      } else {
+        console.log(chalk.dim('  Qdrant not reachable — skipping pattern indexing'));
+        console.log(chalk.dim('  Run `uam memory start` then `uam patterns index` later'));
+      }
+    } else {
+      venvSpinner.warn('Python not available — skipping venv setup');
+      console.log(chalk.dim('  Install Python 3 to enable pattern RAG'));
     }
   }
 

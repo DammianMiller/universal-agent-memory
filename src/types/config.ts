@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 export const PlatformSchema = z.object({
   enabled: z.boolean().default(true),
+  // Per-platform memory budget overrides (for small-context models)
+  shortTermMax: z.number().optional(),    // Override ShortTermMemory.maxEntries
+  searchResults: z.number().optional(),   // Max semantic search results to inject
+  sessionMax: z.number().optional(),      // Max session memory entries to retain
+  patternRag: z.boolean().optional(),     // Enable pattern RAG for this platform
 });
 
 export const ShortTermMemorySchema = z.object({
@@ -81,9 +86,32 @@ export const LongTermMemorySchema = z.object({
   serverless: QdrantServerlessSchema.optional(),
 });
 
+/**
+ * Pattern RAG configuration.
+ * Instead of embedding all patterns statically in CLAUDE.md (~12K tokens),
+ * indexes them in a Qdrant collection and queries on-demand per task,
+ * injecting only the top-N relevant patterns (~800 tokens).
+ */
+export const PatternRagSchema = z.object({
+  enabled: z.boolean().default(false),
+  collection: z.string().default('agent_patterns'),
+  embeddingModel: z.string().default('all-MiniLM-L6-v2'),
+  vectorSize: z.number().default(384),
+  scoreThreshold: z.number().default(0.35),
+  topK: z.number().default(2),
+  // Script paths for indexing/querying
+  indexScript: z.string().default('./agents/scripts/index_patterns_to_qdrant.py'),
+  queryScript: z.string().default('./agents/scripts/query_patterns.py'),
+  // Source file for pattern extraction
+  sourceFile: z.string().default('CLAUDE.md'),
+  // Max body chars to inject per pattern (token budget control)
+  maxBodyChars: z.number().default(400),
+});
+
 export const MemorySchema = z.object({
   shortTerm: ShortTermMemorySchema.optional(),
   longTerm: LongTermMemorySchema.optional(),
+  patternRag: PatternRagSchema.optional(),
 });
 
 export const WorktreeSchema = z.object({
@@ -295,5 +323,6 @@ export type Platform = 'claudeCode' | 'factory' | 'vscode' | 'opencode' | 'claud
 export type Droid = z.infer<typeof DroidSchema>;
 export type Command = z.infer<typeof CommandSchema>;
 export type QdrantServerlessConfig = z.infer<typeof QdrantServerlessSchema>;
+export type PatternRagConfig = z.infer<typeof PatternRagSchema>;
 export type CostOptimizationConfig = z.infer<typeof CostOptimizationSchema>;
 export type TimeOptimizationConfig = z.infer<typeof TimeOptimizationSchema>;

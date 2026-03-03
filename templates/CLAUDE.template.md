@@ -19,6 +19,10 @@
 
   Commands:
     {{TEST_COMMAND}}, {{BUILD_COMMAND}}, {{LINT_COMMAND}}
+
+  Pattern RAG (optional):
+    {{PATTERN_RAG_ENABLED}}, {{PATTERN_RAG_COLLECTION}}, {{PATTERN_RAG_QUERY_CMD}},
+    {{PATTERN_RAG_INDEX_CMD}}, {{PATTERN_RAG_TOP_K}}, {{PATTERN_RAG_THRESHOLD}}
 -->
 
 <coding_guidelines>
@@ -154,6 +158,26 @@ sqlite3 ./{{MEMORY_DB_PATH}} "INSERT INTO entities (type,name,first_seen,last_se
 ```
 
 Decay: `effective_importance = importance * (0.95 ^ days_since_access)`
+
+{{#if PATTERN_RAG_ENABLED}}
+### Pattern RAG (On-Demand)
+
+Patterns are retrieved dynamically from the `{{PATTERN_RAG_COLLECTION}}` Qdrant collection instead of being embedded statically. Top-{{PATTERN_RAG_TOP_K}} relevant patterns are injected per task (score >= {{PATTERN_RAG_THRESHOLD}}).
+
+```bash
+{{PATTERN_RAG_QUERY_CMD}} "task description"   # Query relevant patterns
+{{PATTERN_RAG_INDEX_CMD}}                       # Re-index after CLAUDE.md changes
+uam patterns status                             # Check collection status
+```
+{{/if}}
+
+{{#if RELEVANT_PATTERNS}}
+{{#unless PATTERN_RAG_ENABLED}}
+### Active Patterns
+
+{{{RELEVANT_PATTERNS}}}
+{{/unless}}
+{{/if}}
 
 ---
 

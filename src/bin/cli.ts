@@ -19,6 +19,8 @@ import { registerModelCommands } from '../cli/model.js';
 import { mcpRouterCommand } from '../cli/mcp-router.js';
 import { dashboardCommand } from '../cli/dashboard.js';
 import { hooksCommand, type HooksTarget } from '../cli/hooks.js';
+import { patternsCommand } from '../cli/patterns.js';
+import { setupCommand } from '../cli/setup.js';
 
 // Read version from package.json
 const __filename = fileURLToPath(import.meta.url);
@@ -39,9 +41,19 @@ program
   .option('--web', 'Generate AGENT.md for web platforms (claude.ai, factory.ai)')
   .option('--no-memory', 'Skip memory system setup')
   .option('--no-worktrees', 'Skip worktree workflow setup')
+  .option('--patterns', 'Enable pattern RAG setup (auto-detected by default)')
+  .option('--no-patterns', 'Skip pattern RAG setup')
   .option('--pipeline-only', 'Enforce pipeline-only infrastructure changes (no direct kubectl/terraform)')
   .option('-f, --force', 'Overwrite existing configuration')
   .action(initCommand);
+
+program
+  .command('setup')
+  .description('Full one-command setup: init + start Qdrant + install Python deps + index patterns')
+  .option('-p, --platform <platforms...>', 'Target platforms (claude, factory, vscode, opencode, all)', ['all'])
+  .option('--no-patterns', 'Skip pattern RAG setup')
+  .option('--no-memory', 'Skip memory system setup')
+  .action(setupCommand);
 
 program
   .command('analyze')
@@ -122,6 +134,37 @@ program
       .description('Run maintenance: decay, prune stale, archive old, remove duplicates')
       .option('-v, --verbose', 'Show detailed output')
       .action((options) => memoryCommand('maintain', options))
+  );
+
+// Pattern RAG Commands
+program
+  .command('patterns')
+  .description('Manage pattern RAG (on-demand pattern retrieval via Qdrant)')
+  .addCommand(
+    new Command('status')
+      .description('Show pattern RAG status and collection info')
+      .action(() => patternsCommand('status'))
+  )
+  .addCommand(
+    new Command('index')
+      .description('Index patterns from CLAUDE.md into Qdrant')
+      .option('-v, --verbose', 'Show detailed output')
+      .action((options) => patternsCommand('index', options))
+  )
+  .addCommand(
+    new Command('query')
+      .description('Query patterns by task description')
+      .argument('<search>', 'Task description to match')
+      .option('-n, --top <number>', 'Number of results', '2')
+      .option('--min-score <number>', 'Minimum similarity score', '0.35')
+      .option('--format <format>', 'Output format (text, json, context)', 'text')
+      .action((search, options) => patternsCommand('query', { search, ...options }))
+  )
+  .addCommand(
+    new Command('generate')
+      .description('Generate Python index/query scripts from config')
+      .option('-f, --force', 'Overwrite existing scripts')
+      .action((options) => patternsCommand('generate', options))
   );
 
 program

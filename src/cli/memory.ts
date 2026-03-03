@@ -176,7 +176,7 @@ async function showStatus(cwd: string): Promise<void> {
   console.log('');
 }
 
-async function startServices(cwd: string): Promise<void> {
+export async function startServices(cwd: string): Promise<void> {
   const spinner = ora('Starting memory services...').start();
 
   // Check for docker-compose file
@@ -228,6 +228,29 @@ services:
     console.error(chalk.red('Make sure Docker is installed and running'));
     console.error(error);
   }
+}
+
+/**
+ * Check if Qdrant is reachable by polling its health endpoint.
+ * Optionally waits up to `timeoutMs` for it to become available.
+ */
+export async function isQdrantReachable(endpoint = 'http://localhost:6333', timeoutMs = 0): Promise<boolean> {
+  const url = endpoint.startsWith('http') ? endpoint : `http://${endpoint}`;
+  const deadline = Date.now() + timeoutMs;
+  const pollInterval = 1000;
+
+  do {
+    try {
+      const res = await fetch(`${url}/healthz`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return true;
+    } catch {
+      // Not yet available
+    }
+    if (Date.now() + pollInterval > deadline) break;
+    await new Promise(r => setTimeout(r, pollInterval));
+  } while (Date.now() < deadline);
+
+  return false;
 }
 
 async function stopServices(cwd: string): Promise<void> {
