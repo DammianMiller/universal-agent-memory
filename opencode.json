@@ -1,18 +1,14 @@
 {
-  "$schema": "https://opencode.ai/schema/config.json",
-  "name": "universal-agent-memory",
-  "agent": {
-    "contextFile": "CLAUDE.md",
-    "memoryEnabled": true,
-    "memoryPath": "./agents/data/memory/short_term.db"
-  },
-  "git": {
-    "defaultBranch": "main",
-    "worktreeDirectory": ".worktrees"
-  },
-  "commands": {
-    "test": "npm test",
-    "lint": "npm run lint",
-    "build": "npm run build"
+  "$schema": "https://opencode.ai/config.json",
+  "agents": {
+    "build": {
+      "temperature": 0.1
+    },
+    "plan": {
+      "temperature": 0.2
+    },
+    "memory": {
+      "temperature": 0.0
+    }
   }
 }

@@ -434,26 +434,33 @@ async function generatePlatformFiles(
     
     case 'opencode': {
       // Generate opencode.json for OpenCode CLI
+      // OpenCode config only supports: $schema, provider, model, agents, mcp
+      // Project context (memory, git, commands) belongs in CLAUDE.md, not here
       if (!dryRun) {
-        const opencodeConfig = {
-          $schema: 'https://opencode.ai/schema/config.json',
-          name: analysis.projectName || config.project.name,
-          agent: {
-            contextFile: 'CLAUDE.md',
-            memoryEnabled: config.memory?.shortTerm?.enabled ?? true,
-            memoryPath: config.memory?.shortTerm?.path || 'agents/data/memory/short_term.db',
+        const opencodeConfigPath = join(cwd, 'opencode.json');
+
+        // Preserve existing config if present (user may have provider/model settings)
+        let existingOpencodeConfig: Record<string, unknown> = {};
+        if (pathExists(opencodeConfigPath)) {
+          try {
+            existingOpencodeConfig = JSON.parse(readFileSync(opencodeConfigPath, 'utf-8'));
+          } catch {
+            // Ignore parse errors, will overwrite with valid config
+          }
+        }
+
+        const opencodeConfig: Record<string, unknown> = {
+          $schema: 'https://opencode.ai/config.json',
+          ...(existingOpencodeConfig.provider ? { provider: existingOpencodeConfig.provider } : {}),
+          ...(existingOpencodeConfig.model ? { model: existingOpencodeConfig.model } : {}),
+          agents: existingOpencodeConfig.agents ?? {
+            build: { temperature: 0.1 },
+            plan: { temperature: 0.2 },
+            memory: { temperature: 0.0 },
           },
-          git: {
-            defaultBranch: config.project.defaultBranch || 'main',
-            worktreeDirectory: config.worktrees?.directory || '.worktrees',
-          },
-          commands: {
-            test: analysis.commands.test || 'npm test',
-            lint: analysis.commands.lint || 'npm run lint',
-            build: analysis.commands.build || 'npm run build',
-          },
+          ...(existingOpencodeConfig.mcp ? { mcp: existingOpencodeConfig.mcp } : {}),
         };
-        writeFileSync(join(cwd, 'opencode.json'), JSON.stringify(opencodeConfig, null, 2));
+        writeFileSync(opencodeConfigPath, JSON.stringify(opencodeConfig, null, 2));
       }
       break;
     }
