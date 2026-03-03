@@ -453,7 +453,7 @@ async function generatePlatformFiles(
 
     case 'opencode': {
       // Generate opencode.json for OpenCode CLI
-      // OpenCode config only supports: $schema, provider, model, agents, mcp
+      // OpenCode config only supports: $schema, provider, model, agent (singular), mcp
       // Project context (memory, git, commands) belongs in CLAUDE.md, not here
       if (!dryRun) {
         const opencodeConfigPath = join(cwd, 'opencode.json');
@@ -470,12 +470,27 @@ async function generatePlatformFiles(
 
         const opencodeConfig: Record<string, unknown> = {
           $schema: 'https://opencode.ai/config.json',
-          ...(existingOpencodeConfig.provider ? { provider: existingOpencodeConfig.provider } : {}),
-          ...(existingOpencodeConfig.model ? { model: existingOpencodeConfig.model } : {}),
-          agents: existingOpencodeConfig.agents ?? {
-            build: { temperature: 0.1 },
-            plan: { temperature: 0.2 },
-            memory: { temperature: 0.0 },
+          provider: existingOpencodeConfig.provider ?? {
+            'llama.cpp': {
+              npm: '@ai-sdk/openai-compatible',
+              name: 'llama-server (local)',
+              options: {
+                baseURL: 'http://localhost:8080/v1',
+                apiKey: 'sk-qwen35b',
+              },
+              models: {
+                'qwen35-a3b-iq4xs': {
+                  name: 'Qwen3.5 35B A3B (IQ4_XS)',
+                  limit: { context: 262144, output: 16384 },
+                },
+              },
+            },
+          },
+          model: existingOpencodeConfig.model ?? 'llama.cpp/qwen35-a3b-iq4xs',
+          agent: (existingOpencodeConfig.agent ?? existingOpencodeConfig.agents) ?? {
+            build: { model: 'llama.cpp/qwen35-a3b-iq4xs', temperature: 0.1 },
+            plan: { model: 'llama.cpp/qwen35-a3b-iq4xs', temperature: 0.2 },
+            memory: { model: 'llama.cpp/qwen35-a3b-iq4xs', temperature: 0.0 },
           },
           ...(existingOpencodeConfig.mcp ? { mcp: existingOpencodeConfig.mcp } : {}),
         };
