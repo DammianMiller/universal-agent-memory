@@ -1,14 +1,14 @@
 {
-  "name": "universal-agent-memory",
+  "name": "universal-agent-protocol",
   "version": "0.5.0",
   "description": "Autonomous AI agent memory system with CLAUDE.md protocol enforcement",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "universal-agent-memory": "dist/bin/cli.js",
-    "uam": "dist/bin/cli.js",
-    "uam-tool-calls": "dist/bin/tool-calls.js"
+    "universal-agent-protocol": "dist/bin/cli.js",
+    "uap": "dist/bin/cli.js",
+    "uap-tool-calls": "dist/bin/tool-calls.js"
   },
   "scripts": {
     "build": "tsc",
@@ -23,7 +23,7 @@
     "install:web": "bash scripts/install-web.sh",
     "install:desktop": "bash scripts/install-desktop.sh",
     "install:all": "bash scripts/install.sh",
-    "postinstall": "echo '\n✨ Run: npx universal-agent-memory init --interactive'",
+    "postinstall": "echo '\n✨ Run: npx universal-agent-protocol init --interactive'",
     "update-uam": "bash scripts/update-uam-compliance.sh",
     "verify-uam": "bash scripts/verify-compliance.sh",
     "check-claude": "bash scripts/verify-compliance.sh"
@@ -44,11 +44,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DammianMiller/universal-agent-memory.git"
+    "url": "https://github.com/DammianMiller/universal-agent-protocol.git"
   },
-  "homepage": "https://github.com/DammianMiller/universal-agent-memory#readme",
+  "homepage": "https://github.com/DammianMiller/universal-agent-protocol#readme",
   "bugs": {
-    "url": "https://github.com/DammianMiller/universal-agent-memory/issues"
+    "url": "https://github.com/DammianMiller/universal-agent-protocol/issues"
   },
   "publishConfig": {
     "access": "public",
