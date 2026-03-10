@@ -1,0 +1,96 @@
+{
+  "name": "universal-agent-memory",
+  "version": "0.5.0",
+  "description": "Autonomous AI agent memory system with CLAUDE.md protocol enforcement",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "universal-agent-memory": "dist/bin/cli.js",
+    "uam": "dist/bin/cli.js",
+    "uam-tool-calls": "dist/bin/tool-calls.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin/cli.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "prepare": "npm run build",
+    "install:web": "bash scripts/install-web.sh",
+    "install:desktop": "bash scripts/install-desktop.sh",
+    "install:all": "bash scripts/install.sh",
+    "postinstall": "echo '\n✨ Run: npx universal-agent-memory init --interactive'",
+    "update-uam": "bash scripts/update-uam-compliance.sh",
+    "verify-uam": "bash scripts/verify-compliance.sh",
+    "check-claude": "bash scripts/verify-compliance.sh"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "factory-ai",
+    "opencode",
+    "vscode",
+    "ai-agent",
+    "context",
+    "memory",
+    "worktree",
+    "cli"
+  ],
+  "author": "Miller Tech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DammianMiller/universal-agent-memory.git"
+  },
+  "homepage": "https://github.com/DammianMiller/universal-agent-memory#readme",
+  "bugs": {
+    "url": "https://github.com/DammianMiller/universal-agent-memory/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "@qdrant/js-client-rest": "^1.11.0",
+    "better-sqlite3": "^11.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dexie": "^4.0.8",
+    "glob": "^10.3.10",
+    "handlebars": "^4.7.8",
+    "inquirer": "^9.2.12",
+    "js-yaml": "^4.1.0",
+    "ora": "^8.0.1",
+    "simple-git": "^3.22.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/inquirer": "^9.0.7",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "fake-indexeddb": "^6.0.0",
+    "prettier": "^3.2.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "tools/agents",
+    "README.md",
+    "LICENSE"
+  ]
+}
