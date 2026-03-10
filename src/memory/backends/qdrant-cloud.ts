@@ -98,7 +98,7 @@ export class QdrantCloudBackend implements MemoryBackend {
     return results.map((r) => ({
       id: String(r.id),
       timestamp: r.payload?.timestamp as string,
-      type: r.payload?.type as 'action' | 'observation' | 'thought' | 'goal',
+      type: r.payload?.type as MemoryEntry['type'],
       content: r.payload?.content as string,
       embedding: r.vector as number[],
       tags: r.payload?.tags as string[],
@@ -117,7 +117,7 @@ export class QdrantCloudBackend implements MemoryBackend {
     return results.points.map((r) => ({
       id: String(r.id),
       timestamp: r.payload?.timestamp as string,
-      type: r.payload?.type as 'action' | 'observation' | 'thought' | 'goal',
+      type: r.payload?.type as MemoryEntry['type'],
       content: r.payload?.content as string,
       tags: r.payload?.tags as string[],
       importance: r.payload?.importance as number,

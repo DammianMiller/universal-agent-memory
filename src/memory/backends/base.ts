@@ -1,7 +1,7 @@
 export interface MemoryEntry {
   id: string;
   timestamp: string;
-  type: 'action' | 'observation' | 'thought' | 'goal';
+  type: 'action' | 'observation' | 'thought' | 'goal' | 'lesson' | 'decision';
   content: string;
   embedding?: number[];
   tags?: string[];

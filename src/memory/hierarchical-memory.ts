@@ -15,7 +15,7 @@ import { jaccardSimilarity } from '../utils/string-similarity.js';
 export interface MemoryEntry {
   id: string;
   content: string;
-  type: 'action' | 'observation' | 'thought' | 'goal';
+  type: 'action' | 'observation' | 'thought' | 'goal' | 'lesson' | 'decision';
   timestamp: string;
   importance: number;
   accessCount: number;
@@ -550,7 +550,7 @@ export function loadFromSQLite(dbPath: string): TieredMemory | null {
       tier: 'hot' | 'warm' | 'cold';
       content: string;
       compressed: string | null;
-      type: 'action' | 'observation' | 'thought' | 'goal';
+      type: 'action' | 'observation' | 'thought' | 'goal' | 'lesson' | 'decision';
       timestamp: string;
       importance: number;
       accessCount: number;

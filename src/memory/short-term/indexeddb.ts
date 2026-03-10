@@ -4,7 +4,7 @@ import Dexie from 'dexie';
 interface ShortTermMemory {
   id?: number;
   timestamp: string;
-  type: 'action' | 'observation' | 'thought' | 'goal';
+  type: 'action' | 'observation' | 'thought' | 'goal' | 'lesson' | 'decision';
   content: string;
   projectId?: string; // Key by project/repo URL
 }

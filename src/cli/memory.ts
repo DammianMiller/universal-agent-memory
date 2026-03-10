@@ -480,8 +480,10 @@ async function storeMemory(
     };
   }
 
-  // Determine memory type based on importance
-  const memoryType: 'action' | 'observation' | 'thought' | 'goal' = 
+  // Determine memory type based on importance and tags
+  const memoryType: 'action' | 'observation' | 'thought' | 'goal' | 'lesson' | 'decision' = 
+    tags?.includes('lesson') ? 'lesson' :
+    tags?.includes('decision') ? 'decision' :
     importance >= 8 ? 'goal' :
     importance >= 6 ? 'thought' :
     tags?.includes('observation') ? 'observation' : 'action';
@@ -759,20 +761,25 @@ function upsertEntity(
   db: Database.Database,
   type: string,
   name: string,
-  now: string
+  now: string,
+  description?: string
 ): { id: number; inserted: number } {
   const existing = db.prepare('SELECT id, mention_count FROM entities WHERE type = ? AND name = ?').get(type, name) as { id: number; mention_count: number } | undefined;
   if (existing) {
-    db.prepare('UPDATE entities SET last_seen = ?, mention_count = ? WHERE id = ?').run(now, existing.mention_count + 1, existing.id);
+    if (description) {
+      db.prepare('UPDATE entities SET last_seen = ?, mention_count = ?, description = ? WHERE id = ?').run(now, existing.mention_count + 1, description, existing.id);
+    } else {
+      db.prepare('UPDATE entities SET last_seen = ?, mention_count = ? WHERE id = ?').run(now, existing.mention_count + 1, existing.id);
+    }
     return { id: existing.id, inserted: 0 };
   }
 
-  const result = db.prepare('INSERT INTO entities (type, name, first_seen, last_seen, mention_count) VALUES (?, ?, ?, ?, 1)').run(type, name, now, now);
+  const result = db.prepare('INSERT INTO entities (type, name, description, first_seen, last_seen, mention_count) VALUES (?, ?, ?, ?, ?, 1)').run(type, name, description || null, now, now);
   return { id: Number(result.lastInsertRowid), inserted: 1 };
 }
 
-function insertRelationship(db: Database.Database, sourceId: number, targetId: number, relation: string, now: string): number {
-  const result = db.prepare('INSERT OR IGNORE INTO relationships (source_id, target_id, relation, timestamp) VALUES (?, ?, ?, ?)').run(sourceId, targetId, relation, now);
+function insertRelationship(db: Database.Database, sourceId: number, targetId: number, relation: string, now: string, strength: number = 1.0): number {
+  const result = db.prepare('INSERT OR IGNORE INTO relationships (source_id, target_id, relation, strength, timestamp) VALUES (?, ?, ?, ?, ?)').run(sourceId, targetId, relation, strength, now);
   return result.changes;
 }
 
@@ -908,8 +915,10 @@ async function promoteFromDailyLog(cwd: string, _options: MemoryOptions): Promis
 
       // Auto-promote based on score
       if (suggestedTier === 'working') {
-        const memType = entry.type === 'goal' || entry.type === 'action' || entry.type === 'observation' || entry.type === 'thought'
-          ? entry.type as 'action' | 'observation' | 'thought' | 'goal'
+        const validTypes = ['goal', 'action', 'observation', 'thought', 'lesson', 'decision'] as const;
+        type ValidType = typeof validTypes[number];
+        const memType: ValidType = validTypes.includes(entry.type as ValidType)
+          ? entry.type as ValidType
           : 'observation';
         await shortTermDb.store(memType, entry.content, Math.round(entry.gateScore * 10));
         dailyLog.markPromoted(entry.id, 'working');

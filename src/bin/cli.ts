@@ -22,6 +22,7 @@ import { hooksCommand, type HooksTarget } from '../cli/hooks.js';
 import { patternsCommand } from '../cli/patterns.js';
 import { setupCommand } from '../cli/setup.js';
 import { setupMcpRouter } from '../cli/setup-mcp-router.js';
+import { complianceCommand } from '../cli/compliance.js';
 // import { toolCallsCommand } from '../cli/tool-calls.js'; // Not used - inline implementation below
 
 // Read version from package.json
@@ -512,6 +513,29 @@ program
       .action((options) => taskCommand('compact', options))
   );
 
+// Compliance - protocol verification and auto-fix
+program
+  .command('compliance')
+  .description('UAP protocol compliance checking, auditing, and auto-fix')
+  .addCommand(
+    new Command('check')
+      .description('Run compliance check (schema, memory, Qdrant, worktrees, secrets)')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => complianceCommand('check', options))
+  )
+  .addCommand(
+    new Command('audit')
+      .description('Deep compliance audit with verbose output')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => complianceCommand('audit', options))
+  )
+  .addCommand(
+    new Command('fix')
+      .description('Auto-fix compliance issues (schema migrations, Qdrant collections, worktree cleanup)')
+      .option('-v, --verbose', 'Show detailed information')
+      .action((options) => complianceCommand('fix', options))
+  );
+
 program
   .command('update')
   .description('Update CLAUDE.md, memory system, and all related components')
@@ -644,45 +668,46 @@ program
 const toolCallsCmd = new Command('tool-calls');
 toolCallsCmd.description('Manage Qwen3.5 tool call fixes and chat templates');
 toolCallsCmd.addCommand(
-  new Command('setup').description('Install chat templates and Python scripts')
+  new Command('setup')
+    .description('Install chat templates and Python scripts')
+    .action(async () => {
+      const { execSync } = await import('child_process');
+      try {
+        execSync('node ' + join(__dirname, '../cli/tool-calls.js') + ' setup', { stdio: 'inherit' });
+      } catch { /* handled by script */ }
+    })
 );
 toolCallsCmd.addCommand(
   new Command('test')
     .description('Run reliability test suite')
     .addOption(new Option('--verbose', 'Verbose output'))
+    .action(async () => {
+      const { execSync } = await import('child_process');
+      try {
+        execSync('node ' + join(__dirname, '../cli/tool-calls.js') + ' test', { stdio: 'inherit' });
+      } catch { /* handled by script */ }
+    })
 );
-toolCallsCmd.addCommand(new Command('status').description('Check current configuration'));
 toolCallsCmd.addCommand(
-  new Command('fix').description('Apply template fixes to existing templates')
+  new Command('status')
+    .description('Check current configuration')
+    .action(async () => {
+      const { execSync } = await import('child_process');
+      try {
+        execSync('node ' + join(__dirname, '../cli/tool-calls.js') + ' status', { stdio: 'inherit' });
+      } catch { /* handled by script */ }
+    })
 );
-// Set action to call the tool-calls handler which shows its own help
-toolCallsCmd.action(() => {
-  console.log(`
-UAP Tool Call Setup - Qwen3.5 Tool Call Fixes
-
-Usage:
-  uap tool-calls <command> [options]
-
-Commands:
-  setup    Install chat templates and Python scripts
-  test     Run reliability test suite
-  status   Check current configuration
-  fix      Apply template fixes to existing templates
-  help     Show this help message
-
-Performance Improvement:
-  Single tool call:    ~95% -> ~98%
-  2-3 tool calls:      ~70% -> ~92%
-  5+ tool calls:       ~40% -> ~88%
-  Long context (50K+): ~30% -> ~85%
-
-Examples:
-  uap tool-calls setup
-  uap tool-calls test --verbose
-  uap tool-calls status
-  uap tool-calls fix
-`);
-});
+toolCallsCmd.addCommand(
+  new Command('fix')
+    .description('Apply template fixes to existing templates')
+    .action(async () => {
+      const { execSync } = await import('child_process');
+      try {
+        execSync('node ' + join(__dirname, '../cli/tool-calls.js') + ' fix', { stdio: 'inherit' });
+      } catch { /* handled by script */ }
+    })
+);
 program.addCommand(toolCallsCmd);
 
 // MCP Setup - Configure MCP Router for all platforms
