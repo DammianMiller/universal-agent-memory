@@ -1,13 +1,13 @@
-# Universal Agent Memory (UAM)
+# Universal Agent Protocol (UAP)
 
 [![npm version](https://img.shields.io/npm/v/universal-agent-protocol.svg)](https://www.npmjs.com/package/universal-agent-protocol)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <div align="center">
 
-### AI coding assistants that remember
+### AI agents that learn and remember
 
-**Every lesson learned. Every bug fixed. Every architectural decision.**
+**Every lesson, every pattern, every memory preserved across sessions.**
 
 _Not just in one conversation—but forever._
 
@@ -25,7 +25,7 @@ npm install -g universal-agent-protocol
 npm run setup
 
 # Initialize in your project
-uam init
+uap init
 ```
 
 That's it. Your AI now has persistent memory and follows proven workflows.
@@ -93,7 +93,7 @@ winget install Docker.DockerDesktop
 
 ## Recommended Platform: **opencode**
 
-UAM is optimized for **[opencode](https://opencode.ai)** - the local AI coding platform that provides:
+UAP is optimized for **[opencode](https://opencode.ai)** - the local AI coding platform that provides:
 
 - **Persistent sessions** - Memory survives across sessions
 - **Plugin architecture** - Pattern RAG, session hooks, and more
@@ -111,7 +111,7 @@ npm install -g opencode
 
 # Initialize UAM in your project
 cd your-project
-uam init
+uap init
 ```
 
 The `opencode.json` configuration file automatically loads UAM plugins for:
@@ -131,7 +131,7 @@ The `opencode.json` configuration file automatically loads UAM plugins for:
 
 ---
 
-## What UAM Gives You
+## What UAP Gives You
 
 ### 🧠 Persistent Memory
 
@@ -139,16 +139,16 @@ Your AI never forgets:
 
 ```bash
 # Store a lesson
-uam memory store "Always validate CSRF tokens in auth flows"
+uap memory store "Always validate CSRF tokens in auth flows"
 
 # Query later (any agent, any session)
-uam memory query "auth security"
+uap memory query "auth security"
 ```
 
 Memory persists in SQLite databases that travel with your code:
 
 - `agents/data/memory/short_term.db` - Recent actions + session memories
-- Semantic search via Qdrant (optional, `uam memory start`)
+- Semantic search via Qdrant (optional, `uap memory start`)
 
 ### 🎯 Pattern Router
 
@@ -183,12 +183,12 @@ Three mandatory checks before "done":
 No more accidental commits to main:
 
 ```bash
-uam worktree create my-feature
+uap worktree create my-feature
 # → Creates isolated branch in .worktrees/
 # → All changes tracked
-uam worktree pr <id>
+uap worktree pr <id>
 # → Creates PR, triggers reviews
-uam worktree cleanup <id>
+uap worktree cleanup <id>
 # → Clean removal after merge
 ```
 
@@ -207,7 +207,7 @@ Tasks automatically route to specialists:
 
 ## How It Works
 
-1. **Install & init** - `npm i -g universal-agent-protocol && uam init`
+1. **Install & init** - `npm i -g universal-agent-protocol && uap init`
 2. **CLAUDE.md generated** - Auto-populated with project structure, commands, patterns
 3. **AI reads CLAUDE.md** - Follows embedded workflows automatically
 4. **Every task**:
@@ -226,42 +226,42 @@ Tasks automatically route to specialists:
 
 | Command        | Description                                      |
 | -------------- | ------------------------------------------------ |
-| `uam init`     | Initialize/update UAM (never loses data)         |
-| `uam generate` | Regenerate CLAUDE.md from project analysis       |
-| `uam update`   | Update templates while preserving customizations |
+| `uap init`     | Initialize/update UAM (never loses data)         |
+| `uap generate` | Regenerate CLAUDE.md from project analysis       |
+| `uap update`   | Update templates while preserving customizations |
 
 ### Memory
 
 | Command                      | Description                      |
 | ---------------------------- | -------------------------------- |
-| `uam memory status`          | Check memory system status       |
-| `uam memory query <search>`  | Search memories                  |
-| `uam memory store <content>` | Store a learning                 |
-| `uam memory start`           | Start Qdrant for semantic search |
+| `uap memory status`          | Check memory system status       |
+| `uap memory query <search>`  | Search memories                  |
+| `uap memory store <content>` | Store a learning                 |
+| `uap memory start`           | Start Qdrant for semantic search |
 
 ### Tasks
 
 | Command                 | Description                            |
 | ----------------------- | -------------------------------------- |
-| `uam task create`       | Create tracked task                    |
-| `uam task list`         | List all tasks                         |
-| `uam task claim <id>`   | Claim task (announces to other agents) |
-| `uam task release <id>` | Complete task                          |
+| `uap task create`       | Create tracked task                    |
+| `uap task list`         | List all tasks                         |
+| `uap task claim <id>`   | Claim task (announces to other agents) |
+| `uap task release <id>` | Complete task                          |
 
 ### Worktrees
 
 | Command                      | Description             |
 | ---------------------------- | ----------------------- |
-| `uam worktree create <name>` | Create isolated branch  |
-| `uam worktree pr <id>`       | Create PR from worktree |
-| `uam worktree cleanup <id>`  | Remove worktree         |
+| `uap worktree create <name>` | Create isolated branch  |
+| `uap worktree pr <id>`       | Create PR from worktree |
+| `uap worktree cleanup <id>`  | Remove worktree         |
 
 ### Droids
 
 | Command                 | Description                  |
 | ----------------------- | ---------------------------- |
-| `uam droids list`       | List available expert droids |
-| `uam droids add <name>` | Create new expert droid      |
+| `uap droids list`       | List available expert droids |
+| `uap droids add <name>` | Create new expert droid      |
 
 ---
 
@@ -324,7 +324,7 @@ Dynamically retrieves relevant patterns from Qdrant:
 }
 ```
 
-### .uam.json (Project-specific)
+### .uap.json (Project-specific)
 
 ```json
 {
@@ -421,8 +421,8 @@ npm run build
 
 | Document                                                               | Description                |
 | ---------------------------------------------------------------------- | -------------------------- |
-| [`docs/UAM_COMPLETE_ANALYSIS.md`](docs/UAM_COMPLETE_ANALYSIS.md)       | Full system architecture   |
-| [`docs/TERMINAL_BENCH_LEARNINGS.md`](docs/TERMINAL_BENCH_LEARNINGS.md) | Universal agent patterns   |
+| [`docs/UAP_OVERVIEW.md`](docs/UAP_OVERVIEW.md)       | Full system architecture   |
+| [`docs/UAP_CLI_REFERENCE.md`](docs/UAP_CLI_REFERENCE.md) | Universal agent patterns   |
 | [`docs/BEHAVIORAL_PATTERNS.md`](docs/BEHAVIORAL_PATTERNS.md)           | What works vs what doesn't |
 | [`benchmark-results/`](benchmark-results/)                             | Terminal-Bench 2.0 results |
 
@@ -430,7 +430,7 @@ npm run build
 
 ## What's Next
 
-UAM v5.0 includes:
+UAP v7.1.0 includes:
 
 - ✅ **58 Optimizations** - Battle-tested from Terminal-Bench 2.0
 - ✅ **Pattern Router** - Auto-selects optimal patterns per task
@@ -455,7 +455,7 @@ Terminal-Bench patterns from [Terminal-Bench 2.0](https://github.com/aptx432/ter
 
 <div align="center">
 
-**[Documentation](docs/UAM_COMPLETE_ANALYSIS.md)** · **[Issues](https://github.com/DammianMiller/universal-agent-protocol/issues)** · **[npm](https://www.npmjs.com/package/universal-agent-protocol)**
+**[Documentation](docs/UAP_OVERVIEW.md)** · **[Issues](https://github.com/DammianMiller/universal-agent-protocol/issues)** · **[npm](https://www.npmjs.com/package/universal-agent-protocol)**
 
 _Built for developers who want AI that learns._
 
