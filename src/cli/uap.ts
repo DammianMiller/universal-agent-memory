@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..', '..');
 
-const UAP_VERSION = '2.0.1';
+const UAP_VERSION = '2.0.2';
 
 // Import RTK integration
 import { installRTK, checkRTKStatus, showRTKHelp } from './rtk.js';
