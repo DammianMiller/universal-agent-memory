@@ -8,13 +8,13 @@
 
 'use strict';
 
-const { execFileSync } = require('child_process');
-const path = require('path');
-const os = require('os');
+const { execFileSync } = await import('child_process');
+const path = await import('path');
+const os = await import('os');
 
 // Determine Python executable based on platform
 const getPythonExecutable = () => {
-  if (os.platform() === 'win32') {
+  if (os.platform === 'win32') {
     return 'python';
   }
   // Try python3 first, then fall back to python
@@ -27,10 +27,10 @@ const getPythonExecutable = () => {
 };
 
 // Get the directory where this script is located
-const scriptDir = __dirname;
+const scriptDir = path.default.dirname(new URL(import.meta.url).pathname);
 
 // Build the path to the Python script
-const pythonScript = path.join(scriptDir, 'qwen_tool_call_test.py');
+const pythonScript = path.default.join(scriptDir, 'qwen_tool_call_test.py');
 
 // Get command line arguments (skip first two: node, script path)
 const args = process.argv.slice(2);
