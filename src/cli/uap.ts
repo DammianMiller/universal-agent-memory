@@ -32,7 +32,7 @@ class UAPCli {
       case 'setup':
         await this.setup(args.slice(1));
         break;
-      case 'install':
+      case 'install': {
         // Check if user wants to install RTK
         const subCommand = args[1];
         if (subCommand === 'rtk') {
@@ -46,7 +46,8 @@ class UAPCli {
         }
         await this.install(args.slice(1));
         break;
-      case 'rtk':
+      }
+      case 'rtk': {
         // RTK subcommand
         const rtkSubCommand = args[1];
         if (rtkSubCommand === 'install') {
@@ -65,6 +66,7 @@ class UAPCli {
           showRTKHelp();
         }
         return;
+      }
       case 'uninstall':
         await this.uninstall();
         break;

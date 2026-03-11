@@ -175,18 +175,18 @@ export async function installRTK(options: RTKInstallOptions = {}): Promise<void>
     console.log(`ℹ RTK is already installed: ${version}`);
     console.log('');
 
-    const readline = require('readline').createInterface({
+    const rl = require('readline').createInterface({
       input: process.stdin,
       output: process.stdout,
     });
 
     const answer = await new Promise<string>((resolve) => {
-      readline.question('Do you want to upgrade to the latest version? [y/N] ', (ans: string) => {
+      rl.question('Do you want to upgrade to the latest version? [y/N] ', (ans: string) => {
         resolve(ans.toLowerCase());
       });
     });
 
-    readline.close();
+    rl.close();
 
     if (answer !== 'y' && answer !== 'yes') {
       console.log('Skipping installation.');
