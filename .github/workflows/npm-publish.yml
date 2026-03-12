@@ -1,10 +1,13 @@
 name: NPM Publish Pipeline with GH Secrets
 
 on:
+  push:
+    branches: [master]
+    
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type (major, minor, patch)'
+        description: 'Version bump type (major, minor, patch)'  
         required: false
         default: 'patch'
         type: choice
@@ -12,18 +15,21 @@ on:
           - patch
           - minor
           - major
-      
+
 env:
   NODE_VERSION: '20'
 
-jobs:
+jobs: 
   publish-to-npm:
     name: Build & Publish to NPM
     
     runs-on: ubuntu-latest
     
+    outputs:
+      npm_version: ${{ steps.publish.outputs.version }}
+      
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout code  
       - name: Checkout repository
         uses: actions/checkout@v4
       
@@ -34,14 +40,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org/'
       
-      # Step 3: Install dependencies
+      # Step 3: Install dependencies  
       - name: Install dependencies
         run: npm ci
       
-      # Step 4: Bump version if requested
-      - name: Version bump (if specified)
-        if: github.event.inputs.version_bump != ''
+      # Step 4: Bump version if requested (workflow_dispatch only)
+      - name: Version bump 
         id: bump_version
+        if: github.event_name == 'workflow_dispatch' && inputs.version_bump != ''
         env:
           VERSION_BUMP: ${{ github.event.inputs.version_bump }}
         run: |
@@ -53,80 +59,95 @@ jobs:
           case "$VERSION_BUMP" in
             major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch|*) PATCH=$((PATCH + 1)) ;;
+            *) PATCH=$((PATCH + 1)) ;;
           esac
           
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           
-          # Update package.json with new version (no git tag)
-          npm version "$NEW_VERSION" --no-git-tag-version
+          # Update package.json (no git tag for workflow_dispatch)  
+          npm version "$NEW_VERSION" --no-git-tag-version || echo "Version bump skipped"
           
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "Bumped from v$CURRENT_VERSION to v$NEW_VERSION"
       
-      # Step 5: Build TypeScript
-      - name: Build project
-        run: npm run build
+      # Step 5: Get current version after build
+      - name: Get package version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       
-      # Step 6: Run tests before publish
+      # Step 6: Build TypeScript  
+      - name: Build project
+        run: npm run build || (echo "Build failed!" && exit 1)
+      
+      # Step 7: Run tests before publish
       - name: Run tests
         id: test
         continue-on-error: true
         run: npm test
       
-      # Step 7: Configure NPM with GitHub PAT from secrets
+      # Step 8: Configure NPM with GitHub PAT from secrets  
       - name: Configure NPM authentication
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-          cat ~/.npmrc
-      
-      # Step 8: Check if version already exists on npm (optional safety check)
-      - name: Check if version exists on NPM
+          
+      # Step 9: Check if version already exists on npm (safety check for master pushes)
+      - name: Check if version exists on NPM  
         id: check_version
         run: |
           VERSION=$(node -p "require('./package.json').version")
           
-          echo "Checking for existing package version..."
+          echo "Checking existing package..."
           EXISTING_VERSION=$(npm view universal-agent-protocol@$VERSION version 2>/dev/null || echo "")
           
-          if [ -n "$EXISTING_VERSION" ]; then
-            echo "Version $VERSION already exists on NPM registry (found: v$EXISTING_VERSION)"
+          if [ -n "$EXISTING_VERSION" ]; then  
+            echo "Version $VERSION already exists (found: v$EXISTING_VERSION)"
             echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Version $VERSION is new to NPM registry"
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-      
-      # Step 9: Publish to NPM if version doesn't exist (or force publish)
+            
+      # Step 10: Publish to NPM 
       - name: Publish package to NPM
         id: publish
         env:
-          VERSION_EXISTS: ${{ steps.check_version.outputs.exists }}
-        run: |
+          VERSION_EXISTS: ${{ steps.check_version.outputs.exists || 'false' }}
+        run: |  
           echo "Publishing universal-agent-protocol..."
           
-          # Skip publish if version already exists and not forced
-          if [ "$VERSION_EXISTS" == "true" ] && [[ "${{ github.event.inputs.force_publish }}" != "true" ]]; then
-            echo "⚠️  Version already published - skipping (use force_publish=true to override)"
-            exit 0
+          # For master branch pushes, skip if already exists (unless force)
+          if [[ "$VERSION_EXISTS" == "true" ]] && 
+            [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            
+            echo "⚠️ Version already published - skipping for push event"
+            exit 0  
           fi
           
           # Actually publish!
-          npm publish --access public
+          npm publish --access public || {
+              echo "npm publish failed, checking why..."
+              cat ~/.npm/_logs/*-debug.log | tail -20
+              exit 1
+          }
       
-      # Step 10: Create GitHub Release after successful NPM publication
-      - name: Create GitHub Release
-        if: steps.publish.outcome == 'success' && github.ref == 'refs/heads/master'
+      # Step 11: Create GitHub Release after successful NPM publication (master only)  
+      - name: Check if tag exists for release
+        id: check_tag
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: | 
+          TAG_EXISTS=$(git rev-parse "v${{ env.VERSION }}" 2>/dev/null && echo "true" || echo "false")
+          echo "exists=$TAG_EXISTS" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release  
+        if: steps.check_tag.outputs.exists == 'false' 
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.build.outputs.version }}
-          name: "Release v${{ needs.build.outputs.version }}"
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          name: "Release v${{ steps.get_version.outputs.VERSION }}"
           body: |
             ## Universal Agent Protocol Release
             
-            ### Version Details
-            - **Package:** universal-agent-protocol  
-            - **Version:** ${{ steps.publish.outputs.npm_version || 'unknown' }}
+            ### Version Details  
+            - **Package:** universal-agent-protocol
+            - **Version:** ${{ steps.get_version.outputs.VERSION }}
             
             ### Features (v3.0+)
             ✅ Validation toggle flag (UAP_VALIDATE_PLAN)  
@@ -137,33 +158,40 @@ jobs:
           draft: false
           prerelease: false
         
-        env:
+        env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      # Step 11: Output summary
+      # Step 12: Output summary to GitHub Actions Summary
       - name: Publication Summary
-        if: always()
+        if: always()  
         run: |
           VERSION=$(node -p "require('./package.json').version")
           
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 NPM Publish Pipeline Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY 
+          echo "# 📦 NPM Publish Pipeline Result" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Package:** universal-agent-protocol" >> $GITHUB_STEP_SUMMARY  
           echo "**Version:** v$VERSION" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ steps.check_version.outputs.exists }}" == "true" ]; then
-            echo "**Status:** Version already published (skipped)" >> $GITHUB_STEP_SUMMARY
-          elif [[ -n "${{ github.event.inputs.force_publish }}" ]]; then
-            echo "**Status:** Published successfully to NPM!" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Status:** Ready for manual publish" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY 
+            echo ":white_check_mark: Version already exists (skipped)" >> $GITHUB_STEP_SUMMARY
+          else  
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.publish.outcome }}" == "success" ]; then
+                echo ":rocket: Published successfully to NPM!" >> $GITHUB_STEP_SUMMARY  
+            elif [[ "$VERSION_EXISTS" != "true" ]]; then
+                echo ":warning: Publish in progress..." >> $GITHUB_STEP_SUMMARY
+            else 
+                echo ":white_check_mark: Already published (skip)" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
           
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.test.outcome }}" == "success" ]; then
-            echo ":white_check_mark: All tests passing (136 passed)" >> $GITHUB_STEP_SUMMARY
-          else  
-            echo ":warning: Tests may have issues - review before publish" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.test.outcome }}" == "success" ]; then  
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo ":white_check_mark: All tests passing ✅" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$VERSION_EXISTS" != "true" ]]; then 
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo ":warning: Tests may have issues - review before publish" >> $GITHUB_STEP_SUMMARY  
           fi
 
