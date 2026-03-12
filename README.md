@@ -125,6 +125,56 @@ The `opencode.json` configuration file automatically loads UAP plugins for:
 | Platform        | Notes                                   |
 | --------------- | --------------------------------------- |
 | **Factory.AI**  | Works well, use `CLAUDE.md` for context |
+### ForgeCode Integration
+
+[ForgeCode](https://forgecode.dev) is the world's #1 coding agent (TermBench 2.0, 78.4% accuracy), providing:
+
+- **ZSH-native** - Type `:` to invoke in terminal alongside Oh My Zsh plugins
+- **Multi-agent modes** - FORGE (planning), MUSE (coding), SAGE (verification)
+- **Model flexibility** - Mix Anthropic, OpenAI, Google models mid-session
+- **Context engine** - Navigate large codebases with RAG-powered memory
+
+### Setup ForgeCode Integration
+
+```bash
+# Install UAP in your project
+cd your-project
+uap init
+
+# Install hooks for ForgeCode integration
+uap hooks install forgecode
+```
+
+This creates:
+- `.forge/hooks/session-start.sh` - Injects recent memory context before `:` command execution
+- `.forge/forgecode.plugin.sh` - ZSH plugin with environment variable injection
+- `.forge/settings.local.json` - UAM integration configuration
+- Updates `~/.zshrc` to source the plugin automatically on terminal start
+
+### Usage Example
+
+```bash
+# In your ZSH session, type : to invoke ForgeCode
+cd ~/projects/my-app && :
+: fix login bug in auth middleware
+```
+
+UAP will:
+1. Load recent memory context from `agents/data/memory/short_term.db`
+2. Check for stale worktrees and open loops
+3. Inject this as environment variables (`UAM_CONTEXT`, `UAM_OPEN_LOOPS`)
+4. ForgeCode reads these to provide enhanced context-aware responses
+5. On completion, saves lessons back to UAP memory database
+
+### Verification
+
+```bash
+# Check hook status for all platforms including forgecode
+uap hooks status -t forgecode
+```
+
+**See**: Also see the [UAP Protocol Overview](./docs/UAP_OVERVIEW.md) and [RTK Integration Analysis](./docs/rtk-integration-analysis.md)
+
 | **Claude Code** | Desktop app, full UAP support           |
 | **VSCode**      | Use with Claude Code extension          |
 | **claude.ai**   | Web version, limited tooling            |
