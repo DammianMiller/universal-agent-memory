@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export type HooksTarget = 'claude' | 'factory' | 'cursor' | 'vscode' | 'opencode';
+export type HooksTarget = 'claude' | 'factory' | 'cursor' | 'vscode' | 'opencode' | 'forgecode';
 type HooksAction = 'install' | 'status';
 
 interface HooksOptions {
@@ -14,7 +14,14 @@ interface HooksOptions {
   target?: HooksTarget;
 }
 
-const ALL_TARGETS: HooksTarget[] = ['claude', 'factory', 'cursor', 'vscode', 'opencode'];
+const ALL_TARGETS: HooksTarget[] = [
+  'claude',
+  'factory',
+  'cursor',
+  'vscode',
+  'opencode',
+  'forgecode',
+];
 
 export async function hooksCommand(action: HooksAction, options: HooksOptions = {}): Promise<void> {
   const cwd = options.projectDir || process.cwd();
@@ -99,7 +106,11 @@ async function installClaudeHooks(cwd: string): Promise<void> {
   const settingsPath = join(claudeDir, 'settings.local.json');
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
-    try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* start fresh */ }
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    } catch {
+      /* start fresh */
+    }
   }
 
   const hooksConfig = {
@@ -134,12 +145,18 @@ async function installFactoryHooks(cwd: string): Promise<void> {
   const settingsPath = join(factoryDir, 'settings.local.json');
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
-    try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* start fresh */ }
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    } catch {
+      /* start fresh */
+    }
   }
 
   const hooksConfig = {
     SessionStart: {
-      hooks: [{ type: 'command', command: '"$FACTORY_PROJECT_DIR"/.factory/hooks/session-start.sh' }],
+      hooks: [
+        { type: 'command', command: '"$FACTORY_PROJECT_DIR"/.factory/hooks/session-start.sh' },
+      ],
     },
     PreCompact: {
       hooks: [{ type: 'command', command: '"$FACTORY_PROJECT_DIR"/.factory/hooks/pre-compact.sh' }],
@@ -169,18 +186,18 @@ async function installCursorHooks(cwd: string): Promise<void> {
   const hooksJsonPath = join(cursorDir, 'hooks.json');
   let config: Record<string, unknown> = { version: 1, hooks: {} };
   if (existsSync(hooksJsonPath)) {
-    try { config = JSON.parse(readFileSync(hooksJsonPath, 'utf-8')); } catch { /* start fresh */ }
+    try {
+      config = JSON.parse(readFileSync(hooksJsonPath, 'utf-8'));
+    } catch {
+      /* start fresh */
+    }
   }
 
   const existingHooks = (config.hooks || {}) as Record<string, unknown>;
   config.hooks = {
     ...existingHooks,
-    sessionStart: [
-      { command: '.cursor/hooks/session-start.sh' },
-    ],
-    preCompact: [
-      { command: '.cursor/hooks/pre-compact.sh' },
-    ],
+    sessionStart: [{ command: '.cursor/hooks/session-start.sh' }],
+    preCompact: [{ command: '.cursor/hooks/pre-compact.sh' }],
   };
   config.version = 1;
 
@@ -204,7 +221,11 @@ async function installVscodeHooks(cwd: string): Promise<void> {
   const settingsPath = join(claudeDir, 'settings.local.json');
   let settings: Record<string, unknown> = {};
   if (existsSync(settingsPath)) {
-    try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* start fresh */ }
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    } catch {
+      /* start fresh */
+    }
   }
 
   const hooksConfig = {
@@ -307,6 +328,59 @@ export const UAMSessionHooks: Plugin = async ({ client, $ }) => {
   console.log(chalk.dim('  Restart OpenCode to activate.\n'));
 }
 
+// --- ForgeCode (ZSH-native agent) ---
+
+async function installForgeCodeHooks(cwd: string): Promise<void> {
+  console.log(chalk.bold('\n  Installing UAM Hooks for ForgeCode\n'));
+  if (!ensureTemplateHooksExist()) return;
+
+  const forgeDir = join(cwd, '.forge');
+  const forgeHooksDir = join(forgeDir, 'hooks');
+  copyHookScripts(forgeHooksDir);
+
+  // Copy ZSH plugin script to .opencode/plugins for easy access
+  const opencodePluginDir = join(cwd, '.opencode', 'plugin');
+  if (!existsSync(opencodePluginDir)) {
+    mkdirSync(opencodePluginDir, { recursive: true });
+    console.log(chalk.dim(`  Created ${chalk.gray(opencodePluginDir)}`));
+  }
+
+  const pluginTemplate = join(getTemplateHooksDir(), 'forgecode.plugin.sh');
+  
+  // Copy the pre-generated ZSH plugin template to project .forge directory
+  if (existsSync(pluginTemplate)) {
+    copyFileSync(pluginTemplate, pluginPath);
+    chmodSync(pluginPath, 0o755);
+    console.log(chalk.green('  + .forge/forgecode.plugin.sh'));
+  } else {
+    // Fallback: generate inline if template not found (shouldn't happen)
+    const dbPath = './agents/data/memory/short_term.db';
+    writeFileSync(pluginPath, 
+      `# UAP ForgeCode Integration Plugin\n` +
+      `// Auto-generated by: uap hooks install forgecode  \n` +
+      `_uam_forgecode_session_start() {\n` +
+      `  local PROJECT_DIR="${FORGE_UAM_PROJECT:-.}"\n` +
+      `  if [ ! -f "\$PROJECT_DIR/${dbPath}" ]; then exit 0; fi\n` +
+      `  echo "[UAP-ForgCode] Session started with UAM context injection" >&2\n` +
+      `}\n` +
+      `_uam_forgecode_pre_compact() {\n` +
+      `  local PROJECT_DIR="${FORGE_UAM_PROJECT:-.}"\n` +
+      `  if [ ! -f "\$PROJECT_DIR/${dbPath)" ]; then exit 0; fi\n` +
+      `  echo "[UAP-ForgCode] Pre-compact marker saved" >&2\n` +
+      `}\n` +
+      'export -f _uam_forgecode_session_start _uam_forgecode_pre_compact;'
+    );
+  }
+  console.log(chalk.green('  + .forge/forgecode.plugin.sh'));
+
+  updateGitignore(cwd, ['.forge/settings.local.json']);
+  
+   console.log(chalk.bold.green('\n  ForgeCode hooks installed successfully!'));
+   console.log(
+     chalk.dim('\nTo activate in your terminal:') + '\n' + 
+     chalk.cyan('    source ~/.zshrc') + chalk.gray(' (or restart terminal)')
+   );
+
 // --- Dispatcher ---
 
 async function installHooksForTarget(cwd: string, target: HooksTarget): Promise<void> {
@@ -316,7 +390,9 @@ async function installHooksForTarget(cwd: string, target: HooksTarget): Promise<
     case 'cursor': return installCursorHooks(cwd);
     case 'vscode': return installVscodeHooks(cwd);
     case 'opencode': return installOpencodeHooks(cwd);
+    case 'forgecode': return installForgeCodeHooks(cwd);
   }
+}
 }
 
 // --- Status ---
@@ -349,7 +425,9 @@ function showSettingsStatus(settingsPath: string): void {
       const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
       const hooks = settings.hooks || {};
       const configured = Object.keys(hooks).length;
-      console.log(`  ${chalk.green('configured')}  ${settingsPath.split('/').pop()} (${configured} hook events)`);
+      console.log(
+        `  ${chalk.green('configured')}  ${settingsPath.split('/').pop()} (${configured} hook events)`
+      );
     } catch {
       console.log(`  ${chalk.yellow('invalid')}  ${settingsPath.split('/').pop()} (parse error)`);
     }
@@ -416,10 +494,15 @@ async function showOpencodeStatus(cwd: string): Promise<void> {
 
 async function showHooksStatusForTarget(cwd: string, target: HooksTarget): Promise<void> {
   switch (target) {
-    case 'claude': return showClaudeStatus(cwd);
-    case 'factory': return showFactoryStatus(cwd);
-    case 'cursor': return showCursorStatus(cwd);
-    case 'vscode': return showVscodeStatus(cwd);
-    case 'opencode': return showOpencodeStatus(cwd);
+    case 'claude':
+      return showClaudeStatus(cwd);
+    case 'factory':
+      return showFactoryStatus(cwd);
+    case 'cursor':
+      return showCursorStatus(cwd);
+    case 'vscode':
+      return showVscodeStatus(cwd);
+    case 'opencode':
+      return showOpencodeStatus(cwd);
   }
 }
