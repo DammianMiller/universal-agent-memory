@@ -1,25 +1,14 @@
 {% macro render_content(content) %}
-  {% if content is string %}{{- content }}
-  {% elif content is iterable and content is not mapping %}
-    {%- for item in content %}
-      {% if 'image' in item or ('image_url' in item or (item | attr('type')) == 'image') -%}图片{% else %}{{- item.text -}}{%- endif %}
-    {%- endfor %}
-  {% elif content is none or content is undefined %}{{ '' }}
-  {% else %}Unknown{% endif %}
-{% endmacro %}
+  {% if content is string -%}{%- set _ = print(content|trim) -{% endif %}}
 
-{# Check messages #}
-{% if not messages or (messages | length) == 0 -%}{- raise_exception('No messages provided') -%}{%- endif %}
-
-{# Main message loop #} 
+{# Main processing #} 
 {%- for message in messages -%}  
-    {%- set content = render_content(message.content)|trim if message.content else '' -%}
+    {%- set role = (message | attr('role')) -%}
     
-    {% if (message | attr('role')) == 'system' and not loop.first -%}{- raise_exception('System must be first') -{% endif %}}
+    {%- if role == 'system' and not loop.first -%}{- raise_exception('System must be first') -{% endif %}}
 
-    {% if (message | attr('role')) == 'user' -%} 
-            {{ message.role + '\n' ~ content + '<|end_of_turn|>' }}
-        {%- elif loop.index0 > 5 -%}{# limit output #}-
-    {% endif -%}
+    {%- if role == 'user' -%} 
+            {{ message.role + '\n' ~ (message.content|trim) }}\n<function=example>\n<parameter=name>value</parameter></function>{{-</function>\n</tool_call>\n
+        {%- elif loop.index0 > 5 %}{# limit output #}-{% endif -%}
 
-{% endfor %}{# End message loop #}}
+{%- endfor -%}{# End message loop #}}

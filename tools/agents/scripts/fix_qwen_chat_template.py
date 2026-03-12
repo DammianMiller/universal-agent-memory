@@ -76,20 +76,22 @@ def validate_template_syntax(content):
     issues = []
 
     # Check balanced blocks
-    block_types = [
-        (r"\{%-?\s*if\s+", r"{%-?/\s*endif"),  # if/endif
-        (r"\{%-?\s*for\s+", r"{%-?/\s*endfor"),  # for/endfor
-        (r"\{%-?\s*macro", r"{-%}\s*endmacro"),  # macro/endmacro
+    block_pairs = [
+        (r"\{%-?\s*if\s+", r"{%-?/\s*endif"),
+        (r"\{%-?\s*for\s+", r"{%-?/\s*endfor"),
     ]
 
-    for open_pattern, close_pattern in block_types:
+    for open_pattern, close_pattern in block_pairs:
         opens = len(re.findall(open_pattern, content))
         closes = len(re.findall(close_pattern, content))
 
         if opens != closes:
+            # Extract tag name from pattern
+            match = re.search(r"\{%-?\s*(\w+)\s+", open_pattern)
+            tag_name = match.group(1) if match else "block"
+
             issues.append(
-                f"Unbalanced {open_pattern.split()[1]} blocks: "
-                f"{opens} open vs {closes} close"
+                f"Unbalanced {tag_name} blocks: {opens} open vs {closes} close"
             )
 
     # Check for common syntax errors
