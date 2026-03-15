@@ -1,0 +1,79 @@
+#!/bin/bash
+set -e
+
+echo "=== Installing OpenCode for local Qwen3.5 (UAP v10.0.0 with OCR support) ==="
+
+# Install system dependencies (expanded for Option D + OCR support)
+apt-get update
+apt-get install -y curl git build-essential python3-pip jq netcat-openbsd xxd tesseract-ocr tesseract-ocr-eng poppler-utils imagemagick ffmpeg libsm6 libxext6 file
+
+# Install common Python packages that many tasks need (including OCR)
+pip install --break-system-packages numpy pillow pytesseract opencv-python-headless python-chess 2>/dev/null || pip3 install numpy pillow pytesseract opencv-python-headless python-chess 2>/dev/null || true
+
+
+# Install Node.js via nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+source "$HOME/.nvm/nvm.sh"
+nvm install 22
+echo "Node $(node -v), npm $(npm -v)"
+
+# Install opencode
+{% if version %}
+npm i -g opencode-ai@{{ version }}
+{% else %}
+npm i -g opencode-ai@latest
+{% endif %}
+
+# Install the OpenAI-compatible provider package (required for llama.cpp provider)
+npm i -g @ai-sdk/openai-compatible
+
+# Write opencode.json with custom llama.cpp provider
+cat > /installed-agent/opencode.json << 'OPENCODE_EOF'
+{{ opencode_config }}
+OPENCODE_EOF
+
+{% if claude_md is defined and claude_md %}
+# Write CLAUDE.md placeholder (overwritten at runtime with classified version)
+cat > /installed-agent/CLAUDE.md << 'CLAUDE_EOF'
+{{ claude_md }}
+CLAUDE_EOF
+echo "CLAUDE.md written (UAP mode -- will be overwritten per-task at runtime)"
+{% else %}
+echo "No CLAUDE.md (baseline mode)"
+{% endif %}
+
+# ----------------------------------------------------------------
+# LLM endpoint connectivity check with retry
+# Prevents wasting a full task timeout when the model server is down
+# ----------------------------------------------------------------
+LLM_ENDPOINT="{{ api_endpoint }}"
+echo "Checking LLM endpoint: ${LLM_ENDPOINT}"
+
+MAX_RETRIES=5
+RETRY_DELAY=10
+CONNECTED=false
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    if curl -s --max-time 10 "${LLM_ENDPOINT}/models" > /dev/null 2>&1; then
+        echo "LLM endpoint reachable (attempt ${attempt}/${MAX_RETRIES})"
+        CONNECTED=true
+        break
+    fi
+    echo "LLM endpoint not reachable (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY}s..."
+    sleep $RETRY_DELAY
+done
+
+if [ "$CONNECTED" = false ]; then
+    echo "WARNING: LLM endpoint ${LLM_ENDPOINT} not reachable after ${MAX_RETRIES} attempts"
+    echo "The agent will likely fail. Check that llama-server is running on the host."
+    echo "From inside Docker bridge network, the host IP must be routable."
+    echo "Tip: ensure llama-server is bound to 0.0.0.0 (not 127.0.0.1)"
+fi
+
+# Verify
+source "$HOME/.nvm/nvm.sh"
+echo "opencode $(opencode --version 2>/dev/null || echo 'installed')"
+echo "API endpoint: {{ api_endpoint }}"
+echo "Python: $(python3 --version 2>/dev/null || echo 'not found')"
+echo "gcc: $(gcc --version 2>/dev/null | head -1 || echo 'not found')"
+echo "=== Installation complete (UAP v10.0.0) ==="
