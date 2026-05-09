@@ -592,6 +592,44 @@ def _is_grammar_tools_incompatibility(status_code: int, error_text: str) -> bool
     return "custom grammar constraints" in lowered and "with tools" in lowered
 
 
+def _is_gemma4_peg_parse_failure(status_code: int, error_text: str) -> bool:
+    """Detect Gemma 4's PEG-parser failure on tool-turn output.
+
+    llama-server returns HTTP 500 with `failed to parse grammar` /
+    `Failed to parse input at pos N: <|tool_call>call:...` when the model
+    emits an incomplete tool call (missing required schema fields) under
+    tool_choice='required'. The PEG grammar enforces the schema strictly
+    and rejects the partial output. Caller should retry with relaxed
+    tool_choice='auto' so the model can emit prose or a complete call
+    without grammar enforcement triggering this failure mode.
+    """
+    if status_code != 500:
+        return False
+    text = error_text or ""
+    return (
+        "Failed to parse input at pos" in text
+        or "<|tool_call>call:" in text
+    )
+
+
+def _relax_tool_choice_for_gemma4_peg_retry(request_body: dict, source: str) -> bool:
+    """When a Gemma 4 PEG parse failure is detected on a tool turn, drop
+    tool_choice='required' so the retry has a permissive grammar. Returns
+    True if the body was modified (caller should retry POST)."""
+    if not request_body.get("tools"):
+        return False
+    current = request_body.get("tool_choice")
+    if current in ("required", {"type": "any"}):
+        request_body["tool_choice"] = "auto"
+        logger.warning(
+            "GEMMA4 PEG RETRY (%s): relaxed tool_choice='required' -> 'auto' "
+            "to bypass strict-grammar parse failure on incomplete model output",
+            source,
+        )
+        return True
+    return False
+
+
 def _maybe_disable_grammar_for_tools_error(
     request_body: dict,
     status_code: int,
@@ -6661,6 +6699,25 @@ async def messages(request: Request):
 
         if strict_resp.status_code != 200:
             error_text = strict_resp.text[:1000]
+            # Gemma 4 PEG parse-failure recovery: relax tool_choice='required'
+            # so the retry isn't blocked by the strict-grammar that rejected
+            # the model's incomplete tool call output.
+            relaxed = (
+                _is_gemma4_peg_parse_failure(strict_resp.status_code, error_text)
+                and _relax_tool_choice_for_gemma4_peg_retry(strict_body, "strict-stream")
+            )
+            if relaxed:
+                try:
+                    strict_resp = await _post_with_generation_timeout(
+                        client,
+                        f"{LLAMA_CPP_BASE}/chat/completions",
+                        strict_body,
+                        {"Content-Type": "application/json"},
+                    )
+                except Exception:
+                    pass  # fall through to next handler
+        if strict_resp.status_code != 200:
+            error_text = strict_resp.text[:1000]
             if _maybe_disable_grammar_for_tools_error(
                 strict_body,
                 strict_resp.status_code,
@@ -6904,6 +6961,31 @@ async def messages(request: Request):
             error_body = await resp.aread()
             await resp.aclose()
             error_text = error_body.decode("utf-8", errors="replace")[:1000]
+            # Gemma 4 PEG parse-failure recovery (stream path).
+            if _is_gemma4_peg_parse_failure(resp.status_code, error_text) and \
+                    _relax_tool_choice_for_gemma4_peg_retry(openai_body, "stream"):
+                resp = await client.send(
+                    client.build_request(
+                        "POST",
+                        f"{LLAMA_CPP_BASE}/chat/completions",
+                        json=openai_body,
+                        headers={"Content-Type": "application/json"},
+                    ),
+                    stream=True,
+                )
+                if resp.status_code == 200:
+                    return StreamingResponse(
+                        stream_anthropic_response(resp, model, monitor, body),
+                        media_type="text/event-stream",
+                        headers={
+                            "Cache-Control": "no-cache",
+                            "Connection": "keep-alive",
+                        },
+                    )
+                # fall through if still failing
+                error_body = await resp.aread()
+                await resp.aclose()
+                error_text = error_body.decode("utf-8", errors="replace")[:1000]
             if _maybe_disable_grammar_for_tools_error(
                 openai_body,
                 resp.status_code,
@@ -7036,6 +7118,23 @@ async def messages(request: Request):
                 media_type="application/json",
             )
 
+        if resp.status_code != 200:
+            error_text = resp.text[:1000]
+            # Gemma 4 PEG parse-failure recovery (non-stream path).
+            relaxed = (
+                _is_gemma4_peg_parse_failure(resp.status_code, error_text)
+                and _relax_tool_choice_for_gemma4_peg_retry(openai_body, "non-stream")
+            )
+            if relaxed:
+                try:
+                    resp = await _post_with_generation_timeout(
+                        client,
+                        f"{LLAMA_CPP_BASE}/chat/completions",
+                        openai_body,
+                        {"Content-Type": "application/json"},
+                    )
+                except Exception:
+                    pass  # fall through
         if resp.status_code != 200:
             error_text = resp.text[:1000]
             if _maybe_disable_grammar_for_tools_error(
