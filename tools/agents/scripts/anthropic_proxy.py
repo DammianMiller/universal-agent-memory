@@ -1757,7 +1757,7 @@ def anthropic_to_openai_messages(anthropic_body: dict) -> list[dict]:
                             "tool_calls": [
                                 {
                                     "id": block.get(
-                                        "id", f"call_{uuid.uuid4().hex[:8]}"
+                                        "id", f"toolu_{uuid.uuid4().hex[:24]}"
                                     ),
                                     "type": "function",
                                     "function": {
@@ -1770,10 +1770,17 @@ def anthropic_to_openai_messages(anthropic_body: dict) -> list[dict]:
                     )
                     continue
                 elif block.get("type") == "tool_result":
+                    # Strip Anthropic-spec toolu_ prefix so the upstream
+                    # tool_call_id matches what llama-server originally
+                    # emitted (we stamped the prefix on outbound; reverse it
+                    # here so the loop closes correctly).
+                    tu_id = block.get("tool_use_id", "")
+                    if isinstance(tu_id, str) and tu_id.startswith("toolu_"):
+                        tu_id = tu_id[len("toolu_"):]
                     messages.append(
                         {
                             "role": "tool",
-                            "tool_call_id": block.get("tool_use_id", ""),
+                            "tool_call_id": tu_id,
                             "content": _extract_text(block.get("content", "")),
                         }
                     )
@@ -2318,7 +2325,7 @@ def anthropic_to_openai_response(anthropic_resp: dict) -> dict:
         elif btype == "tool_use":
             tool_calls.append(
                 {
-                    "id": block.get("id", f"call_{uuid.uuid4().hex[:12]}"),
+                    "id": block.get("id", f"toolu_{uuid.uuid4().hex[:24]}"),
                     "type": "function",
                     "function": {
                         "name": block.get("name", ""),
@@ -2790,6 +2797,23 @@ def build_openai_request(
     }
 
     has_tools = _has_tool_definitions(anthropic_body)
+
+    # Translate Anthropic `thinking` parameter to upstream `enable_thinking`.
+    # Anthropic shape: {"thinking": {"type": "enabled", "budget_tokens": N}}
+    # or {"type": "disabled"}. Per the Anthropic spec, thinking is OFF by
+    # default and ONLY enabled when the client opts in. Match that behaviour:
+    #   - thinking.type == "enabled"  -> enable_thinking=True
+    #   - thinking.type == "disabled" -> enable_thinking=False
+    #   - absent                       -> enable_thinking=False (Anthropic default)
+    # Without this, Qwen's chat template (which defaults thinking ON) would
+    # consume the client's max_tokens budget on internal reasoning before
+    # ever emitting the visible answer.
+    anthropic_thinking = anthropic_body.get("thinking")
+    if isinstance(anthropic_thinking, dict):
+        ttype = (anthropic_thinking.get("type") or "").lower()
+        openai_body["enable_thinking"] = (ttype == "enabled")
+    else:
+        openai_body["enable_thinking"] = False
 
     # Global thinking-off (G stub): apply to every request, not just tool
     # turns. Currently default-off — enable_thinking=False breaks Gemma 4
@@ -3719,7 +3743,7 @@ def _extract_gemma4_tool_calls(
             continue
         extracted.append(
             {
-                "id": f"call_{uuid.uuid4().hex[:12]}",
+                "id": f"toolu_{uuid.uuid4().hex[:24]}",
                 "type": "function",
                 "function": {
                     "name": name,
@@ -3774,7 +3798,7 @@ def _extract_gemma4_tool_calls(
                 arguments = "{}"
             extracted.append(
                 {
-                    "id": f"call_{uuid.uuid4().hex[:12]}",
+                    "id": f"toolu_{uuid.uuid4().hex[:24]}",
                     "type": "function",
                     "function": {"name": name, "arguments": arguments},
                 }
@@ -3894,7 +3918,7 @@ def _extract_tool_calls_from_text(
 
         extracted.append(
             {
-                "id": f"call_{uuid.uuid4().hex[:12]}",
+                "id": f"toolu_{uuid.uuid4().hex[:24]}",
                 "type": "function",
                 "function": {"name": name, "arguments": arguments},
             }
@@ -5932,8 +5956,43 @@ def _inject_synthetic_continuation(
     return anthropic_resp
 
 
-def openai_to_anthropic_response(openai_resp: dict, model: str) -> dict:
-    """Convert an OpenAI Chat Completions response to Anthropic Messages format."""
+_THINKING_BLOCK_RE = re.compile(r"<think>(.*?)</think>\s*", re.DOTALL)
+
+
+def _extract_thinking_block(text: str) -> tuple[str | None, str]:
+    """Extract Qwen-style ``<think>...</think>`` blocks from *text*.
+
+    Returns ``(thinking_content, remaining_text)``. If no closed ``<think>``
+    tag is present, returns ``(None, text)`` unchanged. Multiple blocks are
+    concatenated. Trailing whitespace after each block is consumed so the
+    remaining text starts cleanly with the model's actual answer.
+    """
+    if "<think>" not in text:
+        return None, text
+    parts: list[str] = []
+    def collect(m: re.Match) -> str:
+        parts.append(m.group(1).strip())
+        return ""
+    remaining = _THINKING_BLOCK_RE.sub(collect, text)
+    if not parts:
+        return None, text
+    return "\n\n".join(p for p in parts if p), remaining.lstrip()
+
+
+def openai_to_anthropic_response(
+    openai_resp: dict, model: str, expose_thinking: bool = True
+) -> dict:
+    """Convert an OpenAI Chat Completions response to Anthropic Messages format.
+
+    *expose_thinking*: when True, surface ``<think>...</think>`` content from
+    the upstream as Anthropic ``{"type": "thinking"}`` blocks. When False
+    (Anthropic default — client didn't opt in), strip thinking content from
+    the response entirely so the client only sees the actual answer. Qwen's
+    chat template seeds the model into thinking regardless of the
+    ``enable_thinking`` request param, so even thinking-off responses
+    typically still contain ``<think>`` blocks; this flag controls whether
+    they're surfaced as Anthropic blocks or silently consumed.
+    """
     # First: try to recover tool calls trapped in text XML tags
     _maybe_extract_text_tool_calls(openai_resp)
     # Second: strip garbled/degenerate tool call arguments
@@ -5944,20 +6003,43 @@ def openai_to_anthropic_response(openai_resp: dict, model: str) -> dict:
     finish = choice.get("finish_reason", "stop")
 
     content = []
+    raw_text = ""
     if message.get("content"):
         raw_text = (
             message["content"]
             if isinstance(message["content"], str)
             else str(message["content"])
         )
-        sanitized_text = _sanitize_tool_call_apology_text(raw_text)
-        if sanitized_text != raw_text:
+    # Surface Qwen's <think>...</think> output (and llama-server's separate
+    # `reasoning_content` field, when --reasoning-format=deepseek-style is in
+    # use) as Anthropic-style ``{"type": "thinking"}`` blocks. Clients that
+    # didn't opt in via the `thinking` request param have expose_thinking=False
+    # and the content is silently consumed instead.
+    inline_thinking, body_text = _extract_thinking_block(raw_text)
+    sidecar_thinking = message.get("reasoning_content") or message.get("reasoning")
+    thinking_chunks: list[str] = []
+    if isinstance(sidecar_thinking, str) and sidecar_thinking.strip():
+        thinking_chunks.append(sidecar_thinking.strip())
+    if inline_thinking:
+        thinking_chunks.append(inline_thinking)
+    if thinking_chunks and expose_thinking:
+        content.append(
+            {
+                "type": "thinking",
+                "thinking": "\n\n".join(thinking_chunks),
+                "signature": "",
+            }
+        )
+
+    if body_text:
+        sanitized_text = _sanitize_tool_call_apology_text(body_text)
+        if sanitized_text != body_text:
             logger.warning(
                 "SANITIZE: replaced known malformed tool-call apology text in assistant response"
             )
         # Option 1: Strip residual <tool_call> XML that wasn't extracted
         sanitized_text = _strip_residual_tool_call_xml(sanitized_text)
-        if sanitized_text != raw_text and "<tool_call>" in raw_text:
+        if sanitized_text != body_text and "<tool_call>" in body_text:
             logger.warning(
                 "SANITIZE: stripped residual <tool_call> XML from text content"
             )
@@ -5982,10 +6064,21 @@ def openai_to_anthropic_response(openai_resp: dict, model: str) -> dict:
                     logger.warning(
                         "BASH SAFETY: stripped standalone protocol-tag lines from command before tool execution"
                     )
+        # Normalise IDs to Anthropic spec (toolu_ prefix). Upstream
+        # llama-server returns opaque IDs without prefix; clients that
+        # validate the prefix would reject. Strip-and-restamp here, restore
+        # in anthropic_to_openai_messages() when client sends tool_result back.
+        upstream_id = tc.get("id", "")
+        if upstream_id.startswith("toolu_"):
+            tool_use_id = upstream_id
+        elif upstream_id:
+            tool_use_id = f"toolu_{upstream_id}"
+        else:
+            tool_use_id = f"toolu_{uuid.uuid4().hex[:24]}"
         content.append(
             {
                 "type": "tool_use",
-                "id": tc.get("id", f"toolu_{uuid.uuid4().hex[:12]}"),
+                "id": tool_use_id,
                 "name": fn.get("name", ""),
                 "input": args,
             }
@@ -6845,7 +6938,11 @@ async def messages(request: Request):
                         logger.info("DEGENERATE RETRY: retry insufficient, using truncated original")
             except Exception as exc:
                 logger.warning("DEGENERATE RETRY: failed: %s", exc)
-        anthropic_resp = openai_to_anthropic_response(openai_resp, model)
+        anthropic_resp = openai_to_anthropic_response(
+            openai_resp, model,
+            expose_thinking=isinstance(body.get("thinking"), dict)
+                and (body["thinking"].get("type") or "").lower() == "enabled",
+        )
         # FINALIZE CONTINUATION: inject synthetic tool_use to keep client loop alive
         if (
             monitor.finalize_turn_active
@@ -7256,7 +7353,11 @@ async def messages(request: Request):
                         logger.info("DEGENERATE RETRY (stream): no tool call, using truncated")
             except Exception as exc:
                 logger.warning("DEGENERATE RETRY (stream): failed: %s", exc)
-        anthropic_resp = openai_to_anthropic_response(openai_resp, model)
+        anthropic_resp = openai_to_anthropic_response(
+            openai_resp, model,
+            expose_thinking=isinstance(body.get("thinking"), dict)
+                and (body["thinking"].get("type") or "").lower() == "enabled",
+        )
         # FINALIZE CONTINUATION: inject synthetic tool_use (non-guarded stream path)
         if (
             monitor.finalize_turn_active
