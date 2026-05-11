@@ -1740,6 +1740,31 @@ def anthropic_to_openai_messages(anthropic_body: dict) -> list[dict]:
         role = msg["role"]
         content = msg.get("content")
 
+        # Strip <think>...</think> blocks from PRIOR assistant turns. Qwen is
+        # heavily few-shot influenced by its own conversation history — if
+        # earlier assistant turns contain reasoning blocks, the next turn
+        # will pattern-match and emit <think> tags even when the system
+        # prompt forbids them. Stripping breaks the copy cycle.
+        if role == "assistant":
+            if isinstance(content, str) and "<think>" in content:
+                content = _THINKING_BLOCK_RE.sub("", content).lstrip()
+            elif isinstance(content, list):
+                stripped = []
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "text":
+                        t = b.get("text", "")
+                        if "<think>" in t:
+                            t = _THINKING_BLOCK_RE.sub("", t).lstrip()
+                        if t:
+                            stripped.append({**b, "text": t})
+                    elif isinstance(b, dict) and b.get("type") == "thinking":
+                        # Anthropic-style thinking block — drop entirely
+                        # (don't replay it back to the model).
+                        continue
+                    else:
+                        stripped.append(b)
+                content = stripped
+
         if isinstance(content, str):
             messages.append({"role": role, "content": content})
         elif isinstance(content, list):
@@ -1749,6 +1774,10 @@ def anthropic_to_openai_messages(anthropic_body: dict) -> list[dict]:
                     parts.append(block)
                 elif block.get("type") == "text":
                     parts.append(block.get("text", ""))
+                elif block.get("type") == "thinking":
+                    # Drop thinking blocks from user/assistant content when
+                    # echoed back into history — model shouldn't see them.
+                    continue
                 elif block.get("type") == "tool_use":
                     messages.append(
                         {
@@ -1958,6 +1987,18 @@ _AGENTIC_SYSTEM_SUPPLEMENT_CLEAN = (
 
 _AGENTIC_SYSTEM_SUPPLEMENT_MINIMAL = (
     "\n\nUse tools for all actions. Respond with tool calls, not descriptions of what to do."
+)
+
+# Directive appended when the upstream model (Qwen) is configured with
+# enable_thinking=False but emits <think>...</think> blocks anyway,
+# consuming the max_tokens budget before any tool_use is generated.
+# Empirically required for Shannon-style workflows where max_tokens=512
+# leaves no room for both internal reasoning AND a tool call.
+_NO_THINKING_DIRECTIVE = (
+    "\n\nCRITICAL: Do NOT output <think>...</think> tags or any internal "
+    "reasoning. Begin your response IMMEDIATELY with the appropriate "
+    "tool_call. If you have no tool to call, reply with plain text only — "
+    "never include reasoning blocks."
 )
 
 if PROXY_AGENTIC_SUPPLEMENT_MODE == "legacy":
@@ -2831,6 +2872,15 @@ def build_openai_request(
             if "qwen" in model_name and PROXY_AGENTIC_SUPPLEMENT_MODE != "legacy"
             else _AGENTIC_SYSTEM_SUPPLEMENT
         )
+        # When thinking is explicitly disabled (Anthropic default + tool-turn
+        # forcing) but the upstream model is Qwen — which emits <think>
+        # blocks regardless of enable_thinking — append a strong directive
+        # that suppresses internal reasoning. Without this, small max_tokens
+        # budgets get fully consumed by the model's reasoning, producing
+        # required_tool_miss retries (observed in Shannon workflows with
+        # max_tokens=512 + tool_choice=required).
+        if openai_body.get("enable_thinking") is False:
+            supplement = supplement + _NO_THINKING_DIRECTIVE
         if (
             openai_body["messages"]
             and openai_body["messages"][0].get("role") == "system"
@@ -2869,9 +2919,30 @@ def build_openai_request(
             or PROXY_DISABLE_THINKING_ON_TOOL_TURNS  # thinking disabled on tool turns
             or PROXY_MAX_TOKENS_FLOOR <= 0  # floor explicitly disabled
         )
+        # Qwen-style models emit <think> blocks regardless of the
+        # enable_thinking flag (template ignored by trained behaviour).
+        # For tool turns those blocks alone consume ~400-1000 tokens, so a
+        # client-requested max_tokens < THINKING_MIN_FOR_TOOLS leaves no
+        # budget for the tool_call itself — manifesting as required_tool_miss
+        # retries (observed Shannon: max_tokens=512 + tools=7 -> ~5 retries
+        # per turn). Bump up to THINKING_MIN_FOR_TOOLS for these requests.
+        THINKING_MIN_FOR_TOOLS = 2048
         if skip_floor:
             requested_max = requested_raw
-            if requested_raw < PROXY_MAX_TOKENS_FLOOR and PROXY_MAX_TOKENS_FLOOR > 0:
+            # Even when skipping the big floor, bump small tool-turn budgets
+            # so Qwen's mandatory thinking has room before the tool_call.
+            if (
+                has_tools
+                and requested_raw < THINKING_MIN_FOR_TOOLS
+                and requested_raw > 16  # leave true preflight (e.g. max_tokens=1) alone
+            ):
+                requested_max = THINKING_MIN_FOR_TOOLS
+                logger.info(
+                    "MAX_TOKENS thinking-floor: %d -> %d (tool turn, Qwen mandatory thinking)",
+                    requested_raw,
+                    requested_max,
+                )
+            elif requested_raw < PROXY_MAX_TOKENS_FLOOR and PROXY_MAX_TOKENS_FLOOR > 0:
                 logger.info(
                     "MAX_TOKENS floor skipped: has_tools=%s thinking_active=%s requested=%d floor=%d",
                     has_tools,
@@ -5184,13 +5255,17 @@ def _build_malformed_retry_body(
         retry_instruction = (
             "Your previous response had invalid tool-call formatting. "
             "Respond with exactly one valid tool call using the provided tools. "
-            "Do not output prose, markdown, XML tags, or schema snippets."
+            "Do not output prose, markdown, XML tags, or schema snippets. "
+            "Do NOT use <think>...</think> blocks or internal reasoning — "
+            "emit the tool_call object as the very first token of your response."
         )
     else:
         retry_instruction = (
             "Your previous response had invalid tool-call formatting. "
             "If a tool is needed, emit exactly one valid tool call with strict JSON arguments. "
-            "If no tool is needed for this turn, return concise plain text with no protocol tags."
+            "If no tool is needed for this turn, return concise plain text with no protocol tags. "
+            "Do NOT use <think>...</think> blocks — start your response directly with "
+            "either a tool_call or the plain text answer."
         )
 
     malformed_retry_instruction = {
