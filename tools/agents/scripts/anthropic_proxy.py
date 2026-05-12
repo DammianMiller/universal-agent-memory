@@ -5071,6 +5071,24 @@ def _looks_malformed_tool_payload(text: str) -> bool:
     if not text:
         return False
 
+    # 2026-05-12: Strip balanced <think>...</think> blocks before applying
+    # the heuristic. Qwen3.6 emits <think> blocks regardless of
+    # enable_thinking, and two scenarios were tripping false positives:
+    #   1. Meta-tool reasoning inside the thinking ({"description":...},
+    #      repeated "must call a tool") triggering the structural-marker
+    #      and policy-echo branches.
+    #   2. The model wrapping its ENTIRE answer inside a single <think>
+    #      block (markdown reports, tables) — the </think> structural
+    #      marker plus content-resembling-policy then fires.
+    # Downstream response processing surfaces <think> content as proper
+    # Anthropic `thinking` blocks via _THINKING_BLOCK_RE, so stripping
+    # here loses no information. Unbalanced/stray </think> without a
+    # matching opener is NOT stripped — those remain genuinely malformed.
+    if "<think>" in text and "</think>" in text:
+        text = _THINKING_BLOCK_RE.sub("", text)
+        if not text.strip():
+            return False
+
     lowered = text.lower()
     if _contains_tool_call_apology(text):
         return True
