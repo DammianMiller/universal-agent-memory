@@ -2449,6 +2449,44 @@ def _latest_user_text(anthropic_body: dict) -> str:
     return ""
 
 
+# 2026-05-12: Detect "no-task" user turns to gate the state machine's
+# force-required path. When the last actual human query is a short ack
+# ("ok", "3", "test"), an acknowledgement phrase ("standing by", "awaiting
+# next instruction"), or a status report ending in an ack ("scan complete.
+# awaiting next instruction"), there is no genuine work for the model to
+# do. Forcing tool_choice='required' in this state causes the model to
+# ruminate in <think> blocks, and the meta-tool talk inside those blocks
+# trips the malformed-pseudo-tool detector. Conservative patterns only.
+_NO_TASK_SHORT_ACKS = frozenset({
+    "ok", "okay", "k", "kk", "y", "n", "yes", "no", "nope", "yep", "yeah",
+    "thanks", "thank", "thx", "ty", "ack", "noted", "received", "understood",
+    "test", "ping", "hi", "hello",
+})
+
+_NO_TASK_ACK_PATTERNS = (
+    re.compile(r"awaiting\s+(?:next|further|your)\s+(?:instruction|input|command|task|directive)", re.I),
+    re.compile(r"standing\s+by(?:\s+for\s+(?:your\s+)?(?:next|further|new)\s+(?:instruction|input|command|task|directive)?)?", re.I),
+    re.compile(r"\b(?:ready|waiting|holding)\s+for\s+(?:your\s+)?(?:next|further|new)\s+(?:task|instruction|command|input|directive)", re.I),
+    # Status report ending in ack: "X complete. {awaiting/standing/ready/done}"
+    re.compile(r"\bcomplet(?:e|ed)\b[\s.,;:!\-]+(?:awaiting|standing\s+by|ready|done|finished|over\s+to\s+you)", re.I),
+)
+
+
+def _is_no_task_user_text(text: str) -> bool:
+    if not text:
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    bare = re.sub(r"[^\w\s]", "", stripped).strip().lower()
+    if bare in _NO_TASK_SHORT_ACKS:
+        return True
+    if re.fullmatch(r"\d+(?:\.\d+)?", bare):
+        return True
+    snippet = stripped[:400]
+    return any(p.search(snippet) for p in _NO_TASK_ACK_PATTERNS)
+
+
 def _latest_user_query_text(anthropic_body: dict) -> str:
     """Return the most recent user message *text* — walking past
     tool_result-only messages to find the last actual human query.
@@ -2626,6 +2664,18 @@ def _resolve_state_machine_tool_choice(
         monitor.finalize_continuation_count = 0
         monitor.finalize_synthetic_tool_id = ""
         return None, "fresh_user_text"
+
+    # 2026-05-12: No-task ack guard. When the latest user message is just a
+    # tool_result (no fresh text), walk back to the most recent human query.
+    # If that query is a short ack or "X complete. awaiting next" status,
+    # do not force tool_choice — let the model produce a natural finalization
+    # text instead of ruminating in <think> blocks.
+    last_user_query = _latest_user_query_text(anthropic_body).strip()
+    if last_user_query and _is_no_task_user_text(last_user_query):
+        monitor.reset_tool_turn_state(reason="no_task_user_text")
+        monitor.finalize_continuation_count = 0
+        monitor.finalize_synthetic_tool_id = ""
+        return None, "no_task_user_text"
 
     active_loop = (
         has_tool_results
