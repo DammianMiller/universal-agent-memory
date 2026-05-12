@@ -2449,6 +2449,44 @@ def _latest_user_text(anthropic_body: dict) -> str:
     return ""
 
 
+# 2026-05-12: Detect "no-task" user turns to gate the state machine's
+# force-required path. When the last actual human query is a short ack
+# ("ok", "3", "test"), an acknowledgement phrase ("standing by", "awaiting
+# next instruction"), or a status report ending in an ack ("scan complete.
+# awaiting next instruction"), there is no genuine work for the model to
+# do. Forcing tool_choice='required' in this state causes the model to
+# ruminate in <think> blocks, and the meta-tool talk inside those blocks
+# trips the malformed-pseudo-tool detector. Conservative patterns only.
+_NO_TASK_SHORT_ACKS = frozenset({
+    "ok", "okay", "k", "kk", "y", "n", "yes", "no", "nope", "yep", "yeah",
+    "thanks", "thank", "thx", "ty", "ack", "noted", "received", "understood",
+    "test", "ping", "hi", "hello",
+})
+
+_NO_TASK_ACK_PATTERNS = (
+    re.compile(r"awaiting\s+(?:next|further|your)\s+(?:instruction|input|command|task|directive)", re.I),
+    re.compile(r"standing\s+by(?:\s+for\s+(?:your\s+)?(?:next|further|new)\s+(?:instruction|input|command|task|directive)?)?", re.I),
+    re.compile(r"\b(?:ready|waiting|holding)\s+for\s+(?:your\s+)?(?:next|further|new)\s+(?:task|instruction|command|input|directive)", re.I),
+    # Status report ending in ack: "X complete. {awaiting/standing/ready/done}"
+    re.compile(r"\bcomplet(?:e|ed)\b[\s.,;:!\-]+(?:awaiting|standing\s+by|ready|done|finished|over\s+to\s+you)", re.I),
+)
+
+
+def _is_no_task_user_text(text: str) -> bool:
+    if not text:
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    bare = re.sub(r"[^\w\s]", "", stripped).strip().lower()
+    if bare in _NO_TASK_SHORT_ACKS:
+        return True
+    if re.fullmatch(r"\d+(?:\.\d+)?", bare):
+        return True
+    snippet = stripped[:400]
+    return any(p.search(snippet) for p in _NO_TASK_ACK_PATTERNS)
+
+
 def _latest_user_query_text(anthropic_body: dict) -> str:
     """Return the most recent user message *text* — walking past
     tool_result-only messages to find the last actual human query.
@@ -2626,6 +2664,18 @@ def _resolve_state_machine_tool_choice(
         monitor.finalize_continuation_count = 0
         monitor.finalize_synthetic_tool_id = ""
         return None, "fresh_user_text"
+
+    # 2026-05-12: No-task ack guard. When the latest user message is just a
+    # tool_result (no fresh text), walk back to the most recent human query.
+    # If that query is a short ack or "X complete. awaiting next" status,
+    # do not force tool_choice — let the model produce a natural finalization
+    # text instead of ruminating in <think> blocks.
+    last_user_query = _latest_user_query_text(anthropic_body).strip()
+    if last_user_query and _is_no_task_user_text(last_user_query):
+        monitor.reset_tool_turn_state(reason="no_task_user_text")
+        monitor.finalize_continuation_count = 0
+        monitor.finalize_synthetic_tool_id = ""
+        return None, "no_task_user_text"
 
     active_loop = (
         has_tool_results
@@ -5017,8 +5067,88 @@ def _classify_tool_response_issue(
     return ToolResponseIssue()
 
 
+# 2026-05-12: Regex for the tool-XML tag scanner. Captures opening vs
+# closing form (group 1: "/" or ""), the tag name (group 2), and any
+# attributes (group 3). Matches <parameter>, <parameter=key>,
+# <parameter name="key">, </parameter>, <function=name>, </function>.
+_TOOL_XML_TAG_RE = re.compile(r"<(/?)(parameter|function)\b([^>]*)>")
+
+
+def _strip_orphan_tool_xml(text: str) -> str:
+    """Remove orphan </parameter> and </function> closing tags that have
+    no matching opener earlier in the text.
+
+    Qwen3.6 trained on the qwen3_coder XML format leaks these closers
+    after its actual answer when forced into tool_choice='required' with
+    no genuine tool to call. The closers are training residuals, not real
+    malformed tool-call markup — keeping them in the text causes the
+    primary_markers branch of _looks_malformed_tool_payload to fire on
+    every clean-but-runaway-shaped response. Real malformed tool-call
+    attempts always have at least one matching opener ('<parameter' or
+    '<function='), which the regex preserves, so primary_markers still
+    fires correctly on genuine bad output.
+    """
+    if "</parameter" not in text and "</function" not in text:
+        return text
+
+    out: list[str] = []
+    pos = 0
+    open_param = 0
+    open_func = 0
+    for m in _TOOL_XML_TAG_RE.finditer(text):
+        out.append(text[pos:m.start()])
+        is_close = m.group(1) == "/"
+        tag = m.group(2)
+        if is_close:
+            if tag == "parameter":
+                if open_param > 0:
+                    open_param -= 1
+                    out.append(m.group(0))
+            else:  # function
+                if open_func > 0:
+                    open_func -= 1
+                    out.append(m.group(0))
+            # else: orphan closer, skip (strip)
+        else:
+            if tag == "parameter":
+                open_param += 1
+            else:
+                open_func += 1
+            out.append(m.group(0))
+        pos = m.end()
+    out.append(text[pos:])
+    return "".join(out)
+
+
 def _looks_malformed_tool_payload(text: str) -> bool:
     if not text:
+        return False
+
+    # 2026-05-12: Strip balanced <think>...</think> blocks before applying
+    # the heuristic. Qwen3.6 emits <think> blocks regardless of
+    # enable_thinking, and two scenarios were tripping false positives:
+    #   1. Meta-tool reasoning inside the thinking ({"description":...},
+    #      repeated "must call a tool") triggering the structural-marker
+    #      and policy-echo branches.
+    #   2. The model wrapping its ENTIRE answer inside a single <think>
+    #      block (markdown reports, tables) — the </think> structural
+    #      marker plus content-resembling-policy then fires.
+    # Downstream response processing surfaces <think> content as proper
+    # Anthropic `thinking` blocks via _THINKING_BLOCK_RE, so stripping
+    # here loses no information. Unbalanced/stray </think> without a
+    # matching opener is NOT stripped — those remain genuinely malformed.
+    if "<think>" in text and "</think>" in text:
+        text = _THINKING_BLOCK_RE.sub("", text)
+        if not text.strip():
+            return False
+
+    # 2026-05-12: Strip orphan </parameter> and </function> closers that
+    # have no matching opener. Qwen3.6 leaks these training residuals
+    # after its visible answer when forced into tool_choice='required'
+    # with no valid tool to call. Real malformed tool-call attempts retain
+    # their opener and still trip the primary_markers check below.
+    text = _strip_orphan_tool_xml(text)
+    if not text.strip():
         return False
 
     lowered = text.lower()
@@ -5649,15 +5779,20 @@ async def _apply_malformed_tool_guardrail(
         )
 
         if not retry_issue.has_issue():
-            monitor.malformed_tool_streak = 0
-            monitor.invalid_tool_call_streak = 0
-            monitor.required_tool_miss_streak = 0
+            # 2026-05-12: Fix #2 — do NOT reset malformed/invalid/miss streaks
+            # to 0 on retry-success. Previously, sessions stuck in a
+            # malformed→retry-success loop never accumulated enough streak to
+            # trigger the forced-tool dampener. Healthy responses with real
+            # tool_calls still reset the streak via the upstream no-issue path
+            # (~L5655), so genuine recovery still resets counters; only
+            # repeated retry-recoveries persist toward the dampener.
             monitor.last_response_garbled = False
             logger.info(
-                "TOOL RESPONSE RETRY success: kind=%s attempt=%d/%d",
+                "TOOL RESPONSE RETRY success: kind=%s attempt=%d/%d malformed_streak=%d",
                 current_issue.kind,
                 attempt + 1,
                 attempts,
+                monitor.malformed_tool_streak,
             )
             if retry_repairs > 0:
                 monitor.arg_preflight_repairs += retry_repairs
