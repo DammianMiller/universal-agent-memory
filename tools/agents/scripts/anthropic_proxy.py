@@ -5779,15 +5779,20 @@ async def _apply_malformed_tool_guardrail(
         )
 
         if not retry_issue.has_issue():
-            monitor.malformed_tool_streak = 0
-            monitor.invalid_tool_call_streak = 0
-            monitor.required_tool_miss_streak = 0
+            # 2026-05-12: Fix #2 — do NOT reset malformed/invalid/miss streaks
+            # to 0 on retry-success. Previously, sessions stuck in a
+            # malformed→retry-success loop never accumulated enough streak to
+            # trigger the forced-tool dampener. Healthy responses with real
+            # tool_calls still reset the streak via the upstream no-issue path
+            # (~L5655), so genuine recovery still resets counters; only
+            # repeated retry-recoveries persist toward the dampener.
             monitor.last_response_garbled = False
             logger.info(
-                "TOOL RESPONSE RETRY success: kind=%s attempt=%d/%d",
+                "TOOL RESPONSE RETRY success: kind=%s attempt=%d/%d malformed_streak=%d",
                 current_issue.kind,
                 attempt + 1,
                 attempts,
+                monitor.malformed_tool_streak,
             )
             if retry_repairs > 0:
                 monitor.arg_preflight_repairs += retry_repairs
