@@ -5067,6 +5067,59 @@ def _classify_tool_response_issue(
     return ToolResponseIssue()
 
 
+# 2026-05-12: Regex for the tool-XML tag scanner. Captures opening vs
+# closing form (group 1: "/" or ""), the tag name (group 2), and any
+# attributes (group 3). Matches <parameter>, <parameter=key>,
+# <parameter name="key">, </parameter>, <function=name>, </function>.
+_TOOL_XML_TAG_RE = re.compile(r"<(/?)(parameter|function)\b([^>]*)>")
+
+
+def _strip_orphan_tool_xml(text: str) -> str:
+    """Remove orphan </parameter> and </function> closing tags that have
+    no matching opener earlier in the text.
+
+    Qwen3.6 trained on the qwen3_coder XML format leaks these closers
+    after its actual answer when forced into tool_choice='required' with
+    no genuine tool to call. The closers are training residuals, not real
+    malformed tool-call markup — keeping them in the text causes the
+    primary_markers branch of _looks_malformed_tool_payload to fire on
+    every clean-but-runaway-shaped response. Real malformed tool-call
+    attempts always have at least one matching opener ('<parameter' or
+    '<function='), which the regex preserves, so primary_markers still
+    fires correctly on genuine bad output.
+    """
+    if "</parameter" not in text and "</function" not in text:
+        return text
+
+    out: list[str] = []
+    pos = 0
+    open_param = 0
+    open_func = 0
+    for m in _TOOL_XML_TAG_RE.finditer(text):
+        out.append(text[pos:m.start()])
+        is_close = m.group(1) == "/"
+        tag = m.group(2)
+        if is_close:
+            if tag == "parameter":
+                if open_param > 0:
+                    open_param -= 1
+                    out.append(m.group(0))
+            else:  # function
+                if open_func > 0:
+                    open_func -= 1
+                    out.append(m.group(0))
+            # else: orphan closer, skip (strip)
+        else:
+            if tag == "parameter":
+                open_param += 1
+            else:
+                open_func += 1
+            out.append(m.group(0))
+        pos = m.end()
+    out.append(text[pos:])
+    return "".join(out)
+
+
 def _looks_malformed_tool_payload(text: str) -> bool:
     if not text:
         return False
@@ -5088,6 +5141,15 @@ def _looks_malformed_tool_payload(text: str) -> bool:
         text = _THINKING_BLOCK_RE.sub("", text)
         if not text.strip():
             return False
+
+    # 2026-05-12: Strip orphan </parameter> and </function> closers that
+    # have no matching opener. Qwen3.6 leaks these training residuals
+    # after its visible answer when forced into tool_choice='required'
+    # with no valid tool to call. Real malformed tool-call attempts retain
+    # their opener and still trip the primary_markers check below.
+    text = _strip_orphan_tool_xml(text)
+    if not text.strip():
+        return False
 
     lowered = text.lower()
     if _contains_tool_call_apology(text):
