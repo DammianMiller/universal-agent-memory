@@ -1463,6 +1463,66 @@ def prune_conversation(
 # Granular timeouts: short connect, long read for streaming LLM output.
 http_client: httpx.AsyncClient | None = None
 
+# ---------------------------------------------------------------------------
+# Concurrency Control
+# ---------------------------------------------------------------------------
+# Semaphore to serialize upstream requests. llama.cpp is configured with
+# --parallel 1 (LLAMA_PARALLEL=1), so it can only process one inference at
+# a time. Without this gate, concurrent client requests (Shannon sub-agents,
+# multiple Claude Code sessions) would all hit llama.cpp at once and the
+# server would serialize them while the proxy holds N httpx connections
+# open — potentially exhausting the proxy's connection pool while requests
+# queue inside llama.cpp opaquely.
+#
+# With the semaphore: requests queue inside the proxy (cheap, just asyncio
+# tasks waiting) and only PROXY_CONCURRENCY_LIMIT at a time reaches
+# llama.cpp. Each httpx connection is held only for the actual inference
+# duration, not the queue wait.
+#
+# Default: 1 (matches LLAMA_PARALLEL=1). Increase if you raise --parallel.
+PROXY_CONCURRENCY_LIMIT = int(os.environ.get("PROXY_CONCURRENCY_LIMIT", "1"))
+# Max time to wait for a slot before returning 503. Generous because real
+# inference can take 30-600s and queued requests must wait through that.
+# 0 = wait indefinitely.
+PROXY_CONCURRENCY_QUEUE_TIMEOUT = float(
+    os.environ.get("PROXY_CONCURRENCY_QUEUE_TIMEOUT", "900")
+)
+upstream_semaphore: asyncio.Semaphore | None = None
+
+
+async def _acquire_upstream_slot() -> bool:
+    """Acquire a semaphore slot for an upstream request.
+
+    Returns True if a slot was acquired, False if the wait timed out.
+    asyncio.Semaphore.acquire() preserves wait order via futures, so this
+    gives a natural FIFO queue.
+    """
+    if upstream_semaphore is None:
+        return True  # Not yet initialized; proceed without limiting
+    if PROXY_CONCURRENCY_QUEUE_TIMEOUT <= 0:
+        await upstream_semaphore.acquire()
+        return True
+    try:
+        await asyncio.wait_for(
+            upstream_semaphore.acquire(),
+            timeout=PROXY_CONCURRENCY_QUEUE_TIMEOUT,
+        )
+        return True
+    except asyncio.TimeoutError:
+        return False
+
+
+def _release_upstream_slot() -> None:
+    """Release a semaphore slot. MUST be called once per successful acquire.
+
+    Note: asyncio.Semaphore.release() always increments the counter — we
+    do NOT gate on locked() because that returns True only when the counter
+    is 0 (no slots left). Gating would cause a slot leak when limit > 1 and
+    multiple holders release simultaneously.
+    """
+    if upstream_semaphore is not None:
+        upstream_semaphore.release()
+
 
 def _is_loading_model_503(resp: httpx.Response) -> bool:
     """Check if response is a 503 'Loading model' from llama.cpp."""
@@ -1502,6 +1562,36 @@ async def _wait_for_upstream_health(
 
 
 async def _post_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    payload: dict,
+    headers: dict,
+) -> httpx.Response:
+    """Post with upstream-retry + concurrency-slot acquire.
+
+    Acquires a slot from upstream_semaphore before making the request, so
+    concurrent client requests queue in the proxy (cheap asyncio waits)
+    rather than all hammering llama.cpp at once. Slot is released in a
+    finally block so it's always returned to the pool even on error.
+    """
+    acquired = await _acquire_upstream_slot()
+    if not acquired:
+        logger.warning(
+            "CONCURRENCY: queue timeout (%ds) exceeded waiting for upstream slot",
+            int(PROXY_CONCURRENCY_QUEUE_TIMEOUT),
+        )
+        raise httpx.RemoteProtocolError(
+            f"Upstream concurrency queue timed out after {int(PROXY_CONCURRENCY_QUEUE_TIMEOUT)}s "
+            f"(limit={PROXY_CONCURRENCY_LIMIT})",
+            request=None,
+        )
+    try:
+        return await _post_with_retry_inner(client, url, payload, headers)
+    finally:
+        _release_upstream_slot()
+
+
+async def _post_with_retry_inner(
     client: httpx.AsyncClient,
     url: str,
     payload: dict,
@@ -1615,6 +1705,13 @@ async def lifespan(app: FastAPI):
     """Manage the httpx client lifecycle with the FastAPI app."""
     global http_client
     global default_context_window
+    global upstream_semaphore
+    upstream_semaphore = asyncio.Semaphore(PROXY_CONCURRENCY_LIMIT)
+    logger.info(
+        "CONCURRENCY: upstream semaphore initialized limit=%d queue_timeout=%.0fs",
+        PROXY_CONCURRENCY_LIMIT,
+        PROXY_CONCURRENCY_QUEUE_TIMEOUT,
+    )
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(
             connect=10.0,  # 10s to establish connection
