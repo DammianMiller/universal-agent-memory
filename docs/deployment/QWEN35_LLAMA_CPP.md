@@ -269,12 +269,21 @@ export ANTHROPIC_BASE_URL=http://localhost:4000
 
 ### Endpoints
 
-| Path                     | Method | Description                                |
-| ------------------------ | ------ | ------------------------------------------ |
-| `/v1/messages`           | POST   | Anthropic Messages API (streaming + sync)  |
-| `/anthropic/v1/messages` | POST   | Alternative path (some clients use this)   |
-| `/v1/models`             | GET    | Lists spoofed Anthropic model IDs          |
-| `/health`                | GET    | Health check (checks upstream reachability) |
+The proxy speaks **Anthropic Messages API as its canonical interface** and
+keeps an **OpenAI Chat Completions passthrough** for clients that require the
+OpenAI shape. Both paths run through the same guarded pipeline (loop
+detection, tool narrowing, malformed-payload retry, context pruning, etc.) —
+the OpenAI route converts the request to Anthropic, runs the pipeline, and
+re-shapes the final response back to OpenAI.
+
+| Path                     | Method | Shape     | Description                                                     |
+| ------------------------ | ------ | --------- | --------------------------------------------------------------- |
+| `/v1/messages`           | POST   | Anthropic | Anthropic Messages API — default/canonical (streaming + sync)   |
+| `/anthropic/v1/messages` | POST   | Anthropic | Alias for `/v1/messages` (some Claude Code configs use this)    |
+| `/v1/chat/completions`   | POST   | OpenAI    | OpenAI Chat Completions passthrough (e.g. Forge, OpenCode)      |
+| `/v1/models`             | GET    | Anthropic | Lists spoofed Anthropic model IDs                               |
+| `/health`                | GET    | —         | Health check (verifies upstream reachability)                   |
+| `/v1/context`            | GET    | —         | Current session context usage and pruning state                 |
 
 ### Running as a Service (systemd)
 

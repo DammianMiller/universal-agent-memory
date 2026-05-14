@@ -77,6 +77,7 @@ uap setup -p all
 | CLI                | 25 commands    | Full system management with rich dashboard visualization                         |
 | Benchmarks         | 9 modules      | Terminal-Bench adapter, Harbor integration, A/B comparison                       |
 | LLM Optimization   | 5 tools        | Qwen3.5 tool call fixes, llama.cpp optimizer, LoRA training                      |
+| Local LLM Proxy    | 1 service      | Anthropic Messages API default; OpenAI Chat Completions retained as option       |
 | RTK                | 1 module       | 60-90% token savings on command outputs                                          |
 | Platforms          | 9 integrations | Claude, Factory, OpenCode, ForgeCode, VSCode, Beads, Codex, Pipeline, OMP        |
 

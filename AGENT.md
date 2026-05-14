@@ -422,6 +422,31 @@ docs(README): update quick start instructions with new commands
 
 ---
 
+## Local LLM Proxy
+
+`tools/agents/scripts/anthropic_proxy.py` is the canonical bridge between
+clients and any OpenAI-compatible local LLM server (llama.cpp, vLLM, Ollama,
+DFlash, etc.). It is installed via `uap setup` and run by the
+`uap-anthropic-proxy.service` systemd unit.
+
+**Default interface: Anthropic Messages API.** The proxy accepts
+`/v1/messages` (canonical) and `/anthropic/v1/messages` (Claude Code alias)
+as its primary surface. Use this with Claude Code, the Anthropic SDK, or any
+client that speaks Anthropic.
+
+**OpenAI Chat Completions retained as an option.** Clients that require the
+OpenAI shape (Forge, OpenCode, some `@ai-sdk/openai-compatible` setups) can
+POST to `/v1/chat/completions`. That route converts the request to Anthropic,
+runs the same guarded pipeline (loop detection, tool narrowing,
+malformed-payload retry, context pruning), then re-shapes the final response
+back to OpenAI. No separate proxy mode is needed — both shapes share one
+process.
+
+For deployment details, env vars, and systemd unit definitions, see
+[`docs/deployment/QWEN35_LLAMA_CPP.md`](docs/deployment/QWEN35_LLAMA_CPP.md).
+
+---
+
 ## Resources
 
 - **[Documentation](docs/INDEX.md)**: Full documentation
