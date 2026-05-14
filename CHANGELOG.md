@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.20.35 (2026-05-14)
+
+- config: add qwen3.5-enhanced chat template
+- scripts: add DFlash inference backend bootstrap + run scripts
+- policy(cluster_routing): scope to Bash + strip heredocs to prevent false-positives
+- proxy: Gemma 4 + Fix K cycle-repeat tuning + small-preflight floor carveout
+- feat(llama): default to MTP (draft-mtp) on Qwen3.6-35B-A3B
+- proxy: queue concurrent client requests to serialized llama.cpp upstream
+- proxy: persist malformed-streak across retry-success for dampener
+- proxy: strip orphan tool-XML closers before malformed-payload check
+- proxy: strip balanced <think> blocks before malformed-payload heuristic
+- proxy: no-task ack guard to stop <think>-leak retry storm
+- proxy: fix Shannon's tool-required retry storm on Qwen thinking-leak
+- proxy: Anthropic-spec compatibility for Qwen 3.6 (thinking blocks, toolu_ IDs)
+- proxy: catch Gemma 4 PEG parse failures and retry with relaxed tool_choice
+- proxy: tool narrowing walks back past tool_result turns to find query text
+- proxy: Gemma 4 perf round 2 — schema-match, cold-start gate, thinking control
+- proxy: add Gemma 4 tool-call parser to _extract_tool_calls_from_text
+- refactor(llama): env-driven repeat-penalty and cache-reuse (#168)
+- feat: wire uap policy gate into claude pre-tool hooks
+- chore: remove worktrees for clean bump
+- chore: update project files
+
+
 ## v1.20.34 (2026-04-17)
 
 - test: update stale PreToolUse matcher test to accept MultiEdit
