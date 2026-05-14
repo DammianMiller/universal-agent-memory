@@ -5003,3 +5003,57 @@ class TestOpenAIPassthroughConversion(unittest.TestCase):
         self.assertEqual(tc["function"]["name"], "Bash")
         # Arguments are JSON-stringified per OpenAI spec
         self.assertEqual(json.loads(tc["function"]["arguments"]), {"command": "pwd"})
+
+
+class TestModelsEndpoint(unittest.TestCase):
+    """Tests for the /v1/models discovery endpoint.
+
+    Pins the exact set of model IDs the proxy advertises so an accidental
+    list rewrite that drops a Shannon-required ID fails CI loudly. Driven
+    by Shannon-keygraph's .env defaults (ANTHROPIC_SMALL/MEDIUM/LARGE_MODEL)
+    which expect haiku-4-5, sonnet-4-6, opus-4-7 to be discoverable."""
+
+    def test_models_endpoint_returns_shannon_canonical_set(self):
+        """The advertised list must contain Shannon's canonical Claude IDs
+        plus the local model. Order is not asserted (clients shouldn't
+        depend on it), but membership is."""
+        import asyncio
+        result = asyncio.run(proxy.models())
+
+        self.assertIn("data", result)
+        ids = {entry["id"] for entry in result["data"]}
+
+        # Shannon-required Claude IDs (must include — per project policy)
+        self.assertIn("claude-haiku-4-5-20251001", ids)
+        self.assertIn("claude-sonnet-4-6", ids)
+        self.assertIn("claude-opus-4-7", ids)
+
+        # Local model (kept because requests for it actually route locally
+        # even with __local_only__ passthrough sentinel set)
+        self.assertIn("qwen35-a3b-iq4xs", ids)
+
+    def test_models_endpoint_drops_stale_4_6_dated_variants(self):
+        """The pre-2026-05 list advertised claude-opus-4-6-20260101,
+        claude-sonnet-4-6-20250514, claude-opus-4-6-20250616 and
+        unrelated gpt-5 entries. None of those should reappear: the dated
+        4-6 variants are superseded by 4-7, and the proxy doesn't route
+        to OpenAI so the gpt-5 entries were noise."""
+        import asyncio
+        result = asyncio.run(proxy.models())
+        ids = {entry["id"] for entry in result["data"]}
+
+        self.assertNotIn("claude-opus-4-6-20260101", ids)
+        self.assertNotIn("claude-sonnet-4-6-20250514", ids)
+        self.assertNotIn("claude-opus-4-6-20250616", ids)
+        self.assertNotIn("gpt-5.4", ids)
+        self.assertNotIn("gpt-5.3-codex", ids)
+
+    def test_models_endpoint_returns_object_model_for_each_entry(self):
+        """Each entry must follow the {id, object: 'model'} shape the
+        Anthropic and OpenAI SDKs both expect."""
+        import asyncio
+        result = asyncio.run(proxy.models())
+
+        for entry in result["data"]:
+            self.assertIn("id", entry)
+            self.assertEqual(entry["object"], "model")

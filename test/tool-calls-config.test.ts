@@ -12,13 +12,16 @@ describe('Tool call server configuration', () => {
     expect(content).toContain('http://192.168.1.165:4000');
   });
 
-  it('should advertise new proxy model list entries', () => {
+  it('should advertise Shannon canonical model IDs in proxy', () => {
+    // Mirrors test/anthropic-proxy-models.test.ts and the Python
+    // TestModelsEndpoint assertions. Driven by Shannon's .env defaults.
     const content = readFileSync(
       join(process.cwd(), 'tools', 'agents', 'scripts', 'anthropic_proxy.py'),
       'utf-8'
     );
-    expect(content).toContain('claude-opus-4-6-20260101');
-    expect(content).toContain('claude-sonnet-4-6-20250514');
+    expect(content).toContain('claude-haiku-4-5-20251001');
+    expect(content).toContain('claude-sonnet-4-6');
+    expect(content).toContain('claude-opus-4-7');
     expect(content).toContain('qwen35-a3b-iq4xs');
   });
 

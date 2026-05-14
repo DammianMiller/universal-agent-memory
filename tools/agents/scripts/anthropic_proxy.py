@@ -8206,14 +8206,25 @@ def _parse_anthropic_sse_to_message(raw: bytes) -> dict | None:
 
 @app.get("/v1/models")
 async def models():
-    """Return available model list (spoofs Anthropic model IDs for client compatibility)."""
+    """Return available model list.
+
+    Advertises Shannon's three canonical Claude model IDs (haiku 4.5,
+    sonnet 4.6, opus 4.7) for client compatibility — Anthropic SDKs
+    typically check /v1/models for the requested ID before sending a
+    Messages request, and failing that check produces a confusing 404 even
+    though the proxy itself would happily accept the request.
+
+    Whether requests for those Claude IDs actually round-trip to
+    api.anthropic.com depends on ANTHROPIC_PASSTHROUGH_MODELS /
+    DEFAULT_PASSTHROUGH_MODEL_PATTERNS. When the local-only sentinel
+    ANTHROPIC_PASSTHROUGH_MODELS=__local_only__ is set, all IDs (including
+    the Claude ones below) are served by the local llama.cpp backend.
+    """
     return {
         "data": [
-            {"id": "claude-opus-4-6-20260101", "object": "model"},
-            {"id": "claude-sonnet-4-6-20250514", "object": "model"},
-            {"id": "gpt-5.4", "object": "model"},
-            {"id": "gpt-5.3-codex", "object": "model"},
-            {"id": "claude-opus-4-6-20250616", "object": "model"},
+            {"id": "claude-haiku-4-5-20251001", "object": "model"},
+            {"id": "claude-sonnet-4-6", "object": "model"},
+            {"id": "claude-opus-4-7", "object": "model"},
             {"id": "qwen35-a3b-iq4xs", "object": "model"},
         ]
     }
