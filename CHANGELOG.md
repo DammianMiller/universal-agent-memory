@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.40 (2026-05-14)
+
+- proxy: strip unclosed <think> tags from response body (Anthropic-spec compliance)
+
+
 ## v1.20.39 (2026-05-14)
 
 - proxy: refresh /v1/models with Shannon canonical Claude IDs
