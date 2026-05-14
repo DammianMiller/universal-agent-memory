@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-LLAMA_BIN="${LLAMA_BIN:-/home/cogtek/llama.cpp/.worktrees/turboquant-cuda-v2/build-pq/bin/llama-server}"
-LLAMA_MODEL="${LLAMA_MODEL:-/home/cogtek/Downloads/Qwen3.5-35B-A3B-UD-IQ4_XS.gguf}"
+LLAMA_BIN="${LLAMA_BIN:-/home/cogtek/llama.cpp/.worktrees/mtp-port/build/bin/llama-server}"
+LLAMA_MODEL="${LLAMA_MODEL:-/home/cogtek/Downloads/Qwen3.6-35B-A3B-UD-IQ4_XS-MTP.gguf}"
 
 if [[ ! -x "$LLAMA_BIN" ]]; then
   echo "ERROR: LLAMA_BIN is not executable: $LLAMA_BIN" >&2
@@ -25,9 +25,9 @@ export LLAMA_GPU_LAYERS="${LLAMA_GPU_LAYERS:-99}"
 export LLAMA_BATCH_SIZE="${LLAMA_BATCH_SIZE:-512}"
 export LLAMA_UBATCH_SIZE="${LLAMA_UBATCH_SIZE:-512}"
 export LLAMA_ENABLE_SPEC_DECODING="${LLAMA_ENABLE_SPEC_DECODING:-true}"
-export LLAMA_SPEC_TYPE="${LLAMA_SPEC_TYPE:-ngram-cache}"
-export LLAMA_DRAFT_MAX="${LLAMA_DRAFT_MAX:-8}"
-export LLAMA_DRAFT_MIN="${LLAMA_DRAFT_MIN:-3}"
+export LLAMA_SPEC_TYPE="${LLAMA_SPEC_TYPE:-draft-mtp}"
+export LLAMA_DRAFT_MAX="${LLAMA_DRAFT_MAX:-3}"
+export LLAMA_DRAFT_MIN="${LLAMA_DRAFT_MIN:-1}"
 export LLAMA_DRAFT_P_MIN="${LLAMA_DRAFT_P_MIN:-0.75}"
 export LLAMA_HYBRID_ROLLBACK_MODE="${LLAMA_HYBRID_ROLLBACK_MODE:-strict}"
 export LLAMA_REPEAT_PENALTY="${LLAMA_REPEAT_PENALTY:-1.05}"
@@ -50,7 +50,7 @@ args=(
   --port "$LLAMA_PORT"
   --threads "$LLAMA_THREADS"
   --ctx-size "$LLAMA_CTX_SIZE"
-  --cache-type-k "${LLAMA_CACHE_TYPE_K:-q8_0}"
+  --cache-type-k "${LLAMA_CACHE_TYPE_K:-q4_0}"
   --cache-type-v "${LLAMA_CACHE_TYPE_V:-q4_0}"
   --gpu-layers "$LLAMA_GPU_LAYERS"
   --flash-attn on
