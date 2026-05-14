@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.39 (2026-05-14)
+
+- proxy: refresh /v1/models with Shannon canonical Claude IDs
+
+
 ## v1.20.38 (2026-05-14)
 
 - ci: remove dead publish.yml (redundant + always-failing)
