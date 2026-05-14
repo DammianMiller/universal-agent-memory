@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.37 (2026-05-14)
+
+- compliance: restore substantive CLAUDE.md sections + tighten workflow gates
+
+
 ## v1.20.36 (2026-05-14)
 
 - docs(proxy): codify Anthropic-default + OpenAI-optional canonical surface

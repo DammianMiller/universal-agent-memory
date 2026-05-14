@@ -41,8 +41,13 @@ describe('Validation Fixes', () => {
       // Check 9: Pattern Router
       expect(content).toMatch(/Pattern.*Router/i);
 
-      // Check 10: RTK includes
-      expect(content).toMatch(/@hooks-session-start\.md|@PreCompact\.md/);
+      // Check 10: Hook references — accept either the legacy dangling
+      // `@hooks-session-start.md` / `@PreCompact.md` import directive style
+      // or the substantive `.codex/hooks/session-start.sh` command reference
+      // used by SESSION START section. Mirrors uap-compliance.yml gate 9.
+      expect(content).toMatch(
+        /@hooks-session-start\.md|@PreCompact\.md|\.codex\/hooks\/session-start\.sh|\.codex\/hooks\/pre-compact\.sh/
+      );
 
       // Check 11: Verifier loop
       expect(content).toContain('before changes');
