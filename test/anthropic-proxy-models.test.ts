@@ -5,17 +5,38 @@ import { describe, expect, it } from 'vitest';
 const rootDir = process.cwd();
 const proxyPath = join(rootDir, 'tools/agents/scripts/anthropic_proxy.py');
 
+// Mirrors tools/agents/tests/test_anthropic_proxy_streaming.py::TestModelsEndpoint —
+// these checks are content-level (do the string IDs appear in the proxy file?)
+// while the Python tests exercise the actual /v1/models response. Both should
+// be updated together whenever the canonical model list changes.
 describe('Anthropic proxy model list', () => {
   const content = readFileSync(proxyPath, 'utf-8');
 
-  it('includes the Claude Opus and Sonnet 4.6 model IDs', () => {
-    expect(content).toContain('claude-opus-4-6-20260101');
-    expect(content).toContain('claude-sonnet-4-6-20250514');
+  it('includes Shannon canonical Claude IDs (haiku 4.5, sonnet 4.6, opus 4.7)', () => {
+    // Driven by ~/dev/shannon-keygraph/.env defaults
+    // ANTHROPIC_SMALL/MEDIUM/LARGE_MODEL
+    expect(content).toContain('claude-haiku-4-5-20251001');
+    expect(content).toContain('claude-sonnet-4-6');
+    expect(content).toContain('claude-opus-4-7');
   });
 
-  it('includes the GPT 5.x and Qwen3.5 model IDs', () => {
-    expect(content).toContain('gpt-5.4');
-    expect(content).toContain('gpt-5.3-codex');
+  it('includes the local Qwen model ID for actual routing target', () => {
+    // With ANTHROPIC_PASSTHROUGH_MODELS=__local_only__ all advertised IDs
+    // (including the Claude ones above) actually round-trip to this local
+    // backend. The qwen35-a3b-iq4xs entry is what the proxy genuinely serves.
     expect(content).toContain('qwen35-a3b-iq4xs');
+  });
+
+  it('drops the stale dated 4-6 variants and unrelated gpt-5 entries', () => {
+    // Pre-2026-05 the list advertised dated 4-6 IDs (now superseded by
+    // 4-7 family) and gpt-5 entries that the proxy never routed to (it
+    // doesn't speak the OpenAI Models API upstream). They were noise.
+    // Substring negative-checks avoid false positives from legit content:
+    // we look for the exact stale model IDs as quoted strings.
+    expect(content).not.toContain('"claude-opus-4-6-20260101"');
+    expect(content).not.toContain('"claude-sonnet-4-6-20250514"');
+    expect(content).not.toContain('"claude-opus-4-6-20250616"');
+    expect(content).not.toContain('"gpt-5.4"');
+    expect(content).not.toContain('"gpt-5.3-codex"');
   });
 });
