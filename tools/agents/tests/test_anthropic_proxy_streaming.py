@@ -2140,8 +2140,12 @@ class TestToolTurnControls(unittest.TestCase):
             }
 
             openai = proxy.build_openai_request(body, monitor)
-            self.assertNotIn("tools", openai)
-            self.assertNotIn("tool_choice", openai)
+            # Finalize turn keeps tools available but switches tool_choice to
+            # 'auto' so the model can complete with a tool call or summarise.
+            # Earlier behaviour stripped tools entirely, which caused Anthropic
+            # clients to see end_turn with no action and halt.
+            self.assertIn("tools", openai)
+            self.assertEqual(openai.get("tool_choice"), "auto")
             self.assertEqual(monitor.tool_turn_phase, "finalize")
             self.assertTrue(monitor.finalize_turn_active)
         finally:
@@ -2229,7 +2233,7 @@ class TestToolTurnControls(unittest.TestCase):
         finally:
             setattr(proxy, "PROXY_TOOL_STATE_MACHINE", old_state)
 
-    def test_state_machine_finalize_temporarily_disables_tools(self):
+    def test_state_machine_finalize_keeps_tools_with_auto_choice(self):
         old_state = getattr(proxy, "PROXY_TOOL_STATE_MACHINE")
         old_min_msgs = getattr(proxy, "PROXY_TOOL_STATE_MIN_MESSAGES")
         old_stagnation = getattr(proxy, "PROXY_TOOL_STATE_STAGNATION_THRESHOLD")
@@ -2293,8 +2297,10 @@ class TestToolTurnControls(unittest.TestCase):
             }
 
             openai = proxy.build_openai_request(body, monitor)
-            self.assertNotIn("tools", openai)
-            self.assertNotIn("tool_choice", openai)
+            # Finalize keeps tools + tool_choice=auto so the model can either
+            # complete with a tool call or emit a plain-text summary.
+            self.assertIn("tools", openai)
+            self.assertEqual(openai.get("tool_choice"), "auto")
         finally:
             setattr(proxy, "PROXY_TOOL_STATE_MACHINE", old_state)
             setattr(proxy, "PROXY_TOOL_STATE_MIN_MESSAGES", old_min_msgs)
@@ -3512,7 +3518,35 @@ class TestDegenerateRepetitionDetection(unittest.TestCase):
             setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", old_disable)
 
     def test_max_tokens_floor_applied_when_thinking_active(self):
-        """max_tokens floor should apply when tools present and thinking enabled."""
+        """Floor applies on non-preflight tool turns with thinking enabled."""
+        old_floor = getattr(proxy, "PROXY_MAX_TOKENS_FLOOR")
+        old_disable = getattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS")
+        try:
+            setattr(proxy, "PROXY_MAX_TOKENS_FLOOR", 4096)
+            setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", False)
+
+            # max_tokens=1536 is above SMALL_PREFLIGHT_THRESHOLD (1024), so the
+            # request does NOT take the preflight carveout and the regular
+            # floor path applies. Small-preflight bypass is covered separately
+            # in test_max_tokens_floor_bypassed_for_small_preflight.
+            body = {
+                "model": "test",
+                "max_tokens": 1536,
+                "messages": [{"role": "user", "content": "run command"}],
+                "tools": [{"name": "Bash", "description": "run", "input_schema": {"type": "object"}}],
+            }
+            openai = proxy.build_openai_request(
+                body, proxy.SessionMonitor(context_window=0)
+            )
+            self.assertEqual(openai.get("max_tokens"), 4096)
+        finally:
+            setattr(proxy, "PROXY_MAX_TOKENS_FLOOR", old_floor)
+            setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", old_disable)
+
+    def test_max_tokens_floor_bypassed_for_small_preflight(self):
+        """Small preflight requests (max_tokens <= SMALL_PREFLIGHT_THRESHOLD)
+        bypass the big floor and instead get THINKING_MIN_FOR_TOOLS=2048
+        bump so Qwen's mandatory thinking has room before the tool call."""
         old_floor = getattr(proxy, "PROXY_MAX_TOKENS_FLOOR")
         old_disable = getattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS")
         try:
@@ -3528,8 +3562,30 @@ class TestDegenerateRepetitionDetection(unittest.TestCase):
             openai = proxy.build_openai_request(
                 body, proxy.SessionMonitor(context_window=0)
             )
-            # Tools + thinking enabled = floor applied
-            self.assertEqual(openai.get("max_tokens"), 4096)
+            self.assertEqual(openai.get("max_tokens"), 2048)
+        finally:
+            setattr(proxy, "PROXY_MAX_TOKENS_FLOOR", old_floor)
+            setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", old_disable)
+
+    def test_max_tokens_true_preflight_left_alone(self):
+        """True preflight requests (max_tokens <= 16) are not inflated, even
+        with tools present, so plan-generation latency stays low."""
+        old_floor = getattr(proxy, "PROXY_MAX_TOKENS_FLOOR")
+        old_disable = getattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS")
+        try:
+            setattr(proxy, "PROXY_MAX_TOKENS_FLOOR", 4096)
+            setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", False)
+
+            body = {
+                "model": "test",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+                "tools": [{"name": "Bash", "description": "run", "input_schema": {"type": "object"}}],
+            }
+            openai = proxy.build_openai_request(
+                body, proxy.SessionMonitor(context_window=0)
+            )
+            self.assertEqual(openai.get("max_tokens"), 1)
         finally:
             setattr(proxy, "PROXY_MAX_TOKENS_FLOOR", old_floor)
             setattr(proxy, "PROXY_DISABLE_THINKING_ON_TOOL_TURNS", old_disable)

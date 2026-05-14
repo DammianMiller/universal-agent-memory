@@ -134,6 +134,11 @@ PROXY_LOOP_BREAKER = os.environ.get("PROXY_LOOP_BREAKER", "on").lower() not in {
 }
 PROXY_LOOP_WINDOW = int(os.environ.get("PROXY_LOOP_WINDOW", "6"))
 PROXY_LOOP_REPEAT_THRESHOLD = int(os.environ.get("PROXY_LOOP_REPEAT_THRESHOLD", "6"))
+# Fix K (2026-04-22): minimum consecutive cycle-repeat count required to flip
+# phase from act -> review. The old behaviour accepted cycle_repeat=2, which
+# is normal in a working session (re-reading the same file across edits).
+# Set higher to tolerate legitimate re-reads; set 1 to restore old behaviour.
+PROXY_CYCLE_TRIGGER_REPEAT = int(os.environ.get("PROXY_CYCLE_TRIGGER_REPEAT", "3"))
 PROXY_FORCED_THRESHOLD = int(os.environ.get("PROXY_FORCED_THRESHOLD", "15"))
 PROXY_NO_PROGRESS_THRESHOLD = int(os.environ.get("PROXY_NO_PROGRESS_THRESHOLD", "3"))
 PROXY_CONTEXT_RELEASE_THRESHOLD = float(
@@ -247,19 +252,16 @@ PROXY_DISABLE_THINKING_ON_TOOL_TURNS = os.environ.get(
     "off",
     "no",
 }
-# Disable thinking on EVERY turn (not just tool turns). NOTE: setting to
-# 'on' for Gemma 4 produces empty content with stop_reason=length — the
-# Gemma 4 chat template requires the thinking channel to be active to
-# emit any answer at all. Default 'off'; safe for Qwen-family models.
+# Disable thinking on EVERY turn (not just tool turns). For models like Gemma 4
+# that emit ~100 thinking tokens for trivial replies, this halves output cost.
 PROXY_DISABLE_THINKING_ALWAYS = os.environ.get(
     "PROXY_DISABLE_THINKING_ALWAYS", "off"
 ).lower() not in {"0", "false", "off", "no"}
-# Force tool_choice='required' on the first turn of a fresh session.
-# Originally Qwen-tuned to break out of cold-start "tries to chat instead
-# of calling a tool" behaviour. Gemma 4 doesn't need this — it routes
-# 'auto' correctly and the force triggers malformed-JSON emissions when
-# it would rather speak. Default 'off'; set 'on' to restore the legacy
-# Qwen-style behaviour.
+# Force tool_choice='required' on the first turn of a fresh session. Originally
+# Qwen-tuned to break out of cold-start "tries to chat instead of calling a tool"
+# behaviour. Gemma 4 doesn't need this — it routes 'auto' correctly and the
+# force triggers malformed-JSON emissions when it would rather speak. Default
+# off; set 'on' to restore the legacy Qwen-style behaviour.
 PROXY_FORCE_TOOL_CHOICE_ON_COLD_START = os.environ.get(
     "PROXY_FORCE_TOOL_CHOICE_ON_COLD_START", "off"
 ).lower() not in {"0", "false", "off", "no"}
@@ -1641,6 +1643,7 @@ async def _post_with_generation_timeout(
     headers: dict,
 ) -> httpx.Response:
     """Wrap _post_with_retry with an explicit asyncio generation timeout.
+    Also acquires a concurrency slot before making the request.
 
     The httpx read timeout may not fire for hung connections where the server
     keeps the socket open but produces no data (observed with llama.cpp server
@@ -1794,6 +1797,8 @@ async def lifespan(app: FastAPI):
     yield
     await http_client.aclose()
     http_client = None
+    if upstream_semaphore is not None:
+        upstream_semaphore = None
     logger.info("Proxy shut down")
 
 
@@ -1803,6 +1808,16 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# NOTE: Concurrency control is enforced by _acquire_upstream_slot() inside
+# _post_with_retry (the single point where we hit llama.cpp). An earlier
+# implementation also added an HTTP middleware that acquired the same
+# semaphore — this caused a self-deadlock (middleware holds slot, inner
+# call waits for slot, both on the same task). The middleware approach
+# also called non-existent asyncio.Semaphore methods (try_acquire /
+# acquire_nowait) and ran an async primitive in a thread executor.
+# Removed 2026-05-13.
+
 
 
 # ===========================================================================
@@ -2087,8 +2102,8 @@ _AGENTIC_SYSTEM_SUPPLEMENT_MINIMAL = (
 )
 
 # Directive appended when the upstream model (Qwen) is configured with
-# enable_thinking=False but emits <think>...</think> blocks anyway,
-# consuming the max_tokens budget before any tool_use is generated.
+# enable_thinking=False but consistently emits <think>...</think> blocks
+# anyway, consuming the max_tokens budget before any tool_use is generated.
 # Empirically required for Shannon-style workflows where max_tokens=512
 # leaves no room for both internal reasoning AND a tool call.
 _NO_THINKING_DIRECTIVE = (
@@ -2847,7 +2862,15 @@ def _resolve_state_machine_tool_choice(
                 dup_tool,
             )
 
-        if cycle_looping or stagnating:
+        # Fix K (2026-04-22): require cycle_repeat >= PROXY_CYCLE_TRIGGER_REPEAT
+        # before flipping phase. Single-repeat cycles are legitimate in working
+        # sessions (e.g. re-reading the same file across edits). dup_target
+        # above already demands threshold=3 before asserting a cycle, so the
+        # `cycle_looping = True, cycle_repeat = 2` pair from that branch is
+        # kept as a strong signal (read target repeated 3+ times). Low-repeat
+        # cycles detected by detect_tool_cycle get filtered here.
+        cycle_trip = cycle_looping and cycle_repeat >= PROXY_CYCLE_TRIGGER_REPEAT
+        if cycle_trip or stagnating:
             reason = "cycle_detected" if cycle_looping else "stagnation"
             monitor.set_tool_turn_phase("review", reason=reason)
             monitor.tool_state_review_cycles += 1
@@ -2987,26 +3010,29 @@ def build_openai_request(
     has_tools = _has_tool_definitions(anthropic_body)
 
     # Translate Anthropic `thinking` parameter to upstream `enable_thinking`.
-    # Anthropic shape: {"thinking": {"type": "enabled", "budget_tokens": N}}
+    # Anthropic shape: {"thinking": {"type": "enabled", "budget_tokens": 1024}}
     # or {"type": "disabled"}. Per the Anthropic spec, thinking is OFF by
     # default and ONLY enabled when the client opts in. Match that behaviour:
-    #   - thinking.type == "enabled"  -> enable_thinking=True
-    #   - thinking.type == "disabled" -> enable_thinking=False
-    #   - absent                       -> enable_thinking=False (Anthropic default)
+    #   - thinking.type == "enabled" -> enable_thinking=True
+    #   - thinking.type == "disabled" or absent -> enable_thinking=False
     # Without this, Qwen's chat template (which defaults thinking ON) would
-    # consume the client's max_tokens budget on internal reasoning before
-    # ever emitting the visible answer.
+    # consume the client's max_tokens budget on internal reasoning, leaving
+    # nothing for the visible answer.
     anthropic_thinking = anthropic_body.get("thinking")
     if isinstance(anthropic_thinking, dict):
         ttype = (anthropic_thinking.get("type") or "").lower()
-        openai_body["enable_thinking"] = (ttype == "enabled")
+        if ttype == "enabled":
+            openai_body["enable_thinking"] = True
+        else:
+            openai_body["enable_thinking"] = False
     else:
+        # Match Anthropic default: thinking off unless explicitly requested.
         openai_body["enable_thinking"] = False
 
-    # Global thinking-off (G stub): apply to every request, not just tool
-    # turns. Currently default-off — enable_thinking=False breaks Gemma 4
-    # (empty content with stop_reason=length). Per-path tool-turn handling
-    # below (DISABLE_THINKING_ON_TOOL_TURNS) is additive — ALWAYS supersedes.
+    # Global thinking-off (G): apply to every request, not just tool turns.
+    # Only applies when the client did NOT explicitly request thinking above.
+    # Per-path tool-turn handling below (DISABLE_THINKING_ON_TOOL_TURNS) is
+    # additive — ALWAYS supersedes when set.
     if PROXY_DISABLE_THINKING_ALWAYS:
         openai_body["enable_thinking"] = False
 
@@ -3019,13 +3045,13 @@ def build_openai_request(
             if "qwen" in model_name and PROXY_AGENTIC_SUPPLEMENT_MODE != "legacy"
             else _AGENTIC_SYSTEM_SUPPLEMENT
         )
-        # When thinking is explicitly disabled (Anthropic default + tool-turn
-        # forcing) but the upstream model is Qwen — which emits <think>
-        # blocks regardless of enable_thinking — append a strong directive
-        # that suppresses internal reasoning. Without this, small max_tokens
-        # budgets get fully consumed by the model's reasoning, producing
-        # required_tool_miss retries (observed in Shannon workflows with
-        # max_tokens=512 + tool_choice=required).
+        # When thinking is explicitly disabled (Anthropic default, plus our
+        # tool-turn forcing) but the upstream model is Qwen — which emits
+        # <think> blocks regardless of enable_thinking — append a strong
+        # directive that suppresses internal reasoning. Without this, small
+        # max_tokens budgets get fully consumed by the model's reasoning,
+        # producing required_tool_miss retries (observed in Shannon workflows
+        # with max_tokens=512 + tool_choice=required).
         if openai_body.get("enable_thinking") is False:
             supplement = supplement + _NO_THINKING_DIRECTIVE
         if (
@@ -3048,23 +3074,36 @@ def build_openai_request(
     if "max_tokens" in anthropic_body:
         requested_raw = max(1, int(anthropic_body["max_tokens"]))
 
-        # Enforce configurable minimum floor for thinking mode: model needs
-        # tokens for reasoning (<think>...</think>) plus actual response/tool
-        # calls. Set PROXY_MAX_TOKENS_FLOOR=0 to disable this floor.
+        # Enforce configurable minimum floor for tool turns: the model needs
+        # enough headroom to emit complete tool-call arguments (long heredocs,
+        # full-function oldString/newString pairs, etc.) without hitting the
+        # client-requested max_tokens in the middle of a JSON string. If the
+        # client requested >= the floor we keep their value; short preflight
+        # requests (max_tokens <= 1024) always skip the floor to avoid
+        # inflating plan-generation turns.
         #
-        # The floor is ONLY applied when thinking is actually enabled —
-        # skip it for non-tool requests (tools=0) and for tool turns
-        # with thinking disabled, to prevent inflating short preflight
-        # requests (e.g. max_tokens=100 for plan generation).
+        # The earlier gating on PROXY_DISABLE_THINKING_ON_TOOL_TURNS was too
+        # restrictive: it skipped the floor on every tool turn once thinking
+        # was off, which re-introduced truncated tool calls on long edits.
+        # Set PROXY_MAX_TOKENS_FLOOR=0 to disable the floor entirely.
         thinking_active_for_request = (
             has_tools
             and not PROXY_DISABLE_THINKING_ON_TOOL_TURNS
             and not PROXY_DISABLE_THINKING_ALWAYS
         )
+        SMALL_PREFLIGHT_THRESHOLD = 1024
+        # Qwen-style models emit <think> blocks regardless of the
+        # enable_thinking flag (template ignored by trained behaviour).
+        # For tool turns those blocks alone consume ~400-1000 tokens, so a
+        # client-requested max_tokens < THINKING_MIN_FOR_TOOLS leaves no
+        # budget for the tool_call itself — manifesting as required_tool_miss
+        # retries (observed Shannon: max_tokens=512 + tools=7 -> ~5 retries
+        # per turn). Bump up to THINKING_MIN_FOR_TOOLS for these requests.
+        THINKING_MIN_FOR_TOOLS = 2048
         skip_floor = (
-            not has_tools  # non-tool requests don't need thinking headroom
-            or PROXY_DISABLE_THINKING_ON_TOOL_TURNS  # thinking disabled on tool turns
+            not has_tools  # non-tool requests don't need the headroom
             or PROXY_MAX_TOKENS_FLOOR <= 0  # floor explicitly disabled
+            or requested_raw <= SMALL_PREFLIGHT_THRESHOLD  # tiny preflight request
         )
         # Qwen-style models emit <think> blocks regardless of the
         # enable_thinking flag (template ignored by trained behaviour).
@@ -3076,8 +3115,9 @@ def build_openai_request(
         THINKING_MIN_FOR_TOOLS = 2048
         if skip_floor:
             requested_max = requested_raw
-            # Even when skipping the big floor, bump small tool-turn budgets
-            # so Qwen's mandatory thinking has room before the tool_call.
+            # Even when skipping the big floor, bump small tool-turn
+            # budgets so Qwen's mandatory thinking has room before the
+            # tool_call. Only applies when tools are present.
             if (
                 has_tools
                 and requested_raw < THINKING_MIN_FOR_TOOLS
@@ -3288,24 +3328,35 @@ def build_openai_request(
                 monitor.tool_state_stagnation_streak,
             )
         elif state_choice == "finalize":
-            openai_body.pop("tool_choice", None)
-            openai_body.pop("tools", None)
+            # Fix H/J (2026-04-22): Do NOT strip tools from the body on
+            # cycle-limit finalize. Stripping tools lets the model emit
+            # prose that LOOKS like a tool call ("<function=edit>…") but
+            # has no structured tool_calls array, so the Anthropic client
+            # sees end_turn with no action and halts. Instead, keep tools
+            # available, set tool_choice=auto, and nudge the model to
+            # either complete with a tool call OR emit a proper summary.
+            # Grammar (when PROXY_TOOL_CALL_GRAMMAR_REQUIRED_ONLY=off) will
+            # still constrain tool-call emission to valid JSON format.
+            openai_body["tool_choice"] = "auto"
             monitor.finalize_turn_active = True
             monitor.finalize_hard_stop_count += 1  # monotonic marker: a finalize fired this session
             monitor.consecutive_forced_count = 0
             monitor.no_progress_streak = 0
-            # Option 3: Inject explicit "no tool calls" instruction to reduce XML leak
             finalize_instruction = {
                 "role": "user",
                 "content": (
-                    "Respond with plain text only. Do not emit any tool calls, "
-                    "XML tags, or JSON objects."
+                    "You have been looping on the same tools for several turns. "
+                    "Wrap up: either emit ONE decisive tool call that completes "
+                    "the task, or reply with a plain-text summary of what you "
+                    "accomplished and what is blocking further progress. Do NOT "
+                    "emit tool call text in prose form — if you call a tool, do "
+                    "it through the structured tool_call mechanism."
                 ),
             }
             msgs = openai_body.get("messages", [])
             msgs.append(finalize_instruction)
             logger.warning(
-                "TOOL STATE MACHINE: tools temporarily disabled for finalize turn (reason=%s)",
+                "TOOL STATE MACHINE: finalize turn (reason=%s) — tools kept, tool_choice=auto",
                 state_reason,
             )
         elif state_choice == "required":
@@ -3833,6 +3884,89 @@ _TOOL_CALL_XML_RE = re.compile(
     re.DOTALL,
 )
 
+# Hermes-style XML function call format emitted by some Qwen/Llama fine-tunes
+# when grammar is not applied:
+#   <function=name>
+#   <parameter=key>
+#   value
+#   </parameter>
+#   ...
+#   </function>
+#
+# The value of a <parameter=KEY> block may span multiple lines and include
+# arbitrary characters (code snippets, JSON, quotes). The closing
+# </parameter> tag may be missing if the model emitted EOS prematurely —
+# in which case we consume up to the next <parameter=...> tag or end of
+# string. Names are captured as alphanumeric + underscore to avoid pulling
+# in attribute-like garbage.
+_HERMES_FUNCTION_RE = re.compile(
+    r"<function=([A-Za-z_][A-Za-z0-9_]*)>(.*?)(?:</function>|\Z)",
+    re.DOTALL,
+)
+_HERMES_PARAMETER_RE = re.compile(
+    r"<parameter=([A-Za-z_][A-Za-z0-9_]*)>\s*(.*?)\s*(?=</parameter>|<parameter=|\Z)",
+    re.DOTALL,
+)
+
+
+def _extract_hermes_tool_calls(text: str) -> tuple[list[dict], str]:
+    """Parse Hermes-style ``<function=name><parameter=k>v</parameter></function>``
+    blocks out of *text*. Used as a fallback when the Qwen JSON format
+    (``<tool_call>{...}</tool_call>``) is not present — for example on
+    finalize turns where grammar does not constrain the output. Tolerates
+    premature EOS (missing closing ``</parameter>`` / ``</function>``)."""
+    if "<function=" not in text:
+        return [], text
+
+    extracted: list[dict] = []
+    matched_spans: list[tuple[int, int]] = []
+
+    for fn_match in _HERMES_FUNCTION_RE.finditer(text):
+        name = fn_match.group(1).strip()
+        body = fn_match.group(2) or ""
+        if not name:
+            continue
+        args: dict = {}
+        for p_match in _HERMES_PARAMETER_RE.finditer(body):
+            key = p_match.group(1).strip()
+            value = p_match.group(2)
+            if key:
+                # Strip one leading newline that the template usually adds
+                # but preserve interior whitespace (code indentation, etc.)
+                if value.startswith("\n"):
+                    value = value[1:]
+                args[key] = value
+        extracted.append(
+            {
+                "id": f"toolu_{uuid.uuid4().hex[:24]}",
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "arguments": json.dumps(args, separators=(",", ":")),
+                },
+            }
+        )
+        matched_spans.append(fn_match.span())
+
+    if not extracted:
+        return [], text
+
+    # Remove matched function blocks from text (plus any dangling
+    # <tool_call>/</tool_call> wrappers around them).
+    remaining = text
+    for start, end in reversed(matched_spans):
+        remaining = remaining[:start] + remaining[end:]
+    # Strip leftover <tool_call>…</tool_call> envelopes that now enclose
+    # nothing useful.
+    remaining = re.sub(r"<tool_call>\s*</tool_call>", "", remaining, flags=re.DOTALL)
+    remaining = remaining.strip()
+
+    logger.info(
+        "TOOL CALL EXTRACTION: recovered %d Hermes-format tool call(s) from text content",
+        len(extracted),
+    )
+    return extracted, remaining
+
 
 # ---------------------------------------------------------------------------
 # Gemma 4 tool-call DSL extractors
@@ -3892,7 +4026,6 @@ def _schema_match_tool(payload: dict, available_tools: list[dict]) -> str | None
       - -5 per payload key NOT in tool's properties
       - -100 if any required field is missing
     Return the name of the highest-scoring tool, or None if no clear match.
-    Caller must require score >= 10 (at least one required-field hit).
     """
     if not isinstance(payload, dict) or not available_tools:
         return None
@@ -4039,6 +4172,56 @@ def _extract_gemma4_tool_calls(
     return extracted, remaining
 
 
+# ---------------------------------------------------------------------------
+# Gemma 4 tool-call DSL extractors
+# ---------------------------------------------------------------------------
+# Gemma 4's chat template emits tool calls as:
+#   <|tool_call>call:NAME{key1:<|"|>value1<|"|>,key2:42}<tool_call|>
+# Note the asymmetric open/close tags and `<|"|>` substitution for `"`.
+# Llama-server's --jinja autoparser usually converts these to standard
+# OpenAI tool_calls, but the raw form can leak through on (a) malformed
+# emissions, (b) finalize turns, (c) non-tool-template requests where the
+# model still tries to call a tool. This parser catches those cases.
+#
+# Gemma 4 also falls back to ```json {"name": "...", "arguments": {...}} ```
+# markdown blocks when it doesn't trust the template — observed when
+# tool_choice was forced 'required' but the model lacked confidence in the
+# native format. Only treated as a tool call when the JSON has a "name".
+_GEMMA4_TOOL_CALL_DSL_RE = re.compile(
+    r"<\|tool_call>\s*call:\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{(.*?)\}\s*<tool_call\|>",
+    re.DOTALL,
+)
+# Markdown JSON code-block fallback. Group 1 = JSON content (may include
+# leading/trailing whitespace inside the block).
+_GEMMA4_MARKDOWN_JSON_RE = re.compile(
+    r"```(?:json)?\s*(\{.*?\})\s*```",
+    re.DOTALL,
+)
+
+
+def _parse_gemma4_dsl_args(raw: str) -> dict | None:
+    """Parse Gemma 4's tool-call DSL arg body into a Python dict.
+
+    Input shape (between the `{` and `}` of the DSL):
+        key1:<|"|>str value<|"|>,key2:42,key3:true,key4:[<|"|>a<|"|>,<|"|>b<|"|>]
+
+    Strategy: replace `<|"|>` with `"`, wrap unquoted keys in quotes, then
+    feed to json.loads. Returns None on parse failure (caller decides).
+    """
+    if not raw or not raw.strip():
+        return {}
+    s = raw.replace('<|"|>', '"')
+    # Wrap unquoted keys: `key:` -> `"key":` (only at start or after `,` / `{` / whitespace).
+    s = re.sub(r"(^|[\s,{\[])([A-Za-z_][A-Za-z0-9_]*)\s*:", r'\1"\2":', s)
+    s = "{" + s + "}"
+    try:
+        parsed = json.loads(s)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+
 def _repair_tool_call_json(raw: str) -> str | None:
     """Attempt to repair common garbled JSON in tool call payloads.
 
@@ -4091,13 +4274,16 @@ def _extract_tool_calls_from_text(
         {"id": "...", "type": "function", "function": {"name": "...", "arguments": "..."}}
 
     The *remaining_text* has the matched ``<tool_call>`` blocks removed.
-    If no valid blocks are found, falls back to Gemma 4's
+    If no valid blocks are found the original text is returned unchanged.
+    Falls back to Hermes-style ``<function=X><parameter=K>V</parameter></function>``
+    for older Qwen/Llama fine-tunes, then to Gemma 4's
     ``<|tool_call>call:N{...}<tool_call|>`` DSL and ```json``` markdown
-    blocks. Anything not matching any known format passes through unchanged
-    so plain prose isn't mutated.
+    blocks. Anything not matching any known format falls through unchanged
+    so plain prose passes the parser without mutation.
     """
     if (
         "<tool_call>" not in text
+        and "<function=" not in text
         and "<|tool_call>" not in text
         and "```" not in text
     ):
@@ -4143,8 +4329,16 @@ def _extract_tool_calls_from_text(
         )
 
     if not extracted:
-        # Try Gemma 4's DSL + markdown-JSON fallback. Anything still not
-        # matching falls through as plain text so prose isn't mutated.
+        # Fall back to Hermes format. This catches Qwen emissions on finalize
+        # turns where grammar is not applied and the model defaults to its
+        # base training's <function=X><parameter=K>V</parameter></function>
+        # format instead of the <tool_call>{JSON}</tool_call> Qwen template
+        # format. Without this path, tool_calls=[] and the client halts.
+        hermes_calls, hermes_remaining = _extract_hermes_tool_calls(text)
+        if hermes_calls:
+            return hermes_calls, hermes_remaining
+        # Then try Gemma 4's DSL + markdown-JSON fallback. Anything still
+        # not matching falls through as plain text.
         return _extract_gemma4_tool_calls(text, available_tools=available_tools)
 
     # Strip matched tool_call blocks from the text
@@ -5116,6 +5310,16 @@ def _classify_tool_response_issue(
     if "tools" not in anthropic_body:
         return ToolResponseIssue()
 
+    # When the upstream response was cut off by max_tokens (finish_reason=length),
+    # any garbled/unbalanced-brace appearance in the tool args is almost
+    # certainly truncation, not degenerate generation. Re-classify such
+    # issues as "truncated_tool_args" so the caller can still retry (with a
+    # larger cap) but WITHOUT triggering the forced-tool dampener, which
+    # otherwise penalises a perfectly-recoverable truncation event.
+    choice_for_finish, _ = _extract_openai_choice(openai_resp)
+    finish_reason = (choice_for_finish.get("finish_reason") or "").lower()
+    was_truncated = finish_reason == "length"
+
     if _is_malformed_tool_response(openai_resp, anthropic_body):
         return ToolResponseIssue(
             kind="malformed_payload",
@@ -5159,6 +5363,18 @@ def _classify_tool_response_issue(
             allowed_tools,
         )
         if issue.has_issue():
+            # Downgrade invalid_tool_args to truncated_tool_args when the
+            # response hit max_tokens — retry path still fires but the
+            # dampener/streak counters stay cold.
+            if was_truncated and issue.kind == "invalid_tool_args":
+                return ToolResponseIssue(
+                    kind="truncated_tool_args",
+                    reason=(
+                        f"tool call for '{tool_name}' truncated by max_tokens "
+                        f"({issue.reason})"
+                    ),
+                    retry_hint=issue.retry_hint,
+                )
             return issue
 
     return ToolResponseIssue()
@@ -5762,8 +5978,12 @@ async def _apply_malformed_tool_guardrail(
             )
         return working_resp
 
-    # Mark garbled state for progressive max_tokens reduction on next turn
-    monitor.last_response_garbled = True
+    # Only set last_response_garbled for TRUE degenerate generation, not
+    # for responses merely truncated by max_tokens — otherwise the next
+    # turn gets hit with the garbled_cap (smaller max_tokens) and the
+    # problem compounds.
+    if issue.kind != "truncated_tool_args":
+        monitor.last_response_garbled = True
 
     if issue.kind == "malformed_payload":
         monitor.malformed_tool_streak += 1
@@ -5771,7 +5991,12 @@ async def _apply_malformed_tool_guardrail(
         monitor.invalid_tool_call_streak += 1
         monitor.arg_preflight_rejections += 1
 
-    monitor.maybe_activate_forced_tool_dampener(issue.kind)
+    # Truncation is a max_tokens accident, not the model misbehaving: don't
+    # feed it to the forced-tool dampener, which would otherwise relax
+    # tool_choice on the very next turn and let the model trail off with
+    # text (the exact failure mode that stopped opencode).
+    if issue.kind != "truncated_tool_args":
+        monitor.maybe_activate_forced_tool_dampener(issue.kind)
     excerpt = _openai_message_text(working_resp)[:220].replace("\n", " ")
     # Option 2: Log garbled argument content for diagnostics
     arg_excerpt = ""
@@ -5914,7 +6139,10 @@ async def _apply_malformed_tool_guardrail(
                 if fn_name and raw_args and _is_garbled_tool_arguments(raw_args):
                     failing_tools.add(fn_name)
 
-        monitor.maybe_activate_forced_tool_dampener(retry_issue.kind)
+        # Truncation on retry is still a max_tokens problem, not a model
+        # misbehaviour — don't dampen. The outer retry loop will try again.
+        if retry_issue.kind != "truncated_tool_args":
+            monitor.maybe_activate_forced_tool_dampener(retry_issue.kind)
         logger.warning(
             "TOOL RESPONSE RETRY invalid: session=%s attempt=%d/%d kind=%s reason=%s",
             session_id,
@@ -6121,6 +6349,7 @@ def _maybe_extract_text_tool_calls(
     # Quick early-exit if no markers present (matches dispatcher guard)
     if (
         "<tool_call>" not in text
+        and "<function=" not in text
         and "<|tool_call>" not in text
         and "```" not in text
     ):
@@ -6269,10 +6498,10 @@ _THINKING_BLOCK_RE = re.compile(r"<think>(.*?)</think>\s*", re.DOTALL)
 def _extract_thinking_block(text: str) -> tuple[str | None, str]:
     """Extract Qwen-style ``<think>...</think>`` blocks from *text*.
 
-    Returns ``(thinking_content, remaining_text)``. If no closed ``<think>``
-    tag is present, returns ``(None, text)`` unchanged. Multiple blocks are
-    concatenated. Trailing whitespace after each block is consumed so the
-    remaining text starts cleanly with the model's actual answer.
+    Returns ``(thinking_content, remaining_text)``. If no ``<think>`` tag is
+    present, returns ``(None, text)`` unchanged. Multiple thinking blocks
+    are concatenated. Trailing whitespace after each block is consumed so
+    the remaining text starts cleanly with the model's actual answer.
     """
     if "<think>" not in text:
         return None, text
@@ -6293,9 +6522,9 @@ def openai_to_anthropic_response(
 
     *expose_thinking*: when True, surface ``<think>...</think>`` content from
     the upstream as Anthropic ``{"type": "thinking"}`` blocks. When False
-    (Anthropic default — client didn't opt in), strip thinking content from
-    the response entirely so the client only sees the actual answer. Qwen's
-    chat template seeds the model into thinking regardless of the
+    (Anthropic default — client didn't opt in), strip thinking content
+    from the response entirely so the client only sees the actual answer.
+    Qwen's chat template seeds the model into thinking regardless of the
     ``enable_thinking`` request param, so even thinking-off responses
     typically still contain ``<think>`` blocks; this flag controls whether
     they're surfaced as Anthropic blocks or silently consumed.
@@ -6310,6 +6539,11 @@ def openai_to_anthropic_response(
     finish = choice.get("finish_reason", "stop")
 
     content = []
+    # Surface Qwen's <think>...</think> output as Anthropic-style thinking
+    # blocks (Anthropic extended-thinking API shape:
+    #   {"type": "thinking", "thinking": "...", "signature": ""}).
+    # Clients that don't request thinking simply ignore the block; clients
+    # that do (Claude Code) render them in the thinking pane.
     raw_text = ""
     if message.get("content"):
         raw_text = (
@@ -6317,11 +6551,9 @@ def openai_to_anthropic_response(
             if isinstance(message["content"], str)
             else str(message["content"])
         )
-    # Surface Qwen's <think>...</think> output (and llama-server's separate
-    # `reasoning_content` field, when --reasoning-format=deepseek-style is in
-    # use) as Anthropic-style ``{"type": "thinking"}`` blocks. Clients that
-    # didn't opt in via the `thinking` request param have expose_thinking=False
-    # and the content is silently consumed instead.
+    # Some llama-server builds emit the model's reasoning into a separate
+    # `reasoning_content` field instead of inline <think> tags. Surface
+    # that too so the proxy is consistent regardless of upstream behaviour.
     inline_thinking, body_text = _extract_thinking_block(raw_text)
     sidecar_thinking = message.get("reasoning_content") or message.get("reasoning")
     thinking_chunks: list[str] = []
@@ -6373,8 +6605,8 @@ def openai_to_anthropic_response(
                     )
         # Normalise IDs to Anthropic spec (toolu_ prefix). Upstream
         # llama-server returns opaque IDs without prefix; clients that
-        # validate the prefix would reject. Strip-and-restamp here, restore
-        # in anthropic_to_openai_messages() when client sends tool_result back.
+        # validate prefix would reject. Strip-and-restamp here, restore in
+        # anthropic_to_openai_messages() when client sends tool_result back.
         upstream_id = tc.get("id", "")
         if upstream_id.startswith("toolu_"):
             tool_use_id = upstream_id
@@ -7082,7 +7314,7 @@ async def messages(request: Request):
             )
         except Exception as exc:
             # Check if upstream is hung before returning error
-            await _check_slot_hang(f"{LLAMA_CPP_BASE}/slots")
+            await _check_slot_hang(LLAMA_CPP_BASE.replace("/v1", "/slots"))
             return Response(
                 content=json.dumps(
                     {
@@ -7099,13 +7331,11 @@ async def messages(request: Request):
 
         if strict_resp.status_code != 200:
             error_text = strict_resp.text[:1000]
-            # Gemma 4 PEG parse-failure recovery: relax tool_choice='required'
-            # so the retry isn't blocked by the strict-grammar that rejected
-            # the model's incomplete tool call output.
-            relaxed = (
-                _is_gemma4_peg_parse_failure(strict_resp.status_code, error_text)
-                and _relax_tool_choice_for_gemma4_peg_retry(strict_body, "strict-stream")
-            )
+            # Try the Gemma 4 PEG parse-failure recovery first — relax
+            # tool_choice='required' so the retry isn't constrained by the
+            # strict-grammar that triggered the parse failure.
+            relaxed = _is_gemma4_peg_parse_failure(strict_resp.status_code, error_text) and \
+                _relax_tool_choice_for_gemma4_peg_retry(strict_body, "strict-stream")
             if relaxed:
                 try:
                     strict_resp = await _post_with_generation_timeout(
@@ -7365,7 +7595,9 @@ async def messages(request: Request):
             error_body = await resp.aread()
             await resp.aclose()
             error_text = error_body.decode("utf-8", errors="replace")[:1000]
-            # Gemma 4 PEG parse-failure recovery (stream path).
+            # Gemma 4 PEG parse-failure recovery: relax tool_choice='required'
+            # so the retry isn't blocked by the strict-grammar that rejected
+            # the model's incomplete tool call.
             if _is_gemma4_peg_parse_failure(resp.status_code, error_text) and \
                     _relax_tool_choice_for_gemma4_peg_retry(openai_body, "stream"):
                 resp = await client.send(
@@ -7381,10 +7613,6 @@ async def messages(request: Request):
                     return StreamingResponse(
                         stream_anthropic_response(resp, model, monitor, body),
                         media_type="text/event-stream",
-                        headers={
-                            "Cache-Control": "no-cache",
-                            "Connection": "keep-alive",
-                        },
                     )
                 # fall through if still failing
                 error_body = await resp.aread()
