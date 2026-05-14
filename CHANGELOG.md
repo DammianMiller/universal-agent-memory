@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.38 (2026-05-14)
+
+- ci: remove dead publish.yml (redundant + always-failing)
+
+
 ## v1.20.37 (2026-05-14)
 
 - compliance: restore substantive CLAUDE.md sections + tighten workflow gates
