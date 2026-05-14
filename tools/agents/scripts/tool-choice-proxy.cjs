@@ -2,6 +2,18 @@
 /**
  * Layer 1: Intelligent Agent Execution Proxy (v1.0.0)
  *
+ * DEPRECATED: This OpenAI-only shim is superseded by anthropic_proxy.py's
+ * /v1/chat/completions route, which provides the same OpenAI Chat Completions
+ * surface AND runs through the canonical guarded Anthropic pipeline (loop
+ * detection, tool narrowing, malformed-payload retry, context pruning).
+ *
+ * New deployments should point clients at the anthropic-proxy port (default
+ * 4000) and use either /v1/messages (Anthropic) or /v1/chat/completions
+ * (OpenAI passthrough). This script is retained for backward compatibility
+ * with installations that still reference it via `uap tool-calls` tooling
+ * (see src/cli/tool-calls.ts) and the in-container Qwen benchmark
+ * (scripts/benchmarks/run-tbench-qwen35-quick.sh).
+ *
  * Model-agnostic proxy that sits between any OpenAI-compatible client and
  * any OpenAI-compatible inference server. Implements:
  *

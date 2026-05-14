@@ -4874,3 +4874,132 @@ class TestUpstream503Resilience(unittest.TestCase):
         """Does not match 200 even with loading text."""
         resp = httpx.Response(200, text='{"status":"loading model"}')
         self.assertFalse(proxy._is_loading_model_503(resp))
+
+
+class TestOpenAIPassthroughConversion(unittest.TestCase):
+    """Tests for the /v1/chat/completions OpenAI passthrough route.
+
+    The route converts OpenAI Chat Completions requests to Anthropic
+    Messages, runs the full guarded Anthropic pipeline, then converts the
+    response back to OpenAI shape. This exercises the pure conversion
+    helpers (openai_to_anthropic_request, anthropic_to_openai_response) in
+    isolation so a regression in the dual-interface surface is caught
+    without needing a live FastAPI client."""
+
+    def test_openai_to_anthropic_request_preserves_user_and_assistant_text(self):
+        """User and assistant text messages survive the OpenAI->Anthropic
+        conversion with the expected role + content shape."""
+        openai_body = {
+            "model": "qwen35",
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "system", "content": "you are helpful"},
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "hi there"},
+                {"role": "user", "content": "thanks"},
+            ],
+        }
+        anthropic_body = proxy.openai_to_anthropic_request(openai_body)
+
+        self.assertEqual(anthropic_body.get("model"), "qwen35")
+        self.assertEqual(anthropic_body.get("max_tokens"), 1024)
+        # System collapses into a top-level 'system' field
+        self.assertIn("system", anthropic_body)
+        # Non-system messages preserved in order
+        msgs = anthropic_body.get("messages", [])
+        self.assertEqual(len(msgs), 3)
+        self.assertEqual(msgs[0]["role"], "user")
+        self.assertEqual(msgs[1]["role"], "assistant")
+        self.assertEqual(msgs[2]["role"], "user")
+
+    def test_openai_to_anthropic_request_converts_tool_response(self):
+        """OpenAI 'role: tool' messages become Anthropic user messages with
+        a tool_result content block — required so the guarded pipeline can
+        track tool history across turns."""
+        openai_body = {
+            "model": "test",
+            "messages": [
+                {"role": "user", "content": "run pwd"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "Bash", "arguments": '{"command": "pwd"}'},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_1", "content": "/home/user"},
+            ],
+        }
+        anthropic_body = proxy.openai_to_anthropic_request(openai_body)
+        msgs = anthropic_body.get("messages", [])
+
+        # Last message is the tool result, encoded as Anthropic user/tool_result
+        tool_result_msg = msgs[-1]
+        self.assertEqual(tool_result_msg["role"], "user")
+        blocks = tool_result_msg["content"]
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["type"], "tool_result")
+        self.assertEqual(blocks[0]["tool_use_id"], "call_1")
+        self.assertEqual(blocks[0]["content"], "/home/user")
+
+    def test_anthropic_to_openai_response_text_only(self):
+        """A plain-text Anthropic response becomes OpenAI choices[0] with
+        finish_reason='stop' and a string content body."""
+        anthropic_resp = {
+            "id": "msg_test_1",
+            "model": "qwen35",
+            "content": [{"type": "text", "text": "the answer is 42"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        }
+        openai_resp = proxy.anthropic_to_openai_response(anthropic_resp)
+
+        self.assertEqual(openai_resp["object"], "chat.completion")
+        self.assertEqual(openai_resp["model"], "qwen35")
+        self.assertEqual(len(openai_resp["choices"]), 1)
+        choice = openai_resp["choices"][0]
+        self.assertEqual(choice["finish_reason"], "stop")
+        self.assertEqual(choice["message"]["role"], "assistant")
+        self.assertEqual(choice["message"]["content"], "the answer is 42")
+        self.assertNotIn("tool_calls", choice["message"])
+        # Usage is re-shaped to OpenAI conventions
+        self.assertEqual(openai_resp["usage"]["prompt_tokens"], 10)
+        self.assertEqual(openai_resp["usage"]["completion_tokens"], 5)
+        self.assertEqual(openai_resp["usage"]["total_tokens"], 15)
+
+    def test_anthropic_to_openai_response_tool_use_yields_tool_calls(self):
+        """An Anthropic response with a tool_use content block becomes an
+        OpenAI choice with finish_reason='tool_calls' and a tool_calls array
+        carrying the JSON-stringified arguments — the canonical OpenAI shape
+        clients like Forge expect."""
+        anthropic_resp = {
+            "id": "msg_tool_1",
+            "model": "qwen35",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_xyz",
+                    "name": "Bash",
+                    "input": {"command": "pwd"},
+                }
+            ],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 20, "output_tokens": 8},
+        }
+        openai_resp = proxy.anthropic_to_openai_response(anthropic_resp)
+
+        choice = openai_resp["choices"][0]
+        self.assertEqual(choice["finish_reason"], "tool_calls")
+        msg = choice["message"]
+        self.assertIsNone(msg["content"])  # No text emitted
+        self.assertEqual(len(msg["tool_calls"]), 1)
+        tc = msg["tool_calls"][0]
+        self.assertEqual(tc["type"], "function")
+        self.assertEqual(tc["id"], "toolu_xyz")
+        self.assertEqual(tc["function"]["name"], "Bash")
+        # Arguments are JSON-stringified per OpenAI spec
+        self.assertEqual(json.loads(tc["function"]["arguments"]), {"command": "pwd"})

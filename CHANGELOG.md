@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.36 (2026-05-14)
+
+- docs(proxy): codify Anthropic-default + OpenAI-optional canonical surface
+
+
 ## v1.20.35 (2026-05-14)
 
 - config: add qwen3.5-enhanced chat template
