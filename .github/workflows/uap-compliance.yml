@@ -22,16 +22,22 @@ jobs:
           score=0
           total=11
           
-          # 1. SESSION START block
-          if grep -q "## SESSION START" CLAUDE.md && grep -q "uap task ready" CLAUDE.md; then
+          # 1. SESSION START block — require the section, the task-ready
+          # command, and the canonical session-start hook command so the
+          # section can't be reduced to a one-liner stub.
+          if grep -q "## SESSION START" CLAUDE.md && \
+             grep -q "uap task ready" CLAUDE.md && \
+             grep -q ".codex/hooks/session-start.sh" CLAUDE.md; then
             score=$((score + 1))
-            echo "✓ SESSION START block with uap task ready"
+            echo "✓ SESSION START block with uap task ready + hook"
           else
             echo "✗ SESSION START block MISSING"
             exit 1
           fi
-          
-          # 2. DECISION LOOP workflow
+
+          # 2. DECISION LOOP workflow — require the section header and a
+          # reference to the Skill-import directive style so the loop
+          # encodes specialized-workflow matching, not just generic steps.
           if grep -q "## DECISION LOOP" CLAUDE.md && grep -q "@Skill:name.md" CLAUDE.md; then
             score=$((score + 1))
             echo "✓ DECISION LOOP with skills reference"
@@ -41,7 +47,12 @@ jobs:
           fi
           
           # 3. MANDATORY worktree enforcement
-          if grep -q "WORKTREE WORKFLOW — MANDATORY\|## WORKTREE WORKFLOW.*MANDATORY" CLAUDE.md; then
+          # Accept either the section header style ("## WORKTREE WORKFLOW — MANDATORY")
+          # or the gate-style header ("## WORKTREE GATE [REQUIRED..."), and require
+          # the substantive command reference ("uap worktree create" or
+          # "uap worktree ensure") to confirm the section isn't just a stub.
+          if grep -qE "## WORKTREE WORKFLOW.*MANDATORY|## WORKTREE GATE \[REQUIRED" CLAUDE.md && \
+             grep -q "uap worktree create\|uap worktree ensure" CLAUDE.md; then
             score=$((score + 1))
             echo "✓ MANDATORY worktree enforcement present"
           else
@@ -49,8 +60,11 @@ jobs:
             exit 1
           fi
           
-          # 4. PARALLEL REVIEW PROTOCOL
-          if grep -q "## PARALLEL REVIEW PROTOCOL" CLAUDE.md; then
+          # 4. PARALLEL REVIEW PROTOCOL — require both the section header
+          # and a reference to at least one canonical reviewer agent so a
+          # bare stub heading can't satisfy the gate.
+          if grep -q "## PARALLEL REVIEW PROTOCOL" CLAUDE.md && \
+             grep -qE "code-reviewer|security-auditor|architect-reviewer" CLAUDE.md; then
             score=$((score + 1))
             echo "✓ PARALLEL REVIEW PROTOCOL present"
           else
@@ -94,12 +108,17 @@ jobs:
             exit 1
           fi
           
-          # 9. RTK includes
-          if grep -q "@hooks-session-start.md\|@PreCompact.md" CLAUDE.md; then
+          # 9. Hook references — require the substantive session-start hook
+          # reference. Older revisions used `@hooks-session-start.md` /
+          # `@PreCompact.md` dangling import directives that resolved to
+          # nothing on disk; accept either the dangling directive style (for
+          # back-compat) or the substantive `.codex/hooks/session-start.sh`
+          # command reference.
+          if grep -q "@hooks-session-start.md\|@PreCompact.md\|.codex/hooks/session-start.sh\|.codex/hooks/pre-compact.sh" CLAUDE.md; then
             score=$((score + 1))
-            echo "✓ RTK includes (@hooks-session-start, @PreCompact)"
+            echo "✓ Hook references present"
           else
-            echo "✗ RTK includes MISSING"
+            echo "✗ Hook references MISSING"
             exit 1
           fi
           
