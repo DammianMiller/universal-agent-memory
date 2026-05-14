@@ -6502,6 +6502,15 @@ def _extract_thinking_block(text: str) -> tuple[str | None, str]:
     present, returns ``(None, text)`` unchanged. Multiple thinking blocks
     are concatenated. Trailing whitespace after each block is consumed so
     the remaining text starts cleanly with the model's actual answer.
+
+    Truncated / unclosed ``<think>`` blocks (max_tokens cutting off
+    mid-thinking) are also handled: everything from the dangling
+    ``<think>`` to end-of-text is treated as partial thinking content,
+    and anything before it is preserved as the body. Without this, the
+    open tag and the model's partial reasoning would leak into the
+    Anthropic-spec ``text`` content block — a 100% Anthropic-compatibility
+    violation since real Anthropic responses never embed ``<think>`` in
+    ``text``.
     """
     if "<think>" not in text:
         return None, text
@@ -6510,8 +6519,24 @@ def _extract_thinking_block(text: str) -> tuple[str | None, str]:
         parts.append(m.group(1).strip())
         return ""
     remaining = _THINKING_BLOCK_RE.sub(collect, text)
+    # After stripping balanced pairs, check for a dangling unclosed
+    # <think>... open tag and treat it as partial thinking content.
+    # First occurrence wins; any further '<think>' substrings in the
+    # captured partial are folded into the same partial block.
+    if "<think>" in remaining:
+        idx = remaining.find("<think>")
+        partial = remaining[idx + len("<think>"):].strip()
+        if partial:
+            parts.append(partial)
+        # rstrip mirrors the balanced regex's \s* consumption after </think>:
+        # whitespace separating body from thinking is structural, not part of
+        # the body.
+        remaining = remaining[:idx].rstrip()
     if not parts:
-        return None, text
+        # Saw "<think>" in original text but no extractable content (e.g.
+        # bare "<think>" alone or "<think></think>"). Return cleaned body
+        # so the open tag does not leak.
+        return None, remaining.lstrip()
     return "\n\n".join(p for p in parts if p), remaining.lstrip()
 
 

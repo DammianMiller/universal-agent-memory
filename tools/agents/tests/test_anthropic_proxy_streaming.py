@@ -5057,3 +5057,77 @@ class TestModelsEndpoint(unittest.TestCase):
         for entry in result["data"]:
             self.assertIn("id", entry)
             self.assertEqual(entry["object"], "model")
+
+
+class TestThinkingBlockExtraction(unittest.TestCase):
+    """Tests for _extract_thinking_block — guarantees Anthropic-spec text
+    content blocks never contain Qwen <think> tags, including the truncated
+    / unclosed case (max_tokens cutting off mid-thinking).
+
+    Reproduces the OK_HAIKU regression observed 2026-05-14: a request with
+    max_tokens=40 against a Qwen upstream produced an Anthropic response
+    whose text block started with `<think>\\nHere's a thinking process:...`
+    because the model never reached `</think>` before being cut off."""
+
+    def test_balanced_single_block_extracts_to_thinking(self):
+        text = "<think>let me reason</think>The answer is 42."
+        thinking, body = proxy._extract_thinking_block(text)
+        self.assertEqual(thinking, "let me reason")
+        self.assertEqual(body, "The answer is 42.")
+
+    def test_balanced_multiple_blocks_concatenate(self):
+        text = "<think>step one</think>partial<think>step two</think>final"
+        thinking, body = proxy._extract_thinking_block(text)
+        self.assertEqual(thinking, "step one\n\nstep two")
+        # Both blocks stripped; body is the residual prose joined.
+        self.assertEqual(body, "partialfinal")
+
+    def test_no_think_tag_returns_text_unchanged(self):
+        text = "Hello world."
+        thinking, body = proxy._extract_thinking_block(text)
+        self.assertIsNone(thinking)
+        self.assertEqual(body, text)
+
+    def test_unclosed_think_captures_partial_and_strips_open_tag(self):
+        """Truncation case (max_tokens cuts mid-thinking). The open
+        <think> tag and partial reasoning MUST NOT leak into the
+        Anthropic-spec text content block."""
+        text = "<think>\nHere's a thinking process:\n\n1.  Analyze user input"
+        thinking, body = proxy._extract_thinking_block(text)
+        # Partial reasoning captured as thinking content
+        self.assertIsNotNone(thinking)
+        self.assertIn("thinking process", thinking)
+        # CRITICAL: body must be empty / contain no <think> tag
+        self.assertEqual(body, "")
+        self.assertNotIn("<think>", body)
+
+    def test_pre_text_then_unclosed_think_preserves_pre_text(self):
+        text = "Pre-thinking prose. <think>partial reasoning"
+        thinking, body = proxy._extract_thinking_block(text)
+        self.assertEqual(thinking, "partial reasoning")
+        # Pre-think prose is preserved as body
+        self.assertEqual(body, "Pre-thinking prose.")
+        self.assertNotIn("<think>", body)
+
+    def test_bare_open_tag_alone_strips_cleanly(self):
+        """Edge: response is literally just '<think>' with nothing else
+        (extremely degenerate truncation). The tag must be stripped from
+        the body so it doesn't appear in the client-facing response."""
+        text = "<think>"
+        thinking, body = proxy._extract_thinking_block(text)
+        # No partial content -> no thinking block; body empty, no tag leak
+        self.assertIsNone(thinking)
+        self.assertEqual(body, "")
+        self.assertNotIn("<think>", body)
+
+    def test_balanced_then_dangling_unclosed_handles_both(self):
+        """Multi-step truncation: model emitted one complete <think>
+        block, started a second one, then was cut off."""
+        text = "<think>first thoughts</think>partial answer<think>second thought, cut off mid-way"
+        thinking, body = proxy._extract_thinking_block(text)
+        # Both balanced and unclosed contributions appear
+        self.assertIn("first thoughts", thinking)
+        self.assertIn("second thought, cut off mid-way", thinking)
+        # Body has the prose between the two blocks
+        self.assertEqual(body, "partial answer")
+        self.assertNotIn("<think>", body)
