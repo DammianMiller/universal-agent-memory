@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.42 (2026-05-15)
+
+- proxy: cross-session slot save/restore to eliminate KV-cache thrash
+
+
 ## v1.20.41 (2026-05-15)
 
 - proxy: update /v1/models local model ID to qwen36-27b-iq4xs
