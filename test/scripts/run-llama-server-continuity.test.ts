@@ -11,6 +11,10 @@ function runScript(env: Record<string, string>): string {
   return execFileSync('bash', [script], {
     env: {
       PATH: process.env.PATH || '/usr/bin:/bin',
+      // HOME is required: the script derives LLAMA_SLOT_SAVE_PATH's default
+      // from ${HOME} and runs under `set -u`. A real systemd service always
+      // has HOME; the test supplies a writable one for determinism.
+      HOME: '/tmp',
       LLAMA_BIN: '/bin/echo',
       LLAMA_MODEL: '/etc/hostname',
       LLAMA_CHAT_TEMPLATE_FILE: 'embedded',
@@ -37,5 +41,25 @@ describe('run-llama-server-continuity.sh env-driven flags', () => {
 
     const reuse = runScript({ LLAMA_CACHE_REUSE: '256' });
     expect(reuse).toContain('--cache-reuse 256');
+  });
+
+  // Slot save/restore default (UAP PR #179 + #180): the proxy's
+  // cross-session slot save/restore needs the server launched with
+  // --slot-save-path. This wrapper enables it by default.
+  it('emits --slot-save-path at an explicit LLAMA_SLOT_SAVE_PATH', () => {
+    const out = runScript({ LLAMA_SLOT_SAVE_PATH: '/tmp/uap-slot-test-explicit' });
+    expect(out).toContain('--slot-save-path /tmp/uap-slot-test-explicit');
+  });
+
+  it('disables --slot-save-path when LLAMA_SLOT_SAVE_PATH is explicitly empty', () => {
+    // Single-dash default expansion: set-but-empty stays empty (disabled).
+    const out = runScript({ LLAMA_SLOT_SAVE_PATH: '' });
+    expect(out).not.toContain('--slot-save-path');
+  });
+
+  it('defaults --slot-save-path under $HOME/.cache/uap when LLAMA_SLOT_SAVE_PATH is unset', () => {
+    // runScript sets HOME=/tmp, so the unset default resolves there.
+    const out = runScript({});
+    expect(out).toContain('--slot-save-path /tmp/.cache/uap/llama-slots');
   });
 });
