@@ -35,6 +35,15 @@ export LLAMA_CACHE_REUSE="${LLAMA_CACHE_REUSE:-}"
 export LLAMA_LOG_FILE="${LLAMA_LOG_FILE:-llama-server.log}"
 export LLAMA_CHAT_TEMPLATE_FILE="${LLAMA_CHAT_TEMPLATE_FILE:-${ROOT_DIR}/tools/agents/config/chat_template.jinja}"
 export LLAMA_EXTRA_ARGS="${LLAMA_EXTRA_ARGS:-}"
+# Slot KV-state save directory. Default ON: the anthropic-proxy's
+# cross-session slot save/restore (UAP PR #179) requires the server to be
+# launched with --slot-save-path, otherwise /slots/{id}?action=save|restore
+# is rejected and the proxy falls back to 60-96s full prompt reprocessing on
+# every session switch. Set LLAMA_SLOT_SAVE_PATH= (explicitly empty) to
+# disable. Single-dash default expansion: unset -> default path;
+# set-but-empty -> stays empty (disabled); set -> that path. ${HOME:-}
+# guards against an unset HOME under `set -u` (mkdir then fails gracefully).
+export LLAMA_SLOT_SAVE_PATH="${LLAMA_SLOT_SAVE_PATH-${HOME:-}/.cache/uap/llama-slots}"
 
 # Set LLAMA_CHAT_TEMPLATE_FILE=embedded to use the model's own template
 # (skip the --chat-template-file flag). Required for models with custom formats
@@ -93,6 +102,17 @@ if [[ "$LLAMA_ENABLE_SPEC_DECODING" == "true" ]]; then
       --spec-draft-n-min "$LLAMA_DRAFT_MIN"
       --spec-draft-p-min "$LLAMA_DRAFT_P_MIN"
     )
+  fi
+fi
+
+if [[ -n "$LLAMA_SLOT_SAVE_PATH" ]]; then
+  # Create the dir if possible; if creation fails (e.g. unwritable parent),
+  # warn and skip the flag rather than aborting the whole server launch —
+  # the proxy's slot save/restore degrades gracefully to reprocessing.
+  if mkdir -p "$LLAMA_SLOT_SAVE_PATH" 2>/dev/null; then
+    args+=(--slot-save-path "$LLAMA_SLOT_SAVE_PATH")
+  else
+    echo "WARNING: cannot create LLAMA_SLOT_SAVE_PATH=$LLAMA_SLOT_SAVE_PATH; --slot-save-path omitted" >&2
   fi
 fi
 

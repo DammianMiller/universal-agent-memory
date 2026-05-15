@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.43 (2026-05-15)
+
+- scripts: make slot save/restore the default for both continuity services
+
+
 ## v1.20.42 (2026-05-15)
 
 - proxy: cross-session slot save/restore to eliminate KV-cache thrash

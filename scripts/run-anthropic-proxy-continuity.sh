@@ -15,6 +15,19 @@ export PROXY_NO_PROGRESS_THRESHOLD="${PROXY_NO_PROGRESS_THRESHOLD:-4}"
 export PROXY_CONTEXT_RELEASE_THRESHOLD="${PROXY_CONTEXT_RELEASE_THRESHOLD:-0.90}"
 export PROXY_GUARDRAIL_RETRY="${PROXY_GUARDRAIL_RETRY:-on}"
 export PROXY_SESSION_TTL_SECS="${PROXY_SESSION_TTL_SECS:-7200}"
+
+# Cross-session slot save/restore (UAP PR #179). Default ON: with
+# llama-server on --parallel 1 (a single slot), N agentic sessions
+# multiplexing the slot each evict the prior session's KV cache, forcing
+# 60-96s full prompt reprocesses (~17% of requests). The proxy saves the
+# outgoing session's slot state and restores the incoming session's on a
+# switch. PROXY_SLOT_SAVE_DIR must match llama-server's --slot-save-path
+# (run-llama-server-continuity.sh LLAMA_SLOT_SAVE_PATH). Set
+# PROXY_SLOT_SAVE_RESTORE=off to disable.
+export PROXY_SLOT_SAVE_RESTORE="${PROXY_SLOT_SAVE_RESTORE:-on}"
+export PROXY_SLOT_SAVE_DIR="${PROXY_SLOT_SAVE_DIR:-${HOME}/.cache/uap/llama-slots}"
+export PROXY_SLOT_CACHE_MAX_FILES="${PROXY_SLOT_CACHE_MAX_FILES:-12}"
+
 export PROXY_TOOL_CALL_GRAMMAR="${PROXY_TOOL_CALL_GRAMMAR:-on}"
 export PROXY_TOOL_CALL_GRAMMAR_REQUIRED_ONLY="${PROXY_TOOL_CALL_GRAMMAR_REQUIRED_ONLY:-on}"
 export PROXY_TOOL_CALL_GRAMMAR_PATH="${PROXY_TOOL_CALL_GRAMMAR_PATH:-${ROOT_DIR}/tools/agents/config/tool-call.gbnf}"
