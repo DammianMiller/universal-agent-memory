@@ -5135,3 +5135,140 @@ class TestThinkingBlockExtraction(unittest.TestCase):
         # Body has the prose between the two blocks
         self.assertEqual(body, "partial answer")
         self.assertNotIn("<think>", body)
+
+
+class _SlotFakeClient:
+    """Records POST calls for slot save/restore tests."""
+
+    def __init__(self, status_code=200):
+        self.calls = []
+        self._status = status_code
+
+    async def post(self, url, json=None, timeout=None):  # noqa: A002
+        self.calls.append({"url": url, "json": json})
+        return _FakeResponse({}, status_code=self._status)
+
+
+class TestSlotSaveRestore(unittest.TestCase):
+    """Tests for the cross-session KV-cache slot save/restore feature.
+
+    Prevents the regression where N agentic sessions multiplexing onto
+    llama-server's single slot (--parallel 1) each evict the prior
+    session's KV cache, forcing a 60-96s full prompt reprocess (~17% of
+    requests). The proxy saves the outgoing session's slot state and
+    restores the incoming session's on a switch."""
+
+    def setUp(self):
+        # Snapshot + reset module state touched by these tests.
+        self._saved = {
+            k: getattr(proxy, k)
+            for k in (
+                "PROXY_SLOT_SAVE_RESTORE",
+                "PROXY_SLOT_CACHE_MAX_FILES",
+                "PROXY_SLOT_ID",
+                "_slot_owner_session",
+            )
+        }
+        self._saved_lru = list(proxy._slot_lru.items())
+        proxy._slot_owner_session = None
+        proxy._slot_lru.clear()
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            setattr(proxy, k, v)
+        proxy._slot_lru.clear()
+        proxy._slot_lru.update(self._saved_lru)
+
+    def test_slot_filename_sanitizes_session_id(self):
+        """Session ids like 'fp:abc123' / 'hdr:weird/value' must become
+        filesystem-safe filenames."""
+        self.assertEqual(
+            proxy._slot_filename("fp:5735f94edf4bccb31e1e"),
+            "slot-fp_5735f94edf4bccb31e1e.bin",
+        )
+        self.assertEqual(
+            proxy._slot_filename("hdr:weird/value with spaces"),
+            "slot-hdr_weird_value_with_spaces.bin",
+        )
+        # Already-safe characters are preserved
+        self.assertEqual(proxy._slot_filename("meta.abc-1_2"), "slot-meta.abc-1_2.bin")
+
+    def test_slot_endpoint_base_strips_v1_suffix(self):
+        """The /slots API lives at the server root, not under /v1."""
+        old = proxy.LLAMA_CPP_BASE
+        try:
+            proxy.LLAMA_CPP_BASE = "http://127.0.0.1:8080/v1"
+            self.assertEqual(proxy._slot_endpoint_base(), "http://127.0.0.1:8080")
+            proxy.LLAMA_CPP_BASE = "http://127.0.0.1:8080/v1/"
+            self.assertEqual(proxy._slot_endpoint_base(), "http://127.0.0.1:8080")
+        finally:
+            proxy.LLAMA_CPP_BASE = old
+
+    def test_ensure_slot_noop_when_disabled(self):
+        """With PROXY_SLOT_SAVE_RESTORE off, no client calls are made."""
+        proxy.PROXY_SLOT_SAVE_RESTORE = False
+        client = _SlotFakeClient()
+        asyncio.run(proxy._ensure_slot_for_session(client, "fp:abc"))
+        self.assertEqual(client.calls, [])
+        self.assertIsNone(proxy._slot_owner_session)
+
+    def test_ensure_slot_noop_when_session_unchanged(self):
+        """When the slot already owns the session, no save/restore fires."""
+        proxy.PROXY_SLOT_SAVE_RESTORE = True
+        proxy._slot_owner_session = "fp:same"
+        client = _SlotFakeClient()
+        asyncio.run(proxy._ensure_slot_for_session(client, "fp:same"))
+        self.assertEqual(client.calls, [])
+        self.assertEqual(proxy._slot_owner_session, "fp:same")
+
+    def test_ensure_slot_first_session_no_save(self):
+        """The very first session (owner is None) triggers no save — there
+        is nothing in the slot to preserve. Restore is attempted but a
+        missing file is a clean miss (no client call)."""
+        proxy.PROXY_SLOT_SAVE_RESTORE = True
+        proxy._slot_owner_session = None
+        client = _SlotFakeClient()
+        asyncio.run(proxy._ensure_slot_for_session(client, "fp:first"))
+        # No saved file for fp:first exists -> _restore_slot returns early,
+        # no save needed for a None owner -> zero client calls.
+        self.assertEqual(client.calls, [])
+        self.assertEqual(proxy._slot_owner_session, "fp:first")
+
+    def test_ensure_slot_switch_saves_outgoing_session(self):
+        """Switching from session A to B saves A's slot state. B's restore
+        is a clean miss (no file) so only the save POST is observed."""
+        proxy.PROXY_SLOT_SAVE_RESTORE = True
+        proxy._slot_owner_session = "fp:aaaa"
+        client = _SlotFakeClient(status_code=200)
+        asyncio.run(proxy._ensure_slot_for_session(client, "fp:bbbb"))
+        # Exactly one POST: the save of the outgoing session A.
+        self.assertEqual(len(client.calls), 1)
+        self.assertIn("action=save", client.calls[0]["url"])
+        self.assertEqual(
+            client.calls[0]["json"]["filename"], "slot-fp_aaaa.bin"
+        )
+        self.assertEqual(proxy._slot_owner_session, "fp:bbbb")
+        # Both sessions are now tracked in the LRU.
+        self.assertIn("fp:aaaa", proxy._slot_lru)
+        self.assertIn("fp:bbbb", proxy._slot_lru)
+
+    def test_evict_slot_files_respects_lru_cap_and_owner(self):
+        """LRU eviction removes oldest entries beyond the cap but never the
+        session currently owning the slot."""
+        proxy.PROXY_SLOT_SAVE_RESTORE = True
+        proxy.PROXY_SLOT_CACHE_MAX_FILES = 3
+        proxy._slot_owner_session = "fp:owner"
+        # Insert 5 entries oldest-first; owner inserted early so it would be
+        # an eviction candidate by age — but must be protected.
+        for i, sess in enumerate(
+            ["fp:owner", "fp:old1", "fp:old2", "fp:new1", "fp:new2"]
+        ):
+            proxy._slot_lru[sess] = float(i)
+        proxy._evict_slot_files()
+        # Cap is 3; 5 entries -> 2 evicted. Owner protected, so the 2 oldest
+        # non-owner entries (old1, old2) are evicted.
+        self.assertNotIn("fp:old1", proxy._slot_lru)
+        self.assertNotIn("fp:old2", proxy._slot_lru)
+        self.assertIn("fp:owner", proxy._slot_lru)
+        self.assertIn("fp:new1", proxy._slot_lru)
+        self.assertIn("fp:new2", proxy._slot_lru)

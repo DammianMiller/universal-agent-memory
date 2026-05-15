@@ -82,6 +82,7 @@ Dependencies
 """
 
 import asyncio
+import contextvars
 import copy
 import hashlib
 import json
@@ -91,7 +92,7 @@ import re
 import sys
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -1492,6 +1493,185 @@ PROXY_CONCURRENCY_QUEUE_TIMEOUT = float(
 upstream_semaphore: asyncio.Semaphore | None = None
 
 
+# ---------------------------------------------------------------------------
+# Slot save/restore — cross-session KV-cache preservation
+# ---------------------------------------------------------------------------
+# llama.cpp runs --parallel 1 (a single slot). When N distinct client
+# sessions multiplex onto that slot, each session switch evicts the prior
+# session's KV cache: the incoming request shares only the ~32-token
+# chat-template header, so llama-server force-reprocesses the entire prompt
+# (observed: ~17% of requests, 60-96s of prompt eval each).
+#
+# When PROXY_SLOT_SAVE_RESTORE is on, the proxy saves the outgoing session's
+# slot KV state to disk and restores the incoming session's state on a
+# switch, via llama-server's /slots/{id}?action=save|restore API (requires
+# the server to be launched with --slot-save-path). A restore reads
+# ~150-940 MiB from disk (~1-3s) instead of a 60-96s full recompute.
+#
+# Default OFF — opt in per-deployment via PROXY_SLOT_SAVE_RESTORE=on.
+PROXY_SLOT_SAVE_RESTORE = os.environ.get(
+    "PROXY_SLOT_SAVE_RESTORE", "off"
+).lower() not in {"", "0", "off", "false", "no"}
+# Directory the proxy uses for its own LRU bookkeeping + startup cleanup.
+# MUST match the llama-server --slot-save-path value: the server resolves
+# the filename the proxy sends relative to its own --slot-save-path.
+PROXY_SLOT_SAVE_DIR = os.environ.get(
+    "PROXY_SLOT_SAVE_DIR", "/home/cogtek/.cache/uap/llama-slots"
+)
+# Max saved slot files kept on disk; least-recently-used files are evicted
+# beyond this. Each file can be ~1 GiB for a 100k-token session.
+PROXY_SLOT_CACHE_MAX_FILES = int(os.environ.get("PROXY_SLOT_CACHE_MAX_FILES", "12"))
+# llama-server slot id — always 0 under --parallel 1.
+PROXY_SLOT_ID = int(os.environ.get("PROXY_SLOT_ID", "0"))
+
+# Module state. Mutated only inside the upstream_semaphore-held section
+# (_post_with_retry), so no extra lock is needed.
+_slot_owner_session: str | None = None  # session id currently loaded in the slot
+_slot_lru: "OrderedDict[str, float]" = OrderedDict()  # session -> last-access ts
+
+# Per-request session id, set by the request handler and read by
+# _ensure_slot_for_session inside _post_with_retry. A ContextVar keeps the
+# value request-local without threading it through every call signature.
+_current_request_session: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "uap_current_request_session", default=None
+)
+
+
+def _slot_endpoint_base() -> str:
+    """Base URL for llama-server's /slots endpoint (LLAMA_CPP_BASE without /v1)."""
+    base = LLAMA_CPP_BASE.rstrip("/")
+    if base.endswith("/v1"):
+        base = base[: -len("/v1")]
+    return base
+
+
+def _slot_filename(session_id: str) -> str:
+    """Map a session id to a filesystem-safe slot-state filename."""
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", session_id)
+    return f"slot-{safe}.bin"
+
+
+async def _save_slot(client: httpx.AsyncClient, session_id: str) -> bool:
+    """Persist the current slot KV state under *session_id*'s filename."""
+    fn = _slot_filename(session_id)
+    url = f"{_slot_endpoint_base()}/slots/{PROXY_SLOT_ID}?action=save"
+    try:
+        resp = await client.post(url, json={"filename": fn}, timeout=60.0)
+        if resp.status_code == 200:
+            logger.info("SLOT SAVE: session=%s -> %s", session_id, fn)
+            return True
+        logger.warning(
+            "SLOT SAVE failed: session=%s http=%d %s",
+            session_id, resp.status_code, resp.text[:200],
+        )
+    except Exception as exc:
+        logger.warning("SLOT SAVE error: session=%s %s", session_id, exc)
+    return False
+
+
+async def _restore_slot(client: httpx.AsyncClient, session_id: str) -> bool:
+    """Restore *session_id*'s saved slot KV state.
+
+    Returns False if no saved file exists or the restore failed — the caller
+    then proceeds with a normal (full-reprocess) upstream call.
+    """
+    fn = _slot_filename(session_id)
+    path = os.path.join(PROXY_SLOT_SAVE_DIR, fn)
+    if not os.path.exists(path):
+        return False
+    url = f"{_slot_endpoint_base()}/slots/{PROXY_SLOT_ID}?action=restore"
+    try:
+        resp = await client.post(url, json={"filename": fn}, timeout=120.0)
+        if resp.status_code == 200:
+            logger.info("SLOT RESTORE: session=%s <- %s", session_id, fn)
+            return True
+        logger.warning(
+            "SLOT RESTORE failed: session=%s http=%d %s",
+            session_id, resp.status_code, resp.text[:200],
+        )
+    except Exception as exc:
+        logger.warning("SLOT RESTORE error: session=%s %s", session_id, exc)
+    return False
+
+
+def _evict_slot_files() -> None:
+    """LRU-evict saved slot files beyond PROXY_SLOT_CACHE_MAX_FILES.
+
+    The session currently owning the slot is never evicted (its file is the
+    live restore point). Eviction order is oldest-access first.
+    """
+    if len(_slot_lru) <= PROXY_SLOT_CACHE_MAX_FILES:
+        return
+    evictable = [s for s in _slot_lru if s != _slot_owner_session]
+    excess = len(_slot_lru) - PROXY_SLOT_CACHE_MAX_FILES
+    for old_session in evictable[:excess]:
+        old_path = os.path.join(PROXY_SLOT_SAVE_DIR, _slot_filename(old_session))
+        try:
+            os.remove(old_path)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("SLOT EVICT error: %s", exc)
+        del _slot_lru[old_session]
+        logger.info("SLOT EVICT: removed LRU slot file for session=%s", old_session)
+
+
+async def _ensure_slot_for_session(
+    client: httpx.AsyncClient | None, session_id: str | None
+) -> None:
+    """Make the upstream slot hold *session_id*'s KV state.
+
+    Called inside the upstream_semaphore-held section, so module state is
+    mutated without an extra lock. No-op when slot save/restore is disabled
+    or the slot already belongs to this session. On a session switch, saves
+    the outgoing session's state and restores the incoming session's.
+    """
+    global _slot_owner_session
+    if not PROXY_SLOT_SAVE_RESTORE or not session_id or client is None:
+        return
+    if session_id == _slot_owner_session:
+        if session_id in _slot_lru:
+            _slot_lru.move_to_end(session_id)
+        return
+    if _slot_owner_session is not None:
+        if await _save_slot(client, _slot_owner_session):
+            _slot_lru[_slot_owner_session] = time.time()
+            _slot_lru.move_to_end(_slot_owner_session)
+    await _restore_slot(client, session_id)
+    _slot_owner_session = session_id
+    _slot_lru[session_id] = time.time()
+    _slot_lru.move_to_end(session_id)
+    _evict_slot_files()
+
+
+def _prepare_slot_save_dir() -> None:
+    """Create + clear the slot-save directory at proxy startup.
+
+    Stale files from a previous run may be shape-incompatible with the
+    current model (e.g. after a 35B->27B switch); restoring a mismatched
+    file could crash or corrupt the slot. Clearing on startup is the safe
+    belt-and-suspenders move — cross-restart cache reuse is sacrificed for
+    correctness. llama-server itself also rejects mismatched restores, but
+    we do not rely on that alone.
+    """
+    if not PROXY_SLOT_SAVE_RESTORE:
+        return
+    try:
+        os.makedirs(PROXY_SLOT_SAVE_DIR, exist_ok=True)
+        removed = 0
+        for f in os.listdir(PROXY_SLOT_SAVE_DIR):
+            if f.startswith("slot-") and f.endswith(".bin"):
+                os.remove(os.path.join(PROXY_SLOT_SAVE_DIR, f))
+                removed += 1
+        _slot_lru.clear()
+        logger.info(
+            "SLOT SAVE/RESTORE: enabled, dir=%s, cleared %d stale file(s) on startup",
+            PROXY_SLOT_SAVE_DIR, removed,
+        )
+    except OSError as exc:
+        logger.warning("SLOT SAVE/RESTORE: startup dir prep failed: %s", exc)
+
+
 async def _acquire_upstream_slot() -> bool:
     """Acquire a semaphore slot for an upstream request.
 
@@ -1588,6 +1768,9 @@ async def _post_with_retry(
             request=None,
         )
     try:
+        # Inside the serialized section: swap the upstream slot's KV state to
+        # this request's session if needed (no-op when disabled or unchanged).
+        await _ensure_slot_for_session(client, _current_request_session.get())
         return await _post_with_retry_inner(client, url, payload, headers)
     finally:
         _release_upstream_slot()
@@ -1715,6 +1898,7 @@ async def lifespan(app: FastAPI):
         PROXY_CONCURRENCY_LIMIT,
         PROXY_CONCURRENCY_QUEUE_TIMEOUT,
     )
+    _prepare_slot_save_dir()
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(
             connect=10.0,  # 10s to establish connection
@@ -7155,6 +7339,12 @@ async def messages(request: Request):
     session_id = resolve_session_id(request, body)
     monitor = get_session_monitor(session_id)
     last_session_id = session_id
+    # Make the session id visible to _ensure_slot_for_session inside
+    # _post_with_retry. The /v1/chat/completions handler also reaches this
+    # path (it builds a synthetic request and calls messages()), so this
+    # single set covers both the Anthropic and OpenAI-passthrough entry
+    # points for local llama-server requests.
+    _current_request_session.set(session_id)
 
     profile_prompt_suffix = None
     profile_grammar = None
