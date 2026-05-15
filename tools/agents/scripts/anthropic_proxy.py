@@ -8250,7 +8250,7 @@ async def models():
             {"id": "claude-haiku-4-5-20251001", "object": "model"},
             {"id": "claude-sonnet-4-6", "object": "model"},
             {"id": "claude-opus-4-7", "object": "model"},
-            {"id": "qwen35-a3b-iq4xs", "object": "model"},
+            {"id": "qwen36-27b-iq4xs", "object": "model"},
         ]
     }
 

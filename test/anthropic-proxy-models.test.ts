@@ -23,14 +23,16 @@ describe('Anthropic proxy model list', () => {
   it('includes the local Qwen model ID for actual routing target', () => {
     // With ANTHROPIC_PASSTHROUGH_MODELS=__local_only__ all advertised IDs
     // (including the Claude ones above) actually round-trip to this local
-    // backend. The qwen35-a3b-iq4xs entry is what the proxy genuinely serves.
-    expect(content).toContain('qwen35-a3b-iq4xs');
+    // backend. The qwen36-27b-iq4xs entry is what the proxy genuinely
+    // serves as of 2026-05-15 (switched from qwen35-a3b-iq4xs).
+    expect(content).toContain('qwen36-27b-iq4xs');
   });
 
-  it('drops the stale dated 4-6 variants and unrelated gpt-5 entries', () => {
+  it('drops stale upstream model IDs no longer served', () => {
     // Pre-2026-05 the list advertised dated 4-6 IDs (now superseded by
     // 4-7 family) and gpt-5 entries that the proxy never routed to (it
-    // doesn't speak the OpenAI Models API upstream). They were noise.
+    // doesn't speak the OpenAI Models API upstream). Also drops the
+    // qwen35-a3b-iq4xs label after the 2026-05-15 switch to dense 27B.
     // Substring negative-checks avoid false positives from legit content:
     // we look for the exact stale model IDs as quoted strings.
     expect(content).not.toContain('"claude-opus-4-6-20260101"');
@@ -38,5 +40,6 @@ describe('Anthropic proxy model list', () => {
     expect(content).not.toContain('"claude-opus-4-6-20250616"');
     expect(content).not.toContain('"gpt-5.4"');
     expect(content).not.toContain('"gpt-5.3-codex"');
+    expect(content).not.toContain('"qwen35-a3b-iq4xs"');
   });
 });

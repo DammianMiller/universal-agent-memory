@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.41 (2026-05-15)
+
+- proxy: update /v1/models local model ID to qwen36-27b-iq4xs
+
+
 ## v1.20.40 (2026-05-14)
 
 - proxy: strip unclosed <think> tags from response body (Anthropic-spec compliance)
