@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.46 (2026-05-17)
+
+- proxy: make slot save/restore HTTP timeouts configurable + raise defaults
+
+
 ## v1.20.45 (2026-05-17)
 
 - proxy: strip JSON-schema "format" keyword from tool schemas (GBNF fix)
