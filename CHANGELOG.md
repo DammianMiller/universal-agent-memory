@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.45 (2026-05-17)
+
+- proxy: strip JSON-schema "format" keyword from tool schemas (GBNF fix)
+
+
 ## v1.20.44 (2026-05-17)
 
 - proxy: update /v1/models local model ID to qwen36-35b-a3b-iq4xs
