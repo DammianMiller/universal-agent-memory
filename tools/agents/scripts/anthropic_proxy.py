@@ -812,7 +812,12 @@ class SessionMonitor:
         turns_str = f"~{turns} turns remaining" if turns is not None else "unknown"
 
         if warning == "CRITICAL":
-            logger.error(
+            # WARNING, not ERROR: critical context utilization is a *handled*
+            # condition — the proxy force-prunes and the session continues.
+            # Logging it at ERROR floods the error stream (100+/2h for a few
+            # context-saturated agentic sessions) and drowns genuine failures.
+            # CONTEXT HIGH below is already WARNING; this keeps parity.
+            logger.warning(
                 "CONTEXT CRITICAL: %d/%d tokens (%.1f%%), %s, pruned=%d, overflows=%d",
                 self.last_input_tokens,
                 self.context_window,
