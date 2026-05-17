@@ -2472,8 +2472,21 @@ def _completion_blockers(
 def _sanitize_tool_schema_for_llama(schema):
     """Remove JSON Schema keywords that generate unsupported regex grammar.
 
-    llama.cpp's tool grammar generator can fail on regex-heavy schema fields
-    such as "pattern" and "patternProperties" (for example "\\w").
+    llama.cpp's tool grammar generator can fail on regex-heavy schema fields:
+
+    - "pattern" / "patternProperties" — regex strings (e.g. "\\w").
+    - "format" — string formats. llama.cpp's json-schema-to-grammar turns
+      "format": "date" / "date-time" / "time" / "uuid" into grammar rules
+      built from `\\d`, which its own GBNF parser then rejects with
+      `error parsing grammar: unknown escape at \\d...` → `failed to parse
+      grammar`. Observed on MCP tools with date fields (Atlassian
+      getJiraIssue, tempo bulkCreateWorklogs). "format" is an advisory
+      annotation — dropping it just leaves the field as an unconstrained
+      string in the tool-call grammar, which is correct behaviour.
+
+    All three are stripped only when they appear as schema *keywords*, not
+    when they are property *names* (a tool may legitimately have a parameter
+    literally called "pattern" or "format").
     """
 
     removed = 0
@@ -2486,7 +2499,7 @@ def _sanitize_tool_schema_for_llama(schema):
             for key, value in node.items():
                 key_is_property_name = parent_key in property_map_keys
                 if (
-                    key == "pattern"
+                    key in ("pattern", "format")
                     and isinstance(value, str)
                     and not key_is_property_name
                 ):

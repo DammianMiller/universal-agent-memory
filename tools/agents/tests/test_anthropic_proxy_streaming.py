@@ -284,6 +284,79 @@ class TestToolSchemaSanitization(unittest.TestCase):
         self.assertIn("pattern", params["required"])
         self.assertEqual(params["properties"]["pattern"]["type"], "string")
 
+    def test_convert_tools_strips_format_fields(self):
+        """A string field with "format": "date" must have format stripped.
+        llama.cpp's json-schema-to-grammar turns format:date/date-time/etc.
+        into `\\d`-based grammar rules that its own GBNF parser then rejects
+        ('unknown escape at \\d' -> 'failed to parse grammar'). Observed on
+        MCP tools like tempo bulkCreateWorklogs (a worklogEntries[].date
+        field) and Atlassian getJiraIssue."""
+        anthropic_tools = [
+            {
+                "name": "bulkCreateWorklogs",
+                "description": "test",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "worklogEntries": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "date": {
+                                        "type": "string",
+                                        "format": "date",
+                                    },
+                                    "started": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                    },
+                                },
+                            },
+                        }
+                    },
+                },
+            }
+        ]
+
+        converted = proxy._convert_anthropic_tools_to_openai(anthropic_tools)
+        item = converted[0]["function"]["parameters"]["properties"][
+            "worklogEntries"
+        ]["items"]
+        self.assertNotIn("format", item["properties"]["date"])
+        self.assertNotIn("format", item["properties"]["started"])
+        # The field itself and its type survive — only the format hint goes.
+        self.assertEqual(item["properties"]["date"]["type"], "string")
+
+    def test_convert_tools_keeps_property_named_format(self):
+        """A tool parameter literally named "format" (e.g. an output-format
+        selector) must NOT be stripped — only the format *keyword* is."""
+        anthropic_tools = [
+            {
+                "name": "ExportTool",
+                "description": "test",
+                "input_schema": {
+                    "type": "object",
+                    "required": ["format"],
+                    "properties": {
+                        "format": {
+                            "type": "string",
+                            "enum": ["json", "csv", "yaml"],
+                            "description": "Output format",
+                        },
+                    },
+                },
+            }
+        ]
+
+        converted = proxy._convert_anthropic_tools_to_openai(anthropic_tools)
+        params = converted[0]["function"]["parameters"]
+        self.assertIn("format", params["required"])
+        self.assertEqual(params["properties"]["format"]["type"], "string")
+        self.assertEqual(
+            params["properties"]["format"]["enum"], ["json", "csv", "yaml"]
+        )
+
 
 class TestStreamGuardedPathSelection(unittest.TestCase):
     def test_required_tool_turn_uses_guarded_non_stream(self):
