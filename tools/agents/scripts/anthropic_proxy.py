@@ -1523,6 +1523,14 @@ PROXY_SLOT_SAVE_DIR = os.environ.get(
 PROXY_SLOT_CACHE_MAX_FILES = int(os.environ.get("PROXY_SLOT_CACHE_MAX_FILES", "12"))
 # llama-server slot id — always 0 under --parallel 1.
 PROXY_SLOT_ID = int(os.environ.get("PROXY_SLOT_ID", "0"))
+# HTTP timeouts for the /slots save|restore calls. A large session's KV
+# state (131k ctx) is ~1 GiB; serializing it to / loading it from disk on
+# a slower model (e.g. Qwen3.6-35B-A3B MoE) can exceed the original
+# hardcoded 60s/120s, surfacing as `SLOT SAVE/RESTORE error` with an empty
+# httpx-timeout exception. Restore is given more headroom than save since
+# it also waits on the disk read + KV reload.
+PROXY_SLOT_SAVE_TIMEOUT = float(os.environ.get("PROXY_SLOT_SAVE_TIMEOUT", "180"))
+PROXY_SLOT_RESTORE_TIMEOUT = float(os.environ.get("PROXY_SLOT_RESTORE_TIMEOUT", "300"))
 
 # Module state. Mutated only inside the upstream_semaphore-held section
 # (_post_with_retry), so no extra lock is needed.
@@ -1556,7 +1564,9 @@ async def _save_slot(client: httpx.AsyncClient, session_id: str) -> bool:
     fn = _slot_filename(session_id)
     url = f"{_slot_endpoint_base()}/slots/{PROXY_SLOT_ID}?action=save"
     try:
-        resp = await client.post(url, json={"filename": fn}, timeout=60.0)
+        resp = await client.post(
+            url, json={"filename": fn}, timeout=PROXY_SLOT_SAVE_TIMEOUT
+        )
         if resp.status_code == 200:
             logger.info("SLOT SAVE: session=%s -> %s", session_id, fn)
             return True
@@ -1565,7 +1575,12 @@ async def _save_slot(client: httpx.AsyncClient, session_id: str) -> bool:
             session_id, resp.status_code, resp.text[:200],
         )
     except Exception as exc:
-        logger.warning("SLOT SAVE error: session=%s %s", session_id, exc)
+        # Include the exception TYPE — httpx timeout exceptions stringify
+        # to "" and an empty message log line is undiagnosable.
+        logger.warning(
+            "SLOT SAVE error: session=%s %s: %s",
+            session_id, type(exc).__name__, exc,
+        )
     return False
 
 
@@ -1581,7 +1596,9 @@ async def _restore_slot(client: httpx.AsyncClient, session_id: str) -> bool:
         return False
     url = f"{_slot_endpoint_base()}/slots/{PROXY_SLOT_ID}?action=restore"
     try:
-        resp = await client.post(url, json={"filename": fn}, timeout=120.0)
+        resp = await client.post(
+            url, json={"filename": fn}, timeout=PROXY_SLOT_RESTORE_TIMEOUT
+        )
         if resp.status_code == 200:
             logger.info("SLOT RESTORE: session=%s <- %s", session_id, fn)
             return True
@@ -1590,7 +1607,12 @@ async def _restore_slot(client: httpx.AsyncClient, session_id: str) -> bool:
             session_id, resp.status_code, resp.text[:200],
         )
     except Exception as exc:
-        logger.warning("SLOT RESTORE error: session=%s %s", session_id, exc)
+        # Include the exception TYPE — httpx timeout exceptions stringify
+        # to "" and an empty message log line is undiagnosable.
+        logger.warning(
+            "SLOT RESTORE error: session=%s %s: %s",
+            session_id, type(exc).__name__, exc,
+        )
     return False
 
 

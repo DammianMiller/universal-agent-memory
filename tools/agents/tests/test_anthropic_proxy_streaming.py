@@ -5212,14 +5212,14 @@ class TestThinkingBlockExtraction(unittest.TestCase):
 
 
 class _SlotFakeClient:
-    """Records POST calls for slot save/restore tests."""
+    """Records POST calls (incl. the timeout kwarg) for slot tests."""
 
     def __init__(self, status_code=200):
         self.calls = []
         self._status = status_code
 
     async def post(self, url, json=None, timeout=None):  # noqa: A002
-        self.calls.append({"url": url, "json": json})
+        self.calls.append({"url": url, "json": json, "timeout": timeout})
         return _FakeResponse({}, status_code=self._status)
 
 
@@ -5240,6 +5240,8 @@ class TestSlotSaveRestore(unittest.TestCase):
                 "PROXY_SLOT_SAVE_RESTORE",
                 "PROXY_SLOT_CACHE_MAX_FILES",
                 "PROXY_SLOT_ID",
+                "PROXY_SLOT_SAVE_TIMEOUT",
+                "PROXY_SLOT_RESTORE_TIMEOUT",
                 "_slot_owner_session",
             )
         }
@@ -5325,6 +5327,29 @@ class TestSlotSaveRestore(unittest.TestCase):
         # Both sessions are now tracked in the LRU.
         self.assertIn("fp:aaaa", proxy._slot_lru)
         self.assertIn("fp:bbbb", proxy._slot_lru)
+
+    def test_slot_timeout_defaults_are_sane(self):
+        """Slot save/restore HTTP timeouts must be configurable and large
+        enough for a slow model's ~1 GiB KV serialization. Restore gets more
+        headroom than save (it also waits on disk read + KV reload)."""
+        self.assertIsInstance(proxy.PROXY_SLOT_SAVE_TIMEOUT, float)
+        self.assertIsInstance(proxy.PROXY_SLOT_RESTORE_TIMEOUT, float)
+        # Both above the original hardcoded 60s/120s that were too tight
+        # for the 35B-A3B (surfaced as empty-message SLOT SAVE/RESTORE errors).
+        self.assertGreaterEqual(proxy.PROXY_SLOT_SAVE_TIMEOUT, 120.0)
+        self.assertGreaterEqual(proxy.PROXY_SLOT_RESTORE_TIMEOUT, 180.0)
+        self.assertGreaterEqual(
+            proxy.PROXY_SLOT_RESTORE_TIMEOUT, proxy.PROXY_SLOT_SAVE_TIMEOUT
+        )
+
+    def test_save_slot_passes_configured_timeout(self):
+        """_save_slot must hand its httpx POST the configured
+        PROXY_SLOT_SAVE_TIMEOUT, not a hardcoded value."""
+        proxy.PROXY_SLOT_SAVE_TIMEOUT = 222.0
+        client = _SlotFakeClient(status_code=200)
+        asyncio.run(proxy._save_slot(client, "fp:timeoutcheck"))
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.calls[0]["timeout"], 222.0)
 
     def test_evict_slot_files_respects_lru_cap_and_owner(self):
         """LRU eviction removes oldest entries beyond the cap but never the
