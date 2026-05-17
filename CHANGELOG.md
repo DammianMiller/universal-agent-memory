@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.47 (2026-05-17)
+
+- proxy: log CONTEXT CRITICAL at WARNING, not ERROR
+
+
 ## v1.20.46 (2026-05-17)
 
 - proxy: make slot save/restore HTTP timeouts configurable + raise defaults
