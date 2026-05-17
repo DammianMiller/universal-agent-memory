@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.44 (2026-05-17)
+
+- proxy: update /v1/models local model ID to qwen36-35b-a3b-iq4xs
+
+
 ## v1.20.43 (2026-05-15)
 
 - scripts: make slot save/restore the default for both continuity services

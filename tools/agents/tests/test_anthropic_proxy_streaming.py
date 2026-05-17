@@ -5028,12 +5028,13 @@ class TestModelsEndpoint(unittest.TestCase):
         self.assertIn("claude-sonnet-4-6", ids)
         self.assertIn("claude-opus-4-7", ids)
 
-        # Local model — what llama-server actually serves. Updated
-        # 2026-05-15 from qwen35-a3b-iq4xs after the switch from 35B-A3B
-        # MoE to Qwen3.6-27B dense (see project_active_server memory).
-        # Requests for this ID route locally even with __local_only__
-        # passthrough sentinel set.
-        self.assertIn("qwen36-27b-iq4xs", ids)
+        # Local model — what llama-server actually serves. Tracks the
+        # active model: qwen36-35b-a3b-iq4xs as of the 2026-05-17 switch
+        # back to Qwen3.6-35B-A3B MoE from the 27B dense (see
+        # project_active_server memory). Requests for this ID route
+        # locally even with the __local_only__ passthrough sentinel set.
+        self.assertIn("qwen36-35b-a3b-iq4xs", ids)
+        self.assertNotIn("qwen36-27b-iq4xs", ids)
         self.assertNotIn("qwen35-a3b-iq4xs", ids)
 
     def test_models_endpoint_drops_stale_4_6_dated_variants(self):
