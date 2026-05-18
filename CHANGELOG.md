@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.48 (2026-05-18)
+
+- proxy: recon-convergence guardrail — nudge stuck explorers to the deliverable
+
+
 ## v1.20.47 (2026-05-17)
 
 - proxy: log CONTEXT CRITICAL at WARNING, not ERROR
