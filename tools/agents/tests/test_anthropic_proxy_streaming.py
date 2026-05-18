@@ -5371,3 +5371,84 @@ class TestSlotSaveRestore(unittest.TestCase):
         self.assertIn("fp:owner", proxy._slot_lru)
         self.assertIn("fp:new1", proxy._slot_lru)
         self.assertIn("fp:new2", proxy._slot_lru)
+
+
+class TestReconConvergence(unittest.TestCase):
+    """Tests for the B1 recon-convergence guardrail — nudges a session
+    stuck doing read-only exploration toward producing its deliverable.
+
+    Targets the observed failure: a 664-turn agentic recon task that read
+    files for hours and never converged to the synthesis/write step."""
+
+    def setUp(self):
+        self._threshold = proxy.PROXY_RECON_CONVERGENCE_THRESHOLD
+
+    def tearDown(self):
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = self._threshold
+
+    def test_readonly_turns_increment_the_streak(self):
+        """Consecutive turns using only read-only tools grow the streak."""
+        m = proxy.SessionMonitor(context_window=131072)
+        for _ in range(5):
+            m.record_tool_calls(["Read"])
+        self.assertEqual(m.consecutive_readonly_turns, 5)
+        m.record_tool_calls(["Grep", "Glob"])
+        self.assertEqual(m.consecutive_readonly_turns, 6)
+
+    def test_non_readonly_tool_resets_the_streak(self):
+        """A turn using a write/edit tool means the model converged toward
+        action — the streak resets to 0."""
+        m = proxy.SessionMonitor(context_window=131072)
+        for _ in range(10):
+            m.record_tool_calls(["Read"])
+        self.assertEqual(m.consecutive_readonly_turns, 10)
+        m.record_tool_calls(["Write"])
+        self.assertEqual(m.consecutive_readonly_turns, 0)
+
+    def test_mixed_turn_with_one_write_resets(self):
+        """A turn mixing read-only and a write tool still counts as
+        converging — any non-read-only tool resets."""
+        m = proxy.SessionMonitor(context_window=131072)
+        for _ in range(10):
+            m.record_tool_calls(["Read"])
+        m.record_tool_calls(["Read", "Edit"])
+        self.assertEqual(m.consecutive_readonly_turns, 0)
+
+    def test_no_injection_below_threshold(self):
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_readonly_turns = 39
+        body = {"messages": [{"role": "user", "content": "go"}]}
+        proxy._maybe_inject_recon_convergence(body, m)
+        self.assertEqual(len(body["messages"]), 1)
+
+    def test_firm_directive_at_threshold(self):
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_readonly_turns = 45
+        m.last_input_tokens = 120000
+        body = {"messages": [{"role": "user", "content": "go"}]}
+        proxy._maybe_inject_recon_convergence(body, m)
+        self.assertEqual(len(body["messages"]), 2)
+        injected = body["messages"][-1]["content"]
+        self.assertIn("synthesis", injected.lower())
+        self.assertNotIn("STOP exploring", injected)
+
+    def test_hard_directive_at_2x_threshold(self):
+        """Once the streak is 2x over threshold, escalate to a hard STOP."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_readonly_turns = 80
+        m.last_input_tokens = 250000  # over budget — the real-incident shape
+        body = {"messages": [{"role": "user", "content": "go"}]}
+        proxy._maybe_inject_recon_convergence(body, m)
+        injected = body["messages"][-1]["content"]
+        self.assertIn("STOP exploring", injected)
+
+    def test_disabled_when_threshold_zero(self):
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 0
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_readonly_turns = 500
+        body = {"messages": [{"role": "user", "content": "go"}]}
+        proxy._maybe_inject_recon_convergence(body, m)
+        self.assertEqual(len(body["messages"]), 1)
