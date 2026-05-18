@@ -712,6 +712,7 @@ class SessionMonitor:
     peak_input_tokens: int = 0  # High-water mark
     prune_count: int = 0  # How many times pruning was triggered
     overflow_count: int = 0  # How many context overflow errors caught
+    prune_drop_count: int = 0  # monotonic: # of oldest middle msgs pruned (B3)
     context_history: list = field(default_factory=list)  # Recent token counts
 
     # --- Token Loop Protection ---
@@ -1318,24 +1319,83 @@ def estimate_total_tokens(anthropic_body: dict) -> int:
     return tokens
 
 
+# Max tool-result breadcrumbs listed in a prune summary (B2). Bounds the
+# summary size — beyond this the oldest breadcrumbs are elided.
+_PRUNE_SUMMARY_MAX_ITEMS = int(os.environ.get("PROXY_PRUNE_SUMMARY_MAX_ITEMS", "30"))
+
+
+def _summarize_pruned_block(dropped: list[dict]) -> str:
+    """Build a compact breadcrumb summary of pruned messages (B2).
+
+    Instead of discarding dropped tool-results outright, leave a one-line
+    trace of each so the agent retains *what it already found*. A recon
+    agent that can still see "I read auth_handler.cpp — JWT validation in
+    validateToken()" is far likelier to converge to a synthesis than one
+    whose findings vanished entirely and which therefore re-explores.
+
+    Heuristic only — no LLM call. Bounded to the most recent
+    PROXY_PRUNE_SUMMARY_MAX_ITEMS tool-result breadcrumbs so the summary
+    itself cannot grow unbounded.
+    """
+    breadcrumbs: list[str] = []
+    for msg in dropped:
+        content = msg.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                text = _extract_text(block.get("content", "")).strip()
+                if not text:
+                    continue
+                excerpt = " ".join(text.split())[:100]
+                breadcrumbs.append(
+                    f"- tool result (~{estimate_tokens(text)} tok): {excerpt}"
+                )
+    if not breadcrumbs:
+        return (
+            "[CONTEXT PRUNED: older messages were removed to fit the context "
+            "window. The conversation continues from recent context below.]"
+        )
+    total = len(breadcrumbs)
+    if total > _PRUNE_SUMMARY_MAX_ITEMS:
+        breadcrumbs = breadcrumbs[-_PRUNE_SUMMARY_MAX_ITEMS:]
+    header = (
+        f"[CONTEXT PRUNED — {len(dropped)} older messages removed to fit the "
+        "context window. Breadcrumbs of earlier findings"
+    )
+    if total > len(breadcrumbs):
+        header += f" (most recent {len(breadcrumbs)} of {total} tool results)"
+    header += " — rely on these instead of re-reading those files:]"
+    return header + "\n" + "\n".join(breadcrumbs)
+
+
 def prune_conversation(
     anthropic_body: dict,
     context_window: int,
+    monitor: "SessionMonitor | None" = None,
     target_fraction: float = 0.65,
     keep_last: int = 8,
 ) -> dict:
     """Prune the conversation to fit within the context window.
 
-    Strategy:
-    - Always keep: system prompt, first user message, last N messages
-    - Remove from the middle: oldest tool_result messages first (they're
-      the largest -- file contents, command output, etc.), then oldest
-      assistant messages, then oldest user messages.
-    - Inject a [CONTEXT PRUNED] marker so the model knows history was trimmed.
+    Strategy (reworked — UAP PR #186):
+    - Always keep: system prompt, first user message, last N messages.
+    - Drop a CONTIGUOUS block of the oldest middle messages. The drop
+      count is persisted per-session on the monitor (`prune_drop_count`)
+      and is monotonic — it only ever grows. This keeps the retained
+      region a stable recent *suffix*: on turns where the boundary does
+      not advance, the upstream KV-cache prefix stays valid and the turn
+      is not reprocessed. (The previous priority-greedy keep was
+      non-contiguous and reshuffled the prompt mid-stream every turn,
+      defeating the cache.)
+    - Replace the dropped block with a breadcrumb summary (see
+      _summarize_pruned_block) so the agent keeps its earlier findings.
 
     Args:
         anthropic_body: The full Anthropic request body
         context_window: Maximum context window in tokens
+        monitor: SessionMonitor — carries the monotonic prune boundary.
+            When None, pruning still works but is non-monotonic per call.
         target_fraction: Target utilization after pruning (0.0-1.0)
         keep_last: Number of recent messages to always keep (default 8)
 
@@ -1411,70 +1471,39 @@ def prune_conversation(
 
     remaining_budget = message_budget - protected_tokens
 
-    # Score middle messages for removal priority:
-    # - tool_result messages: remove first (biggest, least important historically)
-    # - assistant text-only: remove second
-    # - user messages: remove last (provide context for the model's actions)
-    # Within each category, remove oldest first.
-    scored_middle = []
-    for i, msg in enumerate(middle):
-        content = msg.get("content", [])
-        tokens = estimate_message_tokens(msg)
-        is_tool_result = False
-        is_assistant = msg.get("role") == "assistant"
+    # --- Monotonic contiguous prune boundary (cache-stable, B3) ---
+    # Drop the oldest `drop_count` middle messages as one contiguous block.
+    # Seed from the monitor's persisted boundary; advance it only as far as
+    # the budget forces. Persist back monotonically so a later/looser prune
+    # in the same turn can't shrink it (which would reshuffle the prompt).
+    drop_count = 0
+    if monitor is not None:
+        drop_count = min(max(0, monitor.prune_drop_count), len(middle))
+    while drop_count < len(middle):
+        kept_tokens = sum(estimate_message_tokens(m) for m in middle[drop_count:])
+        if kept_tokens <= remaining_budget:
+            break
+        drop_count += 1
+    if monitor is not None:
+        monitor.prune_drop_count = max(monitor.prune_drop_count, drop_count)
 
-        if isinstance(content, list):
-            is_tool_result = any(
-                isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-            )
+    dropped = middle[:drop_count]
+    kept_msgs = middle[drop_count:]
 
-        # Lower priority = removed first
-        if is_tool_result:
-            priority = 0  # Remove first
-        elif is_assistant:
-            priority = 1  # Remove second
-        else:
-            priority = 2  # Remove last (user messages)
-
-        scored_middle.append((priority, i, tokens, msg))
-
-    # Sort by priority (ascending = remove first), then by index (oldest first)
-    scored_middle.sort(key=lambda x: (x[0], x[1]))
-
-    # Greedily keep messages from highest priority (keep last) until budget fills
-    kept_middle = []
-    used_tokens = 0
-    # Process in reverse priority order (keep high-priority messages first)
-    for priority, idx, tokens, msg in reversed(scored_middle):
-        if used_tokens + tokens <= remaining_budget:
-            kept_middle.append((idx, msg))
-            used_tokens += tokens
-
-    # Sort kept messages back into original order
-    kept_middle.sort(key=lambda x: x[0])
-    kept_msgs = [m for _, m in kept_middle]
-
-    removed_count = len(middle) - len(kept_msgs)
-    removed_tokens = sum(t for _, _, t, _ in scored_middle) - used_tokens
-
-    if removed_count > 0:
-        # Insert a context-pruned marker
+    if dropped:
+        # Replace the dropped block with a findings-breadcrumb summary (B2).
         prune_marker = {
             "role": "user",
-            "content": (
-                f"[CONTEXT PRUNED: {removed_count} older messages (~{removed_tokens} tokens) "
-                f"were removed to fit within the context window. "
-                f"The conversation continues from recent context below.]"
-            ),
+            "content": _summarize_pruned_block(dropped),
         }
         anthropic_body["messages"] = (
             protected_head + [prune_marker] + kept_msgs + protected_tail
         )
         logger.warning(
-            "PRUNED: removed %d messages (~%d tokens), kept %d messages, "
-            "target=%.0f%% of %d ctx",
-            removed_count,
-            removed_tokens,
+            "PRUNED: dropped %d oldest middle messages (boundary=%d), "
+            "kept %d total, target=%.0f%% of %d ctx",
+            len(dropped),
+            drop_count,
             len(anthropic_body["messages"]),
             target_fraction * 100,
             context_window,
@@ -7560,7 +7589,8 @@ async def messages(request: Request):
                     target_frac * 100,
                 )
             body = prune_conversation(
-                body, ctx_window, target_fraction=target_frac, keep_last=keep_last
+                body, ctx_window, monitor=monitor,
+                target_fraction=target_frac, keep_last=keep_last,
             )
             monitor.prune_count += 1
             # Option 4: Post-prune validation — verify actual reduction
@@ -7581,7 +7611,8 @@ async def messages(request: Request):
                     post_util * 100,
                 )
                 body = prune_conversation(
-                    body, ctx_window, target_fraction=0.35, keep_last=4
+                    body, ctx_window, monitor=monitor,
+                    target_fraction=0.35, keep_last=4,
                 )
                 monitor.prune_count += 1
                 estimated_tokens = estimate_total_tokens(body)

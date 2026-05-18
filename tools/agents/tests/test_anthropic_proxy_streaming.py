@@ -5452,3 +5452,108 @@ class TestReconConvergence(unittest.TestCase):
         body = {"messages": [{"role": "user", "content": "go"}]}
         proxy._maybe_inject_recon_convergence(body, m)
         self.assertEqual(len(body["messages"]), 1)
+
+
+class TestPrunerRework(unittest.TestCase):
+    """Tests for the reworked context pruner (B2 + B3): contiguous
+    monotonic prune boundary (cache-stable) + breadcrumb summary of the
+    dropped block (findings retained)."""
+
+    @staticmethod
+    def _tool_result_msg(idx: int, size: int = 4000) -> dict:
+        return {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": f"toolu_{idx}",
+                    "content": f"FILE-{idx} " + ("x" * size),
+                }
+            ],
+        }
+
+    def _big_body(self, n_middle: int = 20) -> dict:
+        msgs = [{"role": "user", "content": "recon task: analyze the repo"}]
+        for i in range(n_middle):
+            msgs.append({"role": "assistant", "content": f"reading file {i}"})
+            msgs.append(self._tool_result_msg(i))
+        msgs.append({"role": "user", "content": "continue"})
+        return {"messages": msgs}
+
+    def test_prune_drop_count_is_monotonic(self):
+        """The per-session prune boundary only ever grows."""
+        m = proxy.SessionMonitor(context_window=8192)
+        proxy.prune_conversation(self._big_body(), 8192, monitor=m,
+                                 target_fraction=0.5, keep_last=6)
+        first = m.prune_drop_count
+        self.assertGreater(first, 0)
+        # A tighter target on the same body can only drop more, never fewer.
+        proxy.prune_conversation(self._big_body(), 8192, monitor=m,
+                                 target_fraction=0.25, keep_last=6)
+        self.assertGreaterEqual(m.prune_drop_count, first)
+
+    def test_kept_middle_is_contiguous_suffix(self):
+        """The pruner drops a contiguous oldest block — the surviving
+        middle messages are a contiguous suffix of the original middle,
+        never a non-contiguous greedy pick."""
+        m = proxy.SessionMonitor(context_window=8192)
+        body = self._big_body()
+        original = list(body["messages"])
+        result = proxy.prune_conversation(body, 8192, monitor=m,
+                                          target_fraction=0.5, keep_last=6)
+        out = result["messages"]
+        survivors = [msg for msg in out if msg in original]
+        idxs = [original.index(msg) for msg in survivors]
+        self.assertEqual(idxs, sorted(idxs))
+        tail_idxs = [i for i in idxs if i > 0]
+        if len(tail_idxs) > 1:
+            self.assertEqual(
+                tail_idxs, list(range(tail_idxs[0], tail_idxs[0] + len(tail_idxs)))
+            )
+
+    def test_stable_output_when_boundary_does_not_advance(self):
+        """Cache-stability: pruning the same body twice with the same
+        monitor yields byte-identical message lists — the second call
+        seeds from the persisted boundary and does not advance it."""
+        m = proxy.SessionMonitor(context_window=8192)
+        first = proxy.prune_conversation(self._big_body(), 8192, monitor=m,
+                                         target_fraction=0.5, keep_last=6)
+        boundary_after_first = m.prune_drop_count
+        second = proxy.prune_conversation(self._big_body(), 8192, monitor=m,
+                                          target_fraction=0.5, keep_last=6)
+        self.assertEqual(m.prune_drop_count, boundary_after_first)
+        self.assertEqual(first["messages"], second["messages"])
+
+    def test_dropped_tool_results_become_breadcrumbs(self):
+        """Pruned tool-results survive as one-line breadcrumbs in the
+        marker, not silently discarded."""
+        dropped = [self._tool_result_msg(i) for i in range(3)]
+        summary = proxy._summarize_pruned_block(dropped)
+        self.assertIn("CONTEXT PRUNED", summary)
+        self.assertIn("tool result", summary)
+        self.assertIn("FILE-0", summary)
+        self.assertIn("FILE-2", summary)
+
+    def test_summary_is_bounded_by_max_items(self):
+        """A huge dropped block does not produce an unbounded summary."""
+        old = proxy._PRUNE_SUMMARY_MAX_ITEMS
+        try:
+            proxy._PRUNE_SUMMARY_MAX_ITEMS = 5
+            dropped = [self._tool_result_msg(i) for i in range(40)]
+            summary = proxy._summarize_pruned_block(dropped)
+            self.assertEqual(summary.count("- tool result"), 5)
+            self.assertIn("most recent 5 of 40", summary)
+        finally:
+            proxy._PRUNE_SUMMARY_MAX_ITEMS = old
+
+    def test_summarize_no_tool_results_falls_back_to_static_marker(self):
+        """A dropped block with no tool-results yields the plain static
+        marker — no per-call varying text (cache-safe)."""
+        dropped = [
+            {"role": "assistant", "content": "thinking out loud"},
+            {"role": "user", "content": "ok"},
+        ]
+        summary = proxy._summarize_pruned_block(dropped)
+        self.assertIn("CONTEXT PRUNED", summary)
+        self.assertNotIn("tool result", summary)
+        self.assertNotIn("most recent", summary)
