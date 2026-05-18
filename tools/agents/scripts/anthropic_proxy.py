@@ -207,6 +207,19 @@ _READ_ONLY_TOOL_CLASS = frozenset({
     "search", "Search", "list_files", "ListFiles",
 })
 
+# Tools that produce or mutate a deliverable. Using any of these in a turn
+# means the agent is converging from exploration toward output, and resets
+# the recon-convergence streak (B1). This is deliberately a SHORT allowlist
+# of write tools, NOT a read-only denylist: exploration happens through an
+# open-ended set of tools (Bash, WebFetch, Agent, ...) that cannot be
+# enumerated, but "the agent produced a write" is a small, stable signal.
+# Names are matched case-insensitively (callers lower() before lookup).
+_WRITE_TOOL_CLASS = frozenset({
+    "write", "edit", "multiedit", "notebookedit",
+    "str_replace", "str_replace_editor", "str_replace_based_edit_tool",
+    "create_file", "applypatch", "apply_patch",
+})
+
 PROXY_GUARDRAIL_RETRY = os.environ.get("PROXY_GUARDRAIL_RETRY", "on").lower() not in {
     "0",
     "false",
@@ -224,12 +237,15 @@ PROXY_FINALIZE_CONTINUATION_MAX = int(
 PROXY_FINALIZE_SESSION_HARD_CAP = int(
     os.environ.get("PROXY_FINALIZE_SESSION_HARD_CAP", "3")
 )
-# Recon-convergence guardrail: after this many consecutive turns of PURE
-# read-only exploration (Read/Grep/Glob/etc. — no write/edit/deliverable
-# tool), the proxy injects a directive telling the model to stop exploring
-# and produce its deliverable. Targets the failure mode where an agentic
-# recon task reads files for hundreds of turns and never converges to the
+# Recon-convergence guardrail: after this many consecutive turns that use
+# tools but produce NO write/deliverable tool call (see _WRITE_TOOL_CLASS),
+# the proxy injects a directive telling the model to stop exploring and
+# produce its deliverable. Targets the failure mode where an agentic recon
+# task explores for hundreds of turns and never converges to the
 # synthesis/write step (observed: 664-turn recon, no deliverable started).
+# Defined as write-tool ABSENCE rather than read-tool presence: a real
+# recon agent explores via Bash/WebFetch/Agent, not just Read/Grep, so a
+# "all tools are recognized read-only" test never accumulates a streak.
 # 0 disables.
 PROXY_RECON_CONVERGENCE_THRESHOLD = int(
     os.environ.get("PROXY_RECON_CONVERGENCE_THRESHOLD", "40")
@@ -727,7 +743,7 @@ class SessionMonitor:
     )
     loop_warnings_emitted: int = 0  # How many loop warnings sent to the model
     no_progress_streak: int = 0  # Forced tool turns without new tool_result
-    consecutive_readonly_turns: int = 0  # turns of pure read-only exploration (B1)
+    consecutive_no_write_turns: int = 0  # turns exploring with no write tool (B1)
     unexpected_end_turn_count: int = 0  # end_turn without tool_use in active loop
     tool_starvation_streak: int = 0  # Consecutive forced turns with no tool_calls produced
     malformed_tool_streak: int = 0  # consecutive malformed pseudo tool payloads
@@ -885,15 +901,19 @@ class SessionMonitor:
         if len(self.tool_call_history) > 30:
             self.tool_call_history = self.tool_call_history[-30:]
 
-        # Recon-convergence (B1): count consecutive turns of PURE read-only
-        # exploration. A turn that uses any non-read-only tool (write, edit,
-        # a deliverable tool) resets the streak — that's the model
-        # converging from exploration toward synthesis/action.
-        _ro = {n.lower() for n in _READ_ONLY_TOOL_CLASS}
-        if tool_names and all(n.lower() in _ro for n in tool_names):
-            self.consecutive_readonly_turns += 1
-        else:
-            self.consecutive_readonly_turns = 0
+        # Recon-convergence (B1): count consecutive turns that use tools but
+        # produce NO write/deliverable tool call. A turn that uses any write
+        # tool resets the streak — that's the model converging from
+        # exploration toward synthesis/output. A turn with no tool calls at
+        # all is a plain-text turn (neither exploration nor a write) and
+        # leaves the streak unchanged. This is the inverse of the old
+        # "all tools are recognized read-only" test, which reset on any
+        # Bash/WebFetch/Agent turn and so never accumulated for real agents.
+        if tool_names:
+            if any(n.lower() in _WRITE_TOOL_CLASS for n in tool_names):
+                self.consecutive_no_write_turns = 0
+            else:
+                self.consecutive_no_write_turns += 1
 
         # Track read-only tool targets for dedup (Option 3)
         if tool_targets:
@@ -3269,46 +3289,46 @@ def _resolve_state_machine_tool_choice(
 
 
 def _maybe_inject_recon_convergence(openai_body: dict, monitor: "SessionMonitor") -> None:
-    """Nudge a session stuck in prolonged read-only exploration toward its
-    deliverable.
+    """Nudge a session stuck in prolonged exploration toward its deliverable.
 
-    Fires when `consecutive_readonly_turns` crosses
-    PROXY_RECON_CONVERGENCE_THRESHOLD — the model has read files for many
-    turns without writing anything. Targets the observed failure mode of
-    an agentic recon task wandering for hundreds of turns and never
-    converging to the synthesis/write step. Two escalation tiers: a firm
-    "switch to synthesis" directive, then a hard "STOP, write it now" once
-    the streak is 2x over threshold.
+    Fires when `consecutive_no_write_turns` crosses
+    PROXY_RECON_CONVERGENCE_THRESHOLD — the model has used tools for many
+    turns without producing any write/deliverable tool call. Targets the
+    observed failure mode of an agentic recon task wandering for hundreds
+    of turns and never converging to the synthesis/write step. Two
+    escalation tiers: a firm "switch to synthesis" directive, then a hard
+    "STOP, write it now" once the streak is 2x over threshold.
     """
     if PROXY_RECON_CONVERGENCE_THRESHOLD <= 0:
         return
-    streak = monitor.consecutive_readonly_turns
+    streak = monitor.consecutive_no_write_turns
     if streak < PROXY_RECON_CONVERGENCE_THRESHOLD:
         return
     util = monitor.get_utilization()
     if streak >= 2 * PROXY_RECON_CONVERGENCE_THRESHOLD:
         directive = (
             f"STOP exploring. You have run {streak} consecutive turns of "
-            f"read-only exploration and context is at {util * 100:.0f}%. "
-            "You will NOT finish if you keep reading files. Produce your "
-            "deliverable NOW from the information you already have — write "
-            "it to a file with the appropriate tool. Do not read anything else."
+            f"exploration without producing a deliverable and context is at "
+            f"{util * 100:.0f}%. You will NOT finish if you keep exploring. "
+            "Produce your deliverable NOW from the information you already "
+            "have — write it to a file with the appropriate tool. Do not "
+            "read or run anything else."
         )
         tier = "hard"
     else:
         directive = (
-            f"You have read files for {streak} consecutive turns without "
+            f"You have explored for {streak} consecutive turns without "
             f"producing a deliverable (context {util * 100:.0f}%). You have "
             "enough to begin. Switch from exploration to synthesis: write "
-            "your deliverable now. Read at most one more file, and only if "
-            "strictly required to write it."
+            "your deliverable now. Explore at most one more time, and only "
+            "if strictly required to write it."
         )
         tier = "firm"
     msgs = openai_body.get("messages", [])
     msgs.append({"role": "user", "content": directive})
     openai_body["messages"] = msgs
     logger.warning(
-        "RECON CONVERGENCE: injected %s directive (readonly_streak=%d, ctx=%.0f%%)",
+        "RECON CONVERGENCE: injected %s directive (no_write_streak=%d, ctx=%.0f%%)",
         tier, streak, util * 100,
     )
 
@@ -3821,8 +3841,8 @@ def build_openai_request(
         _apply_tool_call_grammar(openai_body, grammar_override=profile_grammar)
 
     # Recon-convergence guardrail (B1) — runs on every built request so a
-    # session wandering in read-only exploration is nudged toward its
-    # deliverable regardless of tool-turn phase.
+    # session wandering in exploration without producing a write is nudged
+    # toward its deliverable regardless of tool-turn phase.
     _maybe_inject_recon_convergence(openai_body, monitor)
 
     return openai_body

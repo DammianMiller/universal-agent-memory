@@ -5375,10 +5375,13 @@ class TestSlotSaveRestore(unittest.TestCase):
 
 class TestReconConvergence(unittest.TestCase):
     """Tests for the B1 recon-convergence guardrail — nudges a session
-    stuck doing read-only exploration toward producing its deliverable.
+    stuck exploring without producing a write toward its deliverable.
 
-    Targets the observed failure: a 664-turn agentic recon task that read
-    files for hours and never converged to the synthesis/write step."""
+    The streak is defined as write-tool ABSENCE, not read-tool presence: a
+    real recon agent explores via Bash/WebFetch/Agent, so an "all tools are
+    recognized read-only" test never accumulates. Targets the observed
+    failure: a 664-turn agentic recon task that explored for hours and
+    never converged to the synthesis/write step."""
 
     def setUp(self):
         self._threshold = proxy.PROXY_RECON_CONVERGENCE_THRESHOLD
@@ -5387,37 +5390,60 @@ class TestReconConvergence(unittest.TestCase):
         proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = self._threshold
 
     def test_readonly_turns_increment_the_streak(self):
-        """Consecutive turns using only read-only tools grow the streak."""
+        """Consecutive turns using only read tools grow the streak."""
         m = proxy.SessionMonitor(context_window=131072)
         for _ in range(5):
             m.record_tool_calls(["Read"])
-        self.assertEqual(m.consecutive_readonly_turns, 5)
+        self.assertEqual(m.consecutive_no_write_turns, 5)
         m.record_tool_calls(["Grep", "Glob"])
-        self.assertEqual(m.consecutive_readonly_turns, 6)
+        self.assertEqual(m.consecutive_no_write_turns, 6)
 
-    def test_non_readonly_tool_resets_the_streak(self):
+    def test_bash_and_webfetch_turns_increment_the_streak(self):
+        """The core fix: exploration via Bash/WebFetch/Agent — tools the old
+        read-only allowlist did not recognize — must grow the streak. The
+        old logic reset on every such turn, so the streak never built."""
+        m = proxy.SessionMonitor(context_window=131072)
+        m.record_tool_calls(["Bash"])
+        m.record_tool_calls(["WebFetch"])
+        m.record_tool_calls(["Agent"])
+        m.record_tool_calls(["Read", "Bash"])  # mixed exploration, no write
+        self.assertEqual(m.consecutive_no_write_turns, 4)
+
+    def test_write_tool_resets_the_streak(self):
         """A turn using a write/edit tool means the model converged toward
-        action — the streak resets to 0."""
+        output — the streak resets to 0."""
         m = proxy.SessionMonitor(context_window=131072)
         for _ in range(10):
-            m.record_tool_calls(["Read"])
-        self.assertEqual(m.consecutive_readonly_turns, 10)
+            m.record_tool_calls(["Bash"])
+        self.assertEqual(m.consecutive_no_write_turns, 10)
         m.record_tool_calls(["Write"])
-        self.assertEqual(m.consecutive_readonly_turns, 0)
+        self.assertEqual(m.consecutive_no_write_turns, 0)
 
     def test_mixed_turn_with_one_write_resets(self):
-        """A turn mixing read-only and a write tool still counts as
-        converging — any non-read-only tool resets."""
+        """A turn mixing exploration and a write tool still counts as
+        converging — any write tool resets."""
         m = proxy.SessionMonitor(context_window=131072)
         for _ in range(10):
             m.record_tool_calls(["Read"])
         m.record_tool_calls(["Read", "Edit"])
-        self.assertEqual(m.consecutive_readonly_turns, 0)
+        self.assertEqual(m.consecutive_no_write_turns, 0)
+
+    def test_no_tool_turn_leaves_streak_unchanged(self):
+        """A plain-text turn (no tool calls) is neither exploration nor a
+        write — it must leave the streak untouched, not reset it."""
+        m = proxy.SessionMonitor(context_window=131072)
+        for _ in range(7):
+            m.record_tool_calls(["Bash"])
+        self.assertEqual(m.consecutive_no_write_turns, 7)
+        m.record_tool_calls([])  # plain-text turn
+        self.assertEqual(m.consecutive_no_write_turns, 7)
+        m.record_tool_calls(["Read"])
+        self.assertEqual(m.consecutive_no_write_turns, 8)
 
     def test_no_injection_below_threshold(self):
         proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
         m = proxy.SessionMonitor(context_window=131072)
-        m.consecutive_readonly_turns = 39
+        m.consecutive_no_write_turns = 39
         body = {"messages": [{"role": "user", "content": "go"}]}
         proxy._maybe_inject_recon_convergence(body, m)
         self.assertEqual(len(body["messages"]), 1)
@@ -5425,7 +5451,7 @@ class TestReconConvergence(unittest.TestCase):
     def test_firm_directive_at_threshold(self):
         proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
         m = proxy.SessionMonitor(context_window=131072)
-        m.consecutive_readonly_turns = 45
+        m.consecutive_no_write_turns = 45
         m.last_input_tokens = 120000
         body = {"messages": [{"role": "user", "content": "go"}]}
         proxy._maybe_inject_recon_convergence(body, m)
@@ -5438,7 +5464,7 @@ class TestReconConvergence(unittest.TestCase):
         """Once the streak is 2x over threshold, escalate to a hard STOP."""
         proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
         m = proxy.SessionMonitor(context_window=131072)
-        m.consecutive_readonly_turns = 80
+        m.consecutive_no_write_turns = 80
         m.last_input_tokens = 250000  # over budget — the real-incident shape
         body = {"messages": [{"role": "user", "content": "go"}]}
         proxy._maybe_inject_recon_convergence(body, m)
@@ -5448,7 +5474,7 @@ class TestReconConvergence(unittest.TestCase):
     def test_disabled_when_threshold_zero(self):
         proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 0
         m = proxy.SessionMonitor(context_window=131072)
-        m.consecutive_readonly_turns = 500
+        m.consecutive_no_write_turns = 500
         body = {"messages": [{"role": "user", "content": "go"}]}
         proxy._maybe_inject_recon_convergence(body, m)
         self.assertEqual(len(body["messages"]), 1)
