@@ -224,6 +224,16 @@ PROXY_FINALIZE_CONTINUATION_MAX = int(
 PROXY_FINALIZE_SESSION_HARD_CAP = int(
     os.environ.get("PROXY_FINALIZE_SESSION_HARD_CAP", "3")
 )
+# Recon-convergence guardrail: after this many consecutive turns of PURE
+# read-only exploration (Read/Grep/Glob/etc. — no write/edit/deliverable
+# tool), the proxy injects a directive telling the model to stop exploring
+# and produce its deliverable. Targets the failure mode where an agentic
+# recon task reads files for hundreds of turns and never converges to the
+# synthesis/write step (observed: 664-turn recon, no deliverable started).
+# 0 disables.
+PROXY_RECON_CONVERGENCE_THRESHOLD = int(
+    os.environ.get("PROXY_RECON_CONVERGENCE_THRESHOLD", "40")
+)
 PROXY_STREAM_REASONING_FALLBACK = (
     os.environ.get("PROXY_STREAM_REASONING_FALLBACK", "off").strip().lower()
 )
@@ -716,6 +726,7 @@ class SessionMonitor:
     )
     loop_warnings_emitted: int = 0  # How many loop warnings sent to the model
     no_progress_streak: int = 0  # Forced tool turns without new tool_result
+    consecutive_readonly_turns: int = 0  # turns of pure read-only exploration (B1)
     unexpected_end_turn_count: int = 0  # end_turn without tool_use in active loop
     tool_starvation_streak: int = 0  # Consecutive forced turns with no tool_calls produced
     malformed_tool_streak: int = 0  # consecutive malformed pseudo tool payloads
@@ -872,6 +883,16 @@ class SessionMonitor:
         # Keep last 30 entries
         if len(self.tool_call_history) > 30:
             self.tool_call_history = self.tool_call_history[-30:]
+
+        # Recon-convergence (B1): count consecutive turns of PURE read-only
+        # exploration. A turn that uses any non-read-only tool (write, edit,
+        # a deliverable tool) resets the streak — that's the model
+        # converging from exploration toward synthesis/action.
+        _ro = {n.lower() for n in _READ_ONLY_TOOL_CLASS}
+        if tool_names and all(n.lower() in _ro for n in tool_names):
+            self.consecutive_readonly_turns += 1
+        else:
+            self.consecutive_readonly_turns = 0
 
         # Track read-only tool targets for dedup (Option 3)
         if tool_targets:
@@ -3218,6 +3239,51 @@ def _resolve_state_machine_tool_choice(
     return None, "unknown_phase"
 
 
+def _maybe_inject_recon_convergence(openai_body: dict, monitor: "SessionMonitor") -> None:
+    """Nudge a session stuck in prolonged read-only exploration toward its
+    deliverable.
+
+    Fires when `consecutive_readonly_turns` crosses
+    PROXY_RECON_CONVERGENCE_THRESHOLD — the model has read files for many
+    turns without writing anything. Targets the observed failure mode of
+    an agentic recon task wandering for hundreds of turns and never
+    converging to the synthesis/write step. Two escalation tiers: a firm
+    "switch to synthesis" directive, then a hard "STOP, write it now" once
+    the streak is 2x over threshold.
+    """
+    if PROXY_RECON_CONVERGENCE_THRESHOLD <= 0:
+        return
+    streak = monitor.consecutive_readonly_turns
+    if streak < PROXY_RECON_CONVERGENCE_THRESHOLD:
+        return
+    util = monitor.get_utilization()
+    if streak >= 2 * PROXY_RECON_CONVERGENCE_THRESHOLD:
+        directive = (
+            f"STOP exploring. You have run {streak} consecutive turns of "
+            f"read-only exploration and context is at {util * 100:.0f}%. "
+            "You will NOT finish if you keep reading files. Produce your "
+            "deliverable NOW from the information you already have — write "
+            "it to a file with the appropriate tool. Do not read anything else."
+        )
+        tier = "hard"
+    else:
+        directive = (
+            f"You have read files for {streak} consecutive turns without "
+            f"producing a deliverable (context {util * 100:.0f}%). You have "
+            "enough to begin. Switch from exploration to synthesis: write "
+            "your deliverable now. Read at most one more file, and only if "
+            "strictly required to write it."
+        )
+        tier = "firm"
+    msgs = openai_body.get("messages", [])
+    msgs.append({"role": "user", "content": directive})
+    openai_body["messages"] = msgs
+    logger.warning(
+        "RECON CONVERGENCE: injected %s directive (readonly_streak=%d, ctx=%.0f%%)",
+        tier, streak, util * 100,
+    )
+
+
 def build_openai_request(
     anthropic_body: dict,
     monitor: SessionMonitor,
@@ -3724,6 +3790,11 @@ def build_openai_request(
             )
 
         _apply_tool_call_grammar(openai_body, grammar_override=profile_grammar)
+
+    # Recon-convergence guardrail (B1) — runs on every built request so a
+    # session wandering in read-only exploration is nudged toward its
+    # deliverable regardless of tool-turn phase.
+    _maybe_inject_recon_convergence(openai_body, monitor)
 
     return openai_body
 
