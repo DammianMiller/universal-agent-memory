@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.49 (2026-05-18)
+
+- proxy: context pruner rework — cache-stable boundary + finding breadcrumbs
+
+
 ## v1.20.48 (2026-05-18)
 
 - proxy: recon-convergence guardrail — nudge stuck explorers to the deliverable
