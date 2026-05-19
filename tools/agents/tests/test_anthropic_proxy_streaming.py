@@ -5479,6 +5479,84 @@ class TestReconConvergence(unittest.TestCase):
         proxy._maybe_inject_recon_convergence(body, m)
         self.assertEqual(len(body["messages"]), 1)
 
+    @staticmethod
+    def _tool(name: str) -> dict:
+        return {"type": "function", "function": {"name": name, "description": f"{name} tool"}}
+
+    def test_dropped_write_tool_is_restored_when_directive_fires(self):
+        """The core fix: if narrowing left no write tool in the request,
+        a firing directive re-injects it from the full pre-narrowing set."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_no_write_turns = 45
+        # narrowed toolset — exploration tools only, no write tool
+        body = {
+            "messages": [{"role": "user", "content": "go"}],
+            "tools": [self._tool("Read"), self._tool("Grep"), self._tool("Bash")],
+        }
+        # full pre-narrowing set DID include a write tool
+        full = body["tools"] + [self._tool("Edit")]
+        proxy._maybe_inject_recon_convergence(body, m, full)
+        names = [t["function"]["name"] for t in body["tools"]]
+        self.assertIn("Edit", names)
+
+    def test_present_write_tool_not_duplicated(self):
+        """If a write tool already survived narrowing, it is not added twice."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_no_write_turns = 45
+        body = {
+            "messages": [{"role": "user", "content": "go"}],
+            "tools": [self._tool("Read"), self._tool("Edit")],
+        }
+        full = list(body["tools"])
+        proxy._maybe_inject_recon_convergence(body, m, full)
+        names = [t["function"]["name"] for t in body["tools"]]
+        self.assertEqual(names.count("Edit"), 1)
+
+    def test_no_write_tool_anywhere_is_safe(self):
+        """A recon agent whose toolset has no write tool at all: nothing to
+        restore, no crash."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_no_write_turns = 45
+        body = {
+            "messages": [{"role": "user", "content": "go"}],
+            "tools": [self._tool("Read"), self._tool("Bash")],
+        }
+        proxy._maybe_inject_recon_convergence(body, m, list(body["tools"]))
+        names = [t["function"]["name"] for t in body["tools"]]
+        self.assertEqual(names, ["Read", "Bash"])
+
+    def test_full_tools_omitted_is_safe(self):
+        """Called without full_tools (default None) — directive still fires,
+        no tool restoration attempted, no crash."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_no_write_turns = 45
+        body = {
+            "messages": [{"role": "user", "content": "go"}],
+            "tools": [self._tool("Read")],
+        }
+        proxy._maybe_inject_recon_convergence(body, m)
+        self.assertEqual(len(body["messages"]), 2)
+        self.assertEqual([t["function"]["name"] for t in body["tools"]], ["Read"])
+
+    def test_no_restore_below_threshold(self):
+        """Below threshold the directive does not fire, so no write tool is
+        restored even if narrowing dropped one."""
+        proxy.PROXY_RECON_CONVERGENCE_THRESHOLD = 40
+        m = proxy.SessionMonitor(context_window=131072)
+        m.consecutive_no_write_turns = 39
+        body = {
+            "messages": [{"role": "user", "content": "go"}],
+            "tools": [self._tool("Read")],
+        }
+        full = body["tools"] + [self._tool("Write")]
+        proxy._maybe_inject_recon_convergence(body, m, full)
+        names = [t["function"]["name"] for t in body["tools"]]
+        self.assertEqual(names, ["Read"])
+
 
 class TestPrunerRework(unittest.TestCase):
     """Tests for the reworked context pruner (B2 + B3): contiguous
