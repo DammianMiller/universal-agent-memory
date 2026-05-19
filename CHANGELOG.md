@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.20.51 (2026-05-19)
+
+- proxy: B1 restores the write tool that narrowing drops
+
+
 ## v1.20.50 (2026-05-18)
 
 - proxy: B1 recon-convergence — track write-tool absence, not read-tool presence
