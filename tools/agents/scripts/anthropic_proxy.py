@@ -3288,7 +3288,11 @@ def _resolve_state_machine_tool_choice(
     return None, "unknown_phase"
 
 
-def _maybe_inject_recon_convergence(openai_body: dict, monitor: "SessionMonitor") -> None:
+def _maybe_inject_recon_convergence(
+    openai_body: dict,
+    monitor: "SessionMonitor",
+    full_tools: list[dict] | None = None,
+) -> None:
     """Nudge a session stuck in prolonged exploration toward its deliverable.
 
     Fires when `consecutive_no_write_turns` crosses
@@ -3298,6 +3302,13 @@ def _maybe_inject_recon_convergence(openai_body: dict, monitor: "SessionMonitor"
     of turns and never converging to the synthesis/write step. Two
     escalation tiers: a firm "switch to synthesis" directive, then a hard
     "STOP, write it now" once the streak is 2x over threshold.
+
+    `full_tools` is the request's tool list *before* `_narrow_tools_for_request`
+    pruned it. When the directive fires, any write/deliverable tool that
+    narrowing dropped is re-injected into `openai_body["tools"]` — narrowing
+    scores tools against the (exploration-heavy) recon prompt and runs before
+    this guardrail, so it routinely strips the very write tool the directive
+    tells the model to use, leaving the directive impossible to satisfy.
     """
     if PROXY_RECON_CONVERGENCE_THRESHOLD <= 0:
         return
@@ -3327,9 +3338,28 @@ def _maybe_inject_recon_convergence(openai_body: dict, monitor: "SessionMonitor"
     msgs = openai_body.get("messages", [])
     msgs.append({"role": "user", "content": directive})
     openai_body["messages"] = msgs
+
+    # Re-inject any write/deliverable tool that narrowing dropped, so the
+    # "write your deliverable" directive is actually satisfiable. Without
+    # this the model is told to write but has no write tool to call, picks
+    # another read tool, and the streak climbs unbounded.
+    restored: list[str] = []
+    if full_tools:
+        present = {
+            (t.get("function", {}).get("name", "") or "").lower()
+            for t in openai_body.get("tools", [])
+        }
+        for tool in full_tools:
+            name = (tool.get("function", {}).get("name", "") or "")
+            if name.lower() in _WRITE_TOOL_CLASS and name.lower() not in present:
+                openai_body.setdefault("tools", []).append(tool)
+                present.add(name.lower())
+                restored.append(name)
+
     logger.warning(
-        "RECON CONVERGENCE: injected %s directive (no_write_streak=%d, ctx=%.0f%%)",
-        tier, streak, util * 100,
+        "RECON CONVERGENCE: injected %s directive (no_write_streak=%d, ctx=%.0f%%, "
+        "restored_write_tools=%s)",
+        tier, streak, util * 100, restored or "none",
     )
 
 
@@ -3575,10 +3605,14 @@ def build_openai_request(
             )
 
     # Convert Anthropic tools to OpenAI function-calling tools
+    full_openai_tools: list[dict] = []
     if has_tools:
         openai_body["tools"] = _convert_anthropic_tools_to_openai(
             anthropic_body.get("tools", [])
         )
+        # Keep the full (pre-narrowing) list so the recon-convergence
+        # guardrail can restore a write tool that narrowing dropped.
+        full_openai_tools = openai_body["tools"]
         openai_body["tools"] = _narrow_tools_for_request(
             anthropic_body, openai_body["tools"]
         )
@@ -3842,8 +3876,9 @@ def build_openai_request(
 
     # Recon-convergence guardrail (B1) — runs on every built request so a
     # session wandering in exploration without producing a write is nudged
-    # toward its deliverable regardless of tool-turn phase.
-    _maybe_inject_recon_convergence(openai_body, monitor)
+    # toward its deliverable regardless of tool-turn phase. Passed the full
+    # pre-narrowing toolset so it can restore a dropped write tool.
+    _maybe_inject_recon_convergence(openai_body, monitor, full_openai_tools)
 
     return openai_body
 
